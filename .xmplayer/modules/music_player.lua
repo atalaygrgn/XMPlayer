@@ -13,7 +13,6 @@ music.playlist = {}        -- List of tracks from current folder
 music.source = nil         -- love.audio Source object
 music.elapsed = 0          -- Elapsed time in seconds
 music.duration = 0         -- Total duration in seconds
-music.volume = 0.8
 music.cover_art = nil      -- love.graphics Image for album art
 music.tag_title = nil      -- Embedded ID3 title
 music.tag_artist = nil     -- Embedded ID3 artist
@@ -25,23 +24,27 @@ music.scrub_position = 0
 -- Animation
 music.title_marquee_offset = 0
 music.title_marquee_timer = 0
-music.artist_marquee_offset = 0
-music.artist_marquee_timer = 0
 music.fade_alpha = 0       -- Fade-in animation
 
 -- Fonts (set during init)
 local title_font
 local artist_font
-local time_font
+local time_font_elapsed
+local time_font_dur
 local small_font
 local music_icon  -- fallback icon when no cover art
+local play_icon   -- play status icon
+local pause_icon  -- pause status icon
 
 function music.init()
-    title_font = love.graphics.newFont(24)
+    title_font = love.graphics.newFont(26)
     artist_font = love.graphics.newFont(20)
-    time_font = love.graphics.newFont(20)
+    time_font_elapsed = love.graphics.newFont(24)
+    time_font_dur = love.graphics.newFont(20)
     small_font = love.graphics.newFont(18)
     music_icon = love.graphics.newImage("assets/icons/music.png")
+    play_icon = love.graphics.newImage("assets/icons/play.png")
+    pause_icon = love.graphics.newImage("assets/icons/pause.png")
 end
 
 local function build_playlist()
@@ -221,6 +224,7 @@ function music.load_track(track_info)
     if music.source then
         music.source:stop()
         music.source = nil
+        music.sound_data = nil
     end
 
     -- Clear previous metadata
@@ -232,8 +236,6 @@ function music.load_track(track_info)
     music.elapsed = 0
     music.title_marquee_offset = 0
     music.title_marquee_timer = 0
-    music.artist_marquee_offset = 0
-    music.artist_marquee_timer = 0
 
     -- Use io.open to read the file into memory, then create Source from FileData
     local file_handle = io.open(track_info.path, "rb")
@@ -264,14 +266,15 @@ function music.load_track(track_info)
 
     local ok, result = pcall(function()
         local fd = love.filesystem.newFileData(file_data_raw, track_info.name)
-        local source = love.audio.newSource(fd, "stream")
+        -- Keep SoundData for visualization
+        music.sound_data = love.sound.newSoundData(fd)
+        local source = love.audio.newSource(music.sound_data)
         return source
     end)
 
     if ok and result then
         music.source = result
-        music.source:setVolume(music.volume)
-        music.duration = music.source:getDuration()
+        music.duration = music.sound_data:getDuration()
         if music.duration <= 0 then music.duration = 0 end
         music.source:play()
         music.playing = true
@@ -312,6 +315,7 @@ function music.stop()
     if music.source then
         music.source:stop()
         music.source = nil
+        music.sound_data = nil
     end
     music.playing = false
     music.paused = false
@@ -399,22 +403,7 @@ function music.update(dt)
             music.title_marquee_timer = 0
         end
 
-        -- Artist marquee
-        local artist_name = music.tag_artist or music.current_track.path:match(".*/(.+)/[^/]+$") or "Unknown"
-        local artist_text_w = artist_font:getWidth(artist_name)
-        if artist_text_w > info_w then
-            music.artist_marquee_timer = music.artist_marquee_timer + dt
-            if music.artist_marquee_timer > 1.5 then
-                music.artist_marquee_offset = music.artist_marquee_offset + dt * 40
-                if music.artist_marquee_offset > artist_text_w + 50 then
-                    music.artist_marquee_offset = -info_w * 0.6
-                    music.artist_marquee_timer = 0
-                end
-            end
-        else
-            music.artist_marquee_offset = 0
-            music.artist_marquee_timer = 0
-        end
+
     end
 end
 
@@ -424,8 +413,8 @@ function music.draw()
     local w = love.graphics.getWidth()
     local h = love.graphics.getHeight()
 
-    -- Full-screen dark background
-    love.graphics.setColor(0.06, 0.06, 0.12, music.fade_alpha)
+    -- Subtle light overlay to improve text contrast on light background
+    love.graphics.setColor(1, 1, 1, 0.3 * music.fade_alpha)
     love.graphics.rectangle("fill", 0, 0, w, h)
 
     -- iPod Classic layout
@@ -436,26 +425,26 @@ function music.draw()
     local alpha = music.fade_alpha
 
     -- ─── Header ───
-    love.graphics.setColor(1, 1, 1, 0.6 * alpha)
+    love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha)
     love.graphics.setFont(small_font)
-    love.graphics.printf("Now Playing", 0, 20, w, "center")
+    love.graphics.printf("XMPlayer", 20, 10, w, "left")
 
     -- Track counter
     if #music.playlist > 0 then
         love.graphics.printf(
             music.current_index .. " of " .. #music.playlist,
-            0, 20, w - 16, "right"
+            0, 10, w - 16, "right"
         )
     end
 
     -- Thin separator line
-    love.graphics.setColor(1, 1, 1, 0.15 * alpha)
-    love.graphics.rectangle("fill", 20, 60, w - 40, 1)
+    love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
+    love.graphics.rectangle("fill", 20, 40, w - 40, 1)
 
     -- ─── Album Art Square ───
-    local art_size = math.min(w, h) * 0.5
-    local art_x = w * 0.1
-    local art_y = h * 0.5 - art_size / 2
+    local art_size = math.min(w, h) * 0.3
+    local art_x = w * 0.05
+    local art_y = 60 -- art_size / 2
 
     if music.cover_art then
         -- Draw cover art scaled to fit the square
@@ -468,12 +457,12 @@ function music.draw()
         local offset_y = (art_size - draw_h) / 2
 
         -- Subtle shadow behind the art
-        love.graphics.setColor(0, 0, 0, 0.4 * alpha)
+        love.graphics.setColor(theme.colors.shadow[1], theme.colors.shadow[2], theme.colors.shadow[3], theme.colors.shadow[4] * alpha)
         love.graphics.rectangle("fill", art_x + 3, art_y + 3, art_size, art_size, 6, 6)
 
         -- Art border
-        love.graphics.setColor(0.2, 0.22, 0.3, 0.6 * alpha)
-        love.graphics.rectangle("fill", art_x - 2, art_y - 2, art_size + 4, art_size + 4, 6, 6)
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
+        love.graphics.rectangle("fill", art_x - 4, art_y - 4, art_size + 8, art_size + 8, 6, 6)
 
         -- The cover art image
         love.graphics.setColor(1, 1, 1, alpha)
@@ -485,11 +474,11 @@ function music.draw()
         love.graphics.rectangle("fill", art_x + 3, art_y + 3, art_size, art_size, 6, 6)
 
         -- Square background
-        love.graphics.setColor(0.1, 0.12, 0.18, 0.9 * alpha)
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.05 * alpha)
         love.graphics.rectangle("fill", art_x, art_y, art_size, art_size, 6, 6)
 
         -- Border
-        love.graphics.setColor(0.25, 0.28, 0.38, 0.5 * alpha)
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
         love.graphics.setLineWidth(1)
         love.graphics.rectangle("line", art_x, art_y, art_size, art_size, 6, 6)
 
@@ -501,15 +490,15 @@ function music.draw()
         local icon_draw_x = art_x + (art_size - icon_w * icon_scale) / 2
         local icon_draw_y = art_y + (art_size - icon_h * icon_scale) / 2
 
-        love.graphics.setColor(0.5, 0.55, 0.7, 0.5 * alpha)
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.2 * alpha)
         love.graphics.draw(music_icon, icon_draw_x, icon_draw_y, 0, icon_scale, icon_scale)
     end
 
     -- ─── Track Info (right side of disc) ───
     if music.current_track then
-        local info_x = w * 0.52
-        local info_y = h * 0.28
-        local info_w = w * 0.44
+        local info_x = w * 0.3
+        local info_y = 60
+        local info_w = w * 0.6
 
         -- Track title (with marquee if needed)
         local track_name = music.tag_title or get_track_name(music.current_track.name)
@@ -518,7 +507,7 @@ function music.draw()
 
         -- Clip region for title marquee
         love.graphics.setScissor(info_x, info_y, info_w, 30)
-        love.graphics.setColor(1, 1, 1, alpha)
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], alpha)
         if title_text_w > info_w then
             love.graphics.print(track_name, info_x - music.title_marquee_offset, info_y)
         else
@@ -526,59 +515,100 @@ function music.draw()
         end
         love.graphics.setScissor()
 
-        -- Artist name (with marquee if needed)
+        -- Thin separator line
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
+        love.graphics.rectangle("fill", info_x, info_y + 40, info_w, 1)
+
         local artist_name = music.tag_artist or music.current_track.path:match(".*/(.+)/[^/]+$") or "Unknown"
         love.graphics.setFont(artist_font)
-        local artist_text_w = artist_font:getWidth(artist_name)
-
-        love.graphics.setScissor(info_x, info_y + 30, info_w, 26)
-        love.graphics.setColor(0.7, 0.7, 0.8, 0.7 * alpha)
-        if artist_text_w > info_w then
-            love.graphics.print(artist_name, info_x - music.artist_marquee_offset, info_y + 30)
-        else
-            love.graphics.print(artist_name, info_x, info_y + 30)
+        
+        -- Truncate artist name if too long
+        local display_artist = artist_name
+        if artist_font:getWidth(artist_name) > info_w then
+            for i = #artist_name, 1, -1 do
+                local sub = artist_name:sub(1, i) .. "..."
+                if artist_font:getWidth(sub) <= info_w then
+                    display_artist = sub
+                    break
+                end
+            end
         end
-        love.graphics.setScissor()
 
-        -- Status indicator
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha)
+        love.graphics.print(display_artist, info_x, info_y + 50)
+
+        -- ─── Extra Track Info (Next Track & File Type) ───
+        local extra_y = info_y + 85
         love.graphics.setFont(small_font)
-        love.graphics.setColor(0.5, 0.6, 0.9, 0.6 * alpha)
-        local status = music.paused and "❙❙ Paused" or (music.playing and "► Playing" or "■ Stopped")
-        love.graphics.print(status, info_x, info_y + 50)
+        
+        -- Left: Next Track
+        if #music.playlist > 1 then
+            local next_idx = music.current_index + 1
+            if next_idx > #music.playlist then next_idx = 1 end
+            local next_track = music.playlist[next_idx]
+            
+            -- Try to get a clean name (this is a simplified check since we haven't loaded tags for the next track yet)
+            local next_name = "Next: " .. get_track_name(next_track.name)
+            
+            -- Truncate if too long (using a slightly smaller area than the title/artist)
+            local next_w_max = info_w * 0.7
+            local display_next = next_name
+            if small_font:getWidth(next_name) > next_w_max then
+                for i = #next_name, 1, -1 do
+                    local sub = next_name:sub(1, i) .. "..."
+                    if small_font:getWidth(sub) <= next_w_max then
+                        display_next = sub
+                        break
+                    end
+                end
+            end
+            
+            love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha)
+            love.graphics.print(display_next, info_x, extra_y)
+        end
 
-        -- Volume bar
-        local vol_x = info_x
-        local vol_y = info_y + 72
-        local vol_w = info_w * 0.6
-        local vol_h = 4
+        -- Right: File Type
+        local ext = music.current_track.path:match("%.([^%.]+)$")
+        if ext then
+            love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.3 * alpha)
+            local type_str = ext:upper()
+            local type_w = small_font:getWidth(type_str)
+            love.graphics.print(type_str, info_x + info_w - type_w, extra_y)
+        end
 
-        love.graphics.setFont(small_font)
-        love.graphics.setColor(0.6, 0.6, 0.7, 0.5 * alpha)
-        love.graphics.print("Vol", vol_x, vol_y - 2)
+        -- Status indicator (bottom left)
+        local status_x = 24
+        local status_y = h - 60
+        local icon_size = 48
+        
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.6 * alpha)
+        if music.paused then
+            local scale = icon_size / pause_icon:getWidth()
+            love.graphics.draw(pause_icon, status_x, status_y, 0, scale, scale)
+        elseif music.playing then
+            local scale = icon_size / play_icon:getWidth()
+            love.graphics.draw(play_icon, status_x, status_y, 0, scale, scale)
+        end
 
-        local bar_x = vol_x + 30
-        love.graphics.setColor(1, 1, 1, 0.1 * alpha)
-        love.graphics.rectangle("fill", bar_x, vol_y, vol_w, vol_h, 2, 2)
-        love.graphics.setColor(0.5, 0.6, 0.9, 0.7 * alpha)
-        love.graphics.rectangle("fill", bar_x, vol_y, vol_w * music.volume, vol_h, 2, 2)
     end
 
-    -- ─── Progress Bar ───
-    local bar_y = h - 60
-    local bar_x = 30
-    local bar_w = w - 60
+    -- ─── Progress Bar ─── (bottom right)
+    local bar_w = w * 0.4
     local bar_h = 4
+    local bar_y = h - 30
+    local bar_x = w - bar_w - 30
 
     -- Time labels
-    love.graphics.setFont(time_font)
-    love.graphics.setColor(1, 1, 1, 0.8 * alpha)
-    love.graphics.print(format_time(music.elapsed), bar_x, bar_y - 22)
+    love.graphics.setFont(time_font_elapsed)
+    love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.9 * alpha)
+    love.graphics.print(format_time(music.elapsed), bar_x + bar_w - 120, bar_y - 36)
 
+    love.graphics.setFont(time_font_dur)
     local dur_text = format_time(music.duration)
-    love.graphics.printf(dur_text, 0, bar_y - 22, w - bar_x, "right")
+    love.graphics.printf("/ " .. dur_text, 0, bar_y - 30, bar_x + bar_w, "right")
 
     -- Bar background
-    love.graphics.setColor(1, 1, 1, 0.12 * alpha)
+    love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
     love.graphics.rectangle("fill", bar_x, bar_y, bar_w, bar_h, 2, 2)
 
     -- Bar fill
@@ -590,16 +620,16 @@ function music.draw()
     love.graphics.rectangle("fill", bar_x, bar_y, bar_w * progress, bar_h, 2, 2)
 
     -- Playhead dot
-    local dot_x = bar_x + bar_w * progress
-    love.graphics.setColor(1, 1, 1, alpha)
-    love.graphics.circle("fill", dot_x, bar_y + bar_h / 2, 6)
-    love.graphics.setColor(0.55, 0.65, 1.0, alpha)
-    love.graphics.circle("fill", dot_x, bar_y + bar_h / 2, 4)
+    --local dot_x = bar_x + bar_w * progress
+    --love.graphics.setColor(1, 1, 1, alpha)
+    --love.graphics.circle("fill", dot_x, bar_y + bar_h / 2, 10)
+    --love.graphics.setColor(0.55, 0.65, 1.0, alpha)
+    --love.graphics.circle("fill", dot_x, bar_y + bar_h / 2, 8)
 
     -- ─── Controls Hint ───
-    love.graphics.setFont(small_font)
-    love.graphics.setColor(1, 1, 1, 0.35 * alpha)
-    love.graphics.printf("A Play/Pause  ◄► Prev/Next  ▲▼ Volume  B Back", 0, h - 22, w, "center")
+    --love.graphics.setFont(small_font)
+    --love.graphics.setColor(1, 1, 1, 0.35 * alpha)
+    --love.graphics.printf("(A) Play/Pause  ◄► Prev/Next  ▲▼ Volume  (B) Back", 0, h - 22, w, "center")
 end
 
 function music.keypressed(key)
@@ -613,14 +643,6 @@ function music.keypressed(key)
         return true
     elseif key == "left" then
         music.prev_track()
-        return true
-    elseif key == "up" then
-        music.volume = math.min(1.0, music.volume + 0.05)
-        if music.source then music.source:setVolume(music.volume) end
-        return true
-    elseif key == "down" then
-        music.volume = math.max(0.0, music.volume - 0.05)
-        if music.source then music.source:setVolume(music.volume) end
         return true
     elseif key == "b" or key == "backspace" then
         music.close()

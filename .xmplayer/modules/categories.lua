@@ -8,7 +8,7 @@ local categories = {
     },
     { 
         id = "photo", 
-        name = "Photos", 
+        name = "Photo", 
         icon = "assets/icons/photo.png", 
         path = "/mnt/sdcard/MUSIC",
         filter = "photo"
@@ -22,14 +22,14 @@ local categories = {
     },
     { 
         id = "video", 
-        name = "Videos", 
+        name = "Video", 
         icon = "assets/icons/video.png", 
         path = "/mnt/sdcard/ROMS/Video",
         filter = "video"
     },
     { 
         id = "folder", 
-        name = "Folders", 
+        name = "Files", 
         icon = "assets/icons/folder.png", 
         path = "/mnt/sdcard",
         filter = nil -- Show all

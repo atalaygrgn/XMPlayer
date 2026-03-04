@@ -1,8 +1,11 @@
+package.path = package.path .. ";modules/?.lua"
 local theme = require("theme")
 local player = require("player")
 local categories = require("categories")
 local xmb = require("xmb")
 local music = require("music_player")
+local background = require("background")
+local viewer = require("image_viewer")
 
 -- Framebuffer refresh counter (flush all swap buffers after MPV)
 local refresh_frames_remaining = 0
@@ -24,10 +27,12 @@ function love.load()
     images.photo_icon = love.graphics.newImage("assets/icons/photo.png")
 
     fonts.main = love.graphics.newFont(24)
-    fonts.small = love.graphics.newFont(18)
+    fonts.small = love.graphics.newFont(20)
     
     -- Init subsystems
     music.init()
+    background.init()
+    viewer.init()
     
     -- Initial scan
     xmb.refresh_browser()
@@ -44,11 +49,17 @@ function love.update(dt)
     end
     
     -- Update music player if active, otherwise update XMB
+    local is_paused = true
     if music.active then
         music.update(dt)
+        is_paused = music.paused
+    elseif viewer.active then
+        viewer.update(dt)
+        is_paused = true
     else
-        xmb.update(dt)
+        xmb.update(dt, fonts)
     end
+    background.update(dt, is_paused)
 end
 
 function love.draw()
@@ -58,9 +69,8 @@ function love.draw()
     -- Force full clear every frame (essential for embedded devices)
     love.graphics.clear(theme.colors.background[1], theme.colors.background[2], theme.colors.background[3], 1)
     
-    -- Draw solid opaque background (covers any stale framebuffer)
-    love.graphics.setColor(theme.colors.background[1], theme.colors.background[2], theme.colors.background[3], 1)
-    love.graphics.rectangle("fill", 0, 0, screen_w, screen_h)
+    -- Draw animated background
+    background.draw(music)
     
     -- During refresh period, just draw the solid background and return
     if refresh_frames_remaining > 0 then
@@ -71,18 +81,21 @@ function love.draw()
     if music.active then
         -- Music player takes over the full screen
         music.draw()
+    elseif viewer.active then
+        -- Image viewer takes over the full screen
+        viewer.draw()
     else
-        -- Draw Background image on top
-        love.graphics.setColor(1, 1, 1, 0.4)
+        -- Draw Background image on top (subtle)
+        love.graphics.setColor(1, 1, 1, 0.1)
         love.graphics.draw(bg_image, 0, 0, 0, screen_w / bg_image:getWidth(), screen_h / bg_image:getHeight())
         
         -- Draw XMB
         xmb.draw(images, fonts)
         
         -- Clock and info
-        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
         love.graphics.setFont(fonts.small)
-        love.graphics.print(os.date("%H:%M:%S"), 20, 20)
+        love.graphics.print(os.date("%H:%M"), 20, 20)
         love.graphics.print("XMPlayer v0.1", screen_w - 160, 20)
     end
 end
@@ -97,10 +110,15 @@ function love.keypressed(key)
         end
         return
     end
+
+    if viewer.active then
+        viewer.keypressed(key)
+        return
+    end
     
     if key == "escape" then
         love.event.quit()
     else
-        xmb.keypressed(key, player, music)
+        xmb.keypressed(key, player, music, viewer, fonts)
     end
 end

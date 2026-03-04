@@ -10,7 +10,7 @@ function player.play(filepath)
     
     -- Switch gptokeyb to MPV controls
     os.execute("killall -9 gptokeyb2 2>/dev/null")
-    os.execute("./gptokeyb2 mpv -c ./mpvplayer.gptk &")
+    os.execute("./bin/gptokeyb2 mpv -c ./config/mpvplayer.gptk &")
     
     -- Launch MPV (blocks until MPV exits)
     local command = "mpv \"" .. filepath .. "\""
@@ -23,7 +23,7 @@ function player.play(filepath)
     
     -- Switch gptokeyb back to XMPlayer controls
     os.execute("killall -9 gptokeyb2 2>/dev/null")
-    os.execute("./gptokeyb2 love -c ./xmplayer.gptk &")
+    os.execute("./bin/gptokeyb2 love -c ./config/xmplayer.gptk &")
     
     -- Signal that we need a hard display refresh
     player.needs_refresh = true

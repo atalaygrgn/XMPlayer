@@ -20,7 +20,7 @@ GOV_GO="/tmp/gov_go"
 # Define paths
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 APP_DIR="$SCRIPT_DIR/.xmplayer"
-GPTOKEYB="$APP_DIR/gptokeyb2"
+GPTOKEYB="$APP_DIR/bin/gptokeyb2"
 
 # Redirections for debugging
 echo "Starting XMPlayer Script" > "$APP_DIR/log.txt"
@@ -33,7 +33,7 @@ export SDL_GAMECONTROLLERCONFIG_FILE="/usr/lib/gamecontrollerdb.txt"
 export LD_LIBRARY_PATH="$APP_DIR/libs:$LD_LIBRARY_PATH"
 
 # Ensure binaries are executable
-chmod +x "$APP_DIR/love"
+chmod +x "$APP_DIR/bin/love"
 chmod +x "$GPTOKEYB"
 
 # Launch Application
@@ -42,9 +42,9 @@ SET_VAR "system" "foreground_process" "love"
 
 # Run with gptokeyb mapping
 echo "Launching gptokeyb..."
-$GPTOKEYB "love" -c "$APP_DIR/xmplayer.gptk" &
+$GPTOKEYB "love" -c "$APP_DIR/config/xmplayer.gptk" &
 echo "Launching love binary..."
-./love .
+./bin/love .
 
 # Cleanup
 kill -9 "$(pidof gptokeyb2)"
