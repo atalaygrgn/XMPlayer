@@ -7,32 +7,14 @@ local music = require("music_player")
 local background = require("background")
 local viewer = require("image_viewer")
 local settings = require("settings")
+local assets = require("assets")
 
 -- Framebuffer refresh counter (flush all swap buffers after MPV)
 local refresh_frames_remaining = 0
 
--- Assets
-local images = {}
-local bg_image
-local fonts = {}
-local sfx = {}
-
 function love.load()
     -- Load assets
-
-    for _, cat in ipairs(categories) do
-        images[cat.id] = love.graphics.newImage(cat.icon)
-    end
-    images.folder_icon = love.graphics.newImage("assets/icons/folder.png")
-    images.video_icon = love.graphics.newImage("assets/icons/video.png")
-    images.music_icon = love.graphics.newImage("assets/icons/music.png")
-    images.photo_icon = love.graphics.newImage("assets/icons/photo.png")
-
-    fonts.main = love.graphics.newFont(24)
-    fonts.small = love.graphics.newFont(20)
-    
-    -- Load SFX
-    sfx.nav = love.audio.newSource("assets/sfx/keytone.wav", "static")
+    assets.load(categories)
     
     -- Init subsystems
     music.init()
@@ -65,14 +47,13 @@ function love.update(dt)
         viewer.update(dt)
         is_paused = true
     else
-        xmb.update(dt, fonts, sfx)
+        xmb.update(dt)
     end
     background.update(dt, is_paused)
 end
 
 function love.draw()
-    local screen_w = love.graphics.getWidth()
-    local screen_h = love.graphics.getHeight()
+    local screen_w, screen_h = love.graphics.getDimensions()
     
     -- Force full clear every frame (essential for embedded devices)
     love.graphics.clear(theme.colors.background[1], theme.colors.background[2], theme.colors.background[3], 1)
@@ -87,27 +68,21 @@ function love.draw()
     end
     
     if music.active then
-        -- Music player takes over the full screen
         music.draw()
     elseif viewer.active then
-        -- Image viewer takes over the full screen
         viewer.draw()
     else
-
-        
-        -- Draw XMB
-        xmb.draw(images, fonts)
+        xmb.draw()
         
         -- Clock and info
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
-        love.graphics.setFont(fonts.small)
+        love.graphics.setFont(assets.fonts.small)
         love.graphics.print(os.date("%H:%M"), 20, 20)
         love.graphics.print("XMPlayer v0.1", screen_w - 160, 20)
     end
 end
 
 function love.keypressed(key)
-    -- Music player intercepts input when active
     if music.active then
         if key == "escape" then
             music.close()
@@ -125,6 +100,6 @@ function love.keypressed(key)
     if key == "escape" then
         love.event.quit()
     else
-        xmb.keypressed(key, player, music, viewer, fonts, sfx)
+        xmb.keypressed(key, player, music, viewer)
     end
 end

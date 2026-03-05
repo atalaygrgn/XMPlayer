@@ -1,5 +1,4 @@
-local theme = require("theme")
-local browser = require("browser")
+local assets = require("assets")
 
 local viewer = {}
 
@@ -18,10 +17,8 @@ viewer.fade_alpha = 0
 local zoom_speed = 1.2
 local pan_speed = 400
 
-local font_small
-
 function viewer.init()
-    font_small = love.graphics.newFont(18)
+    -- Subsystem init happens in assets.load()
 end
 
 function viewer.open(path, files_list)
@@ -32,7 +29,7 @@ function viewer.open(path, files_list)
     -- Build playlist from the provided files_list (from browser)
     viewer.playlist = {}
     local valid_exts = {jpg=true, jpeg=true, png=true, bmp=true, tga=true}
-    for i, file in ipairs(files_list) do
+    for _, file in ipairs(files_list) do
         if file.type == "file" then
             local ext = file.path:match("%.([^%.]+)$")
             if ext and valid_exts[ext:lower()] then
@@ -54,10 +51,8 @@ function viewer.open(path, files_list)
 end
 
 function viewer.load_image(path)
-    -- Use io.open to read the file into memory, then create Image from FileData
     local file_handle = io.open(path, "rb")
     if not file_handle then
-        print("Failed to open file: " .. path)
         viewer.current_image = nil
         return false
     end
@@ -66,7 +61,6 @@ function viewer.load_image(path)
     file_handle:close()
 
     if not file_data_raw or #file_data_raw == 0 then
-        print("Empty file: " .. path)
         viewer.current_image = nil
         return false
     end
@@ -90,10 +84,8 @@ end
 function viewer.reset_view()
     if not viewer.current_image then return end
     
-    local w = love.graphics.getWidth()
-    local h = love.graphics.getHeight()
-    local img_w = viewer.current_image:getWidth()
-    local img_h = viewer.current_image:getHeight()
+    local w, h = love.graphics.getDimensions()
+    local img_w, img_h = viewer.current_image:getDimensions()
     
     local scale_w = w / img_w
     local scale_h = h / img_h
@@ -134,7 +126,6 @@ function viewer.update(dt)
         viewer.fade_alpha = math.min(1, viewer.fade_alpha + dt * 4)
     end
     
-    -- Handle panning when Y is held
     if love.keyboard.isDown("y") then
         if love.keyboard.isDown("up") then viewer.pan_y = viewer.pan_y + pan_speed * dt end
         if love.keyboard.isDown("down") then viewer.pan_y = viewer.pan_y - pan_speed * dt end
@@ -146,8 +137,7 @@ end
 function viewer.draw()
     if not viewer.active then return end
     
-    local w = love.graphics.getWidth()
-    local h = love.graphics.getHeight()
+    local w, h = love.graphics.getDimensions()
     
     -- Black background
     love.graphics.setColor(0, 0, 0, viewer.fade_alpha)
@@ -155,26 +145,21 @@ function viewer.draw()
     
     if viewer.current_image then
         love.graphics.setColor(1, 1, 1, viewer.fade_alpha)
-        local img_w = viewer.current_image:getWidth()
-        local img_h = viewer.current_image:getHeight()
-        
-        -- Draw centered with current pan and zoom
+        local img_w, img_h = viewer.current_image:getDimensions()
         love.graphics.draw(viewer.current_image, viewer.pan_x, viewer.pan_y, 0, viewer.zoom, viewer.zoom, img_w / 2, img_h / 2)
     else
         love.graphics.setColor(1, 1, 1, viewer.fade_alpha)
         love.graphics.printf("No image loaded", 0, h/2, w, "center")
     end
     
-    -- Filename and counter with subtle background for legibility
     if #viewer.playlist > 0 and viewer.playlist[viewer.current_index] then
         local item = viewer.playlist[viewer.current_index]
         
-        -- Subtle gradient/shadow at bottom
         love.graphics.setColor(0, 0, 0, 0.4 * viewer.fade_alpha)
         love.graphics.rectangle("fill", 0, h - 50, w, 50)
         
         love.graphics.setColor(1, 1, 1, 0.8 * viewer.fade_alpha)
-        love.graphics.setFont(font_small) -- Use the pre-created font
+        love.graphics.setFont(assets.fonts.xs)
         
         local info_str = string.format("[%d/%d] %s", viewer.current_index, #viewer.playlist, item.name)
         love.graphics.printf(info_str, 20, h - 35, w - 40, "right")
@@ -184,14 +169,12 @@ end
 function viewer.keypressed(key)
     if not viewer.active then return false end
     
-    -- Escape: exit
     if key == "escape" then
         viewer.close()
         return true
     end
     
-    -- Controls per requirement
-    if key == "a" or key == "return" or key == "enter" then
+    if key == "a" or key == "return" then
         viewer.reset_view()
         return true
     elseif key == "x" then

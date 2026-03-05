@@ -1,4 +1,6 @@
 local theme = require("theme")
+local assets = require("assets")
+local utils = require("utils")
 local categories = require("categories")
 
 local settings = {}
@@ -39,7 +41,7 @@ settings.options = {
         type = "choice",
         group = "theme_settings",
         choices = {"Light", "Dark"},
-        value = 1
+        value = 2
     },
     {
         id = "theme_color",
@@ -159,10 +161,6 @@ function settings.enter_group(group_id)
     settings.current_group = group_id
 end
 
-local function lerp(a, b, t)
-    return a + (b - a) * t
-end
-
 function settings.update(dt, setting_idx)
     if settings.active then
         settings.alpha = math.min(1, settings.alpha + dt * 10)
@@ -188,44 +186,38 @@ function settings.update(dt, setting_idx)
         settings.alpha = math.max(0, settings.alpha - dt * 10)
     end
     
-    settings.scroll_y = lerp(settings.scroll_y, settings.target_scroll_y or 0, dt * 10)
+    settings.scroll_y = utils.lerp(settings.scroll_y, settings.target_scroll_y or 0, dt * 10)
 end
 
-function settings.draw_popup(setting_idx, fonts)
+function settings.draw_popup(setting_idx)
     local opt = settings.options[setting_idx]
     if not opt or opt.type ~= "choice" or settings.alpha <= 0 then return end
 
-    local screen_w = love.graphics.getWidth()
-    local screen_h = love.graphics.getHeight()
-    
+    local screen_w, screen_h = love.graphics.getDimensions()
     local panel_w = screen_w * 0.5
     local item_h = 50
-    
     local alpha = settings.alpha
     local x = screen_w - (panel_w * alpha)
     local y = 0
-    local h = screen_h
 
     -- Panel Background
     love.graphics.setColor(0.02, 0.02, 0.05, 0.92 * alpha)
-    love.graphics.rectangle("fill", x, y, panel_w, h)
+    love.graphics.rectangle("fill", x, y, panel_w, screen_h)
     
     -- Left accent border
     love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.8 * alpha)
-    love.graphics.rectangle("fill", x, y, 4, h)
+    love.graphics.rectangle("fill", x, y, 4, screen_h)
 
     -- Content Container
     local content_y_base = screen_h * 0.3
     local visible_area_h = screen_h * 0.6
     
-    -- Scissor for scrolling area
     love.graphics.setScissor(x, content_y_base, panel_w, visible_area_h)
-    
     love.graphics.push()
     love.graphics.translate(0, content_y_base + settings.scroll_y)
 
     -- Choices
-    love.graphics.setFont(fonts.small)
+    love.graphics.setFont(assets.fonts.small)
     for i, choice in ipairs(opt.choices) do
         local cy = (i-1) * item_h
         local is_selected = (i == settings.selected_option_idx)
@@ -233,7 +225,7 @@ function settings.draw_popup(setting_idx, fonts)
         
         if is_selected then
             love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.3 * alpha)
-            love.graphics.rectangle("fill", x + 4, cy - 5, panel_w - 4, item_h, 0, 0)
+            love.graphics.rectangle("fill", x + 4, cy - 5, panel_w - 4, item_h)
             
             love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 1 * alpha)
             love.graphics.rectangle("fill", x + 4, cy - 5, 4, item_h)
@@ -254,29 +246,18 @@ function settings.draw_popup(setting_idx, fonts)
     love.graphics.pop()
     love.graphics.setScissor()
     
-    -- Optional: Draw scroll indicators if content is larger than visible area
+    -- Scroll indicators
     if #opt.choices * item_h > visible_area_h then
-        love.graphics.setFont(fonts.small)
         love.graphics.setColor(1, 1, 1, 0.3 * alpha)
+        local centerX = x + panel_w / 2
         if settings.scroll_y < 0 then
-            local centerX = x + panel_w / 2
-            local centerY = content_y_base - 20
-            love.graphics.polygon("fill", centerX - 10, centerY + 6, centerX + 10, centerY + 6, centerX, centerY - 6)
+            love.graphics.polygon("fill", centerX-10, content_y_base-14, centerX+10, content_y_base-14, centerX, content_y_base-26)
         end
         if settings.scroll_y > -(#opt.choices * item_h) + visible_area_h then
-            local centerX = x + panel_w / 2
-            local centerY = content_y_base + visible_area_h + 20
-            love.graphics.polygon("fill", centerX - 10, centerY - 6, centerX + 10, centerY - 6, centerX, centerY + 6)
+            local targetY = content_y_base + visible_area_h + 14
+            love.graphics.polygon("fill", centerX-10, targetY, centerX+10, targetY, centerX, targetY+12)
         end
     end
-end
-
-function settings.load()
-    -- Optional: Load from file
-end
-
-function settings.save()
-    -- Optional: Save to file
 end
 
 return settings

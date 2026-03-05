@@ -1,4 +1,6 @@
 local theme = require("theme")
+local utils = require("utils")
+
 local background = {}
 
 local particles = {}
@@ -7,8 +9,7 @@ local speed = 1.0
 local target_speed = 1.0
 
 function background.init()
-    screen_w = love.graphics.getWidth()
-    screen_h = love.graphics.getHeight()
+    screen_w, screen_h = love.graphics.getDimensions()
     
     -- Initialize particles
     for i = 1, 50 do
@@ -25,7 +26,7 @@ end
 function background.update(dt, is_paused)
     target_speed = is_paused and 0.15 or 1.0
     -- Smoothly transition speed
-    speed = speed + (target_speed - speed) * dt * 2
+    speed = utils.lerp(speed, target_speed, dt * 2)
     
     -- Update particles
     for _, p in ipairs(particles) do
@@ -91,11 +92,6 @@ local function draw_waveform(music)
 end
 
 function background.draw(music)
-    local w = screen_w
-    local h = screen_h
-    
-    -- Background is cleared in main.lua with theme color
-    
     -- Draw reactive waveform
     if music and music.playing then
         draw_waveform(music)
@@ -106,13 +102,6 @@ function background.draw(music)
         love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], p.alpha * 0.5)
         love.graphics.circle("fill", p.x, p.y, p.size)
     end
-    
-    -- Depth overlays (subtle light gradients/vignettes)
-    -- love.graphics.setColor(1, 1, 1, 0.4)
-    -- love.graphics.rectangle("fill", 0, 0, w, h * 0.3)
-    
-    -- love.graphics.setColor(0.8, 0.9, 1.0, 0.2)
-    -- love.graphics.rectangle("fill", 0, h * 0.7, w, h * 0.3)
 end
 
 return background
