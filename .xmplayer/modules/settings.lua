@@ -1,0 +1,282 @@
+local theme = require("theme")
+local categories = require("categories")
+
+local settings = {}
+
+settings.active = false
+settings.alpha = 0
+settings.selected_option_idx = 1
+settings.scroll_y = 0
+settings.target_scroll_y = 0
+settings.keytone_enabled = true
+
+-- Current submenu depth for settings category
+settings.current_group = nil  -- nil = top-level groups, string = group id
+
+-- Grouped settings
+settings.groups = {
+    {
+        id = "theme_settings",
+        name = "Theme Settings",
+        icon = "settings",
+    },
+    {
+        id = "media_dirs",
+        name = "Media Directories",
+        icon = "folder",
+    },
+    {
+        id = "general",
+        name = "General",
+        icon = "settings",
+    },
+}
+
+settings.options = {
+    {
+        id = "theme",
+        name = "Theme",
+        type = "choice",
+        group = "theme_settings",
+        choices = {"Light", "Dark"},
+        value = 1
+    },
+    {
+        id = "theme_color",
+        name = "Theme Color",
+        type = "choice",
+        group = "theme_settings",
+        choices = {"Blue", "Red", "Green", "Teal", "Purple", "Yellow", "Orange"},
+        value = 1
+    },
+    {
+        id = "photo_dir",
+        name = "Photo Directory",
+        type = "path",
+        group = "media_dirs",
+        value = "/mnt/sdcard/PICTURES"
+    },
+    {
+        id = "music_dir",
+        name = "Music Directory",
+        type = "path",
+        group = "media_dirs",
+        value = "/mnt/sdcard/MUSIC"
+    },
+    {
+        id = "video_dir",
+        name = "Video Directory",
+        type = "path",
+        group = "media_dirs",
+        value = "/mnt/sdcard/ROMS/Video"
+    },
+    {
+        id = "keytone",
+        name = "Keytone",
+        type = "choice",
+        group = "general",
+        choices = {"On", "Off"},
+        value = 1
+    }
+}
+
+-- Helper to find option by id
+function settings.get_option(id)
+    for _, opt in ipairs(settings.options) do
+        if opt.id == id then return opt end
+    end
+    return nil
+end
+
+function settings.apply()
+    local opt_theme = settings.get_option("theme")
+    local opt_color = settings.get_option("theme_color")
+    theme.apply(opt_theme.choices[opt_theme.value], opt_color.choices[opt_color.value])
+
+    -- Update categories paths
+    local opt_photo = settings.get_option("photo_dir")
+    local opt_music = settings.get_option("music_dir")
+    local opt_video = settings.get_option("video_dir")
+    for _, cat in ipairs(categories) do
+        if cat.id == "photo" then cat.path = opt_photo.value
+        elseif cat.id == "music" then cat.path = opt_music.value
+        elseif cat.id == "video" then cat.path = opt_video.value
+        end
+    end
+    
+    -- Update keytone
+    local opt_keytone = settings.get_option("keytone")
+    settings.keytone_enabled = (opt_keytone.value == 1)
+end
+
+function settings.get_browser_items()
+    if settings.current_group then
+        -- Show options within the selected group
+        local items = {}
+        for i, opt in ipairs(settings.options) do
+            if opt.group == settings.current_group then
+                local display_value = ""
+                if opt.type == "choice" then
+                    display_value = opt.choices[opt.value]
+                else
+                    display_value = tostring(opt.value)
+                end
+                table.insert(items, {
+                    name = opt.name .. ": " .. display_value,
+                    type = "setting",
+                    setting_idx = i
+                })
+            end
+        end
+        return items
+    else
+        -- Show top-level groups
+        local items = {}
+        for i, grp in ipairs(settings.groups) do
+            table.insert(items, {
+                name = grp.name,
+                type = "settings_group",
+                group_idx = i,
+                group_id = grp.id
+            })
+        end
+        return items
+    end
+end
+
+-- Check if we're inside a settings submenu
+function settings.in_submenu()
+    return settings.current_group ~= nil
+end
+
+-- Go back to top-level settings groups
+function settings.go_back()
+    settings.current_group = nil
+end
+
+-- Enter a group
+function settings.enter_group(group_id)
+    settings.current_group = group_id
+end
+
+local function lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+function settings.update(dt, setting_idx)
+    if settings.active then
+        settings.alpha = math.min(1, settings.alpha + dt * 10)
+        
+        -- Update scroll
+        if setting_idx then
+            local opt = settings.options[setting_idx]
+            if opt and opt.choices then
+                local item_h = 50
+                local screen_h = love.graphics.getHeight()
+                local visible_area_h = screen_h * 0.6
+                
+                -- Target scroll to keep selected item near the middle of visible area
+                settings.target_scroll_y = -(settings.selected_option_idx - 1) * item_h + (visible_area_h / 2) - (item_h / 2)
+                
+                -- Clamp scroll
+                local max_scroll = 0
+                local min_scroll = math.min(0, -(#opt.choices * item_h) + visible_area_h)
+                settings.target_scroll_y = math.max(min_scroll, math.min(max_scroll, settings.target_scroll_y))
+            end
+        end
+    else
+        settings.alpha = math.max(0, settings.alpha - dt * 10)
+    end
+    
+    settings.scroll_y = lerp(settings.scroll_y, settings.target_scroll_y or 0, dt * 10)
+end
+
+function settings.draw_popup(setting_idx, fonts)
+    local opt = settings.options[setting_idx]
+    if not opt or opt.type ~= "choice" or settings.alpha <= 0 then return end
+
+    local screen_w = love.graphics.getWidth()
+    local screen_h = love.graphics.getHeight()
+    
+    local panel_w = screen_w * 0.5
+    local item_h = 50
+    
+    local alpha = settings.alpha
+    local x = screen_w - (panel_w * alpha)
+    local y = 0
+    local h = screen_h
+
+    -- Panel Background
+    love.graphics.setColor(0.02, 0.02, 0.05, 0.92 * alpha)
+    love.graphics.rectangle("fill", x, y, panel_w, h)
+    
+    -- Left accent border
+    love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.8 * alpha)
+    love.graphics.rectangle("fill", x, y, 4, h)
+
+    -- Content Container
+    local content_y_base = screen_h * 0.3
+    local visible_area_h = screen_h * 0.6
+    
+    -- Scissor for scrolling area
+    love.graphics.setScissor(x, content_y_base, panel_w, visible_area_h)
+    
+    love.graphics.push()
+    love.graphics.translate(0, content_y_base + settings.scroll_y)
+
+    -- Choices
+    love.graphics.setFont(fonts.small)
+    for i, choice in ipairs(opt.choices) do
+        local cy = (i-1) * item_h
+        local is_selected = (i == settings.selected_option_idx)
+        local is_current = (i == opt.value)
+        
+        if is_selected then
+            love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.3 * alpha)
+            love.graphics.rectangle("fill", x + 4, cy - 5, panel_w - 4, item_h, 0, 0)
+            
+            love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 1 * alpha)
+            love.graphics.rectangle("fill", x + 4, cy - 5, 4, item_h)
+            
+            love.graphics.setColor(1, 1, 1, 1 * alpha)
+        else
+            love.graphics.setColor(1, 1, 1, 0.6 * alpha)
+        end
+        
+        love.graphics.print(choice, x + 40, cy + 5)
+        
+        if is_current then
+            love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 1 * alpha)
+            love.graphics.circle("fill", x + 25, cy + item_h/2 - 6, 4)
+        end
+    end
+    
+    love.graphics.pop()
+    love.graphics.setScissor()
+    
+    -- Optional: Draw scroll indicators if content is larger than visible area
+    if #opt.choices * item_h > visible_area_h then
+        love.graphics.setFont(fonts.small)
+        love.graphics.setColor(1, 1, 1, 0.3 * alpha)
+        if settings.scroll_y < 0 then
+            local centerX = x + panel_w / 2
+            local centerY = content_y_base - 20
+            love.graphics.polygon("fill", centerX - 10, centerY + 6, centerX + 10, centerY + 6, centerX, centerY - 6)
+        end
+        if settings.scroll_y > -(#opt.choices * item_h) + visible_area_h then
+            local centerX = x + panel_w / 2
+            local centerY = content_y_base + visible_area_h + 20
+            love.graphics.polygon("fill", centerX - 10, centerY - 6, centerX + 10, centerY - 6, centerX, centerY + 6)
+        end
+    end
+end
+
+function settings.load()
+    -- Optional: Load from file
+end
+
+function settings.save()
+    -- Optional: Save to file
+end
+
+return settings

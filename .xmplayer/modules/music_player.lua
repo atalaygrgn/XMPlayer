@@ -16,6 +16,7 @@ music.duration = 0         -- Total duration in seconds
 music.cover_art = nil      -- love.graphics Image for album art
 music.tag_title = nil      -- Embedded ID3 title
 music.tag_artist = nil     -- Embedded ID3 artist
+music.tag_album = nil      -- Embedded ID3 album
 
 -- Scrubber state
 music.scrubbing = false
@@ -24,11 +25,19 @@ music.scrub_position = 0
 -- Animation
 music.title_marquee_offset = 0
 music.title_marquee_timer = 0
+music.title_marquee_phase = "pause_start"
+music.artist_marquee_offset = 0
+music.artist_marquee_timer = 0
+music.artist_marquee_phase = "pause_start"
+music.album_marquee_offset = 0
+music.album_marquee_timer = 0
+music.album_marquee_phase = "pause_start"
 music.fade_alpha = 0       -- Fade-in animation
 
 -- Fonts (set during init)
 local title_font
 local artist_font
+local album_font
 local time_font_elapsed
 local time_font_dur
 local small_font
@@ -39,6 +48,7 @@ local pause_icon  -- pause status icon
 function music.init()
     title_font = love.graphics.newFont(26)
     artist_font = love.graphics.newFont(20)
+    album_font = love.graphics.newFont(18)
     time_font_elapsed = love.graphics.newFont(24)
     time_font_dur = love.graphics.newFont(20)
     small_font = love.graphics.newFont(18)
@@ -231,11 +241,19 @@ function music.load_track(track_info)
     music.cover_art = nil
     music.tag_title = nil
     music.tag_artist = nil
+    music.tag_album = nil
 
     music.current_track = track_info
     music.elapsed = 0
     music.title_marquee_offset = 0
     music.title_marquee_timer = 0
+    music.title_marquee_phase = "pause_start"
+    music.artist_marquee_offset = 0
+    music.artist_marquee_timer = 0
+    music.artist_marquee_phase = "pause_start"
+    music.album_marquee_offset = 0
+    music.album_marquee_timer = 0
+    music.album_marquee_phase = "pause_start"
 
     -- Use io.open to read the file into memory, then create Source from FileData
     local file_handle = io.open(track_info.path, "rb")
@@ -257,6 +275,7 @@ function music.load_track(track_info)
     -- Try to extract embedded metadata from the raw file data
     music.tag_title = extract_id3_text_frame(file_data_raw, "TIT2")
     music.tag_artist = extract_id3_text_frame(file_data_raw, "TPE1")
+    music.tag_album = extract_id3_text_frame(file_data_raw, "TALB")
     music.cover_art = extract_id3_cover(file_data_raw)
 
     -- If no embedded art, look for folder cover images
@@ -390,20 +409,94 @@ function music.update(dt)
         local track_name = music.tag_title or get_track_name(music.current_track.name)
         local title_text_w = title_font:getWidth(track_name)
         if title_text_w > info_w then
+            local max_offset = title_text_w - info_w + 20
             music.title_marquee_timer = music.title_marquee_timer + dt
-            if music.title_marquee_timer > 1.5 then
+            if music.title_marquee_phase == "pause_start" then
+                if music.title_marquee_timer > 3 then
+                    music.title_marquee_phase = "scrolling"
+                    music.title_marquee_timer = 0
+                end
+            elseif music.title_marquee_phase == "scrolling" then
                 music.title_marquee_offset = music.title_marquee_offset + dt * 40
-                if music.title_marquee_offset > title_text_w + 50 then
-                    music.title_marquee_offset = -info_w * 0.6
+                if music.title_marquee_offset >= max_offset then
+                    music.title_marquee_offset = max_offset
+                    music.title_marquee_phase = "pause_end"
+                    music.title_marquee_timer = 0
+                end
+            elseif music.title_marquee_phase == "pause_end" then
+                if music.title_marquee_timer > 1.0 then
+                    music.title_marquee_offset = 0
+                    music.title_marquee_phase = "pause_start"
                     music.title_marquee_timer = 0
                 end
             end
         else
             music.title_marquee_offset = 0
             music.title_marquee_timer = 0
+            music.title_marquee_phase = "pause_start"
         end
 
+        -- Artist marquee
+        local artist_name = music.tag_artist or music.current_track.path:match(".*/(.+)/[^/]+$") or "Unknown"
+        local artist_text_w = artist_font:getWidth(artist_name)
+        if artist_text_w > info_w then
+            local max_offset = artist_text_w - info_w + 20
+            music.artist_marquee_timer = music.artist_marquee_timer + dt
+            if music.artist_marquee_phase == "pause_start" then
+                if music.artist_marquee_timer > 3 then
+                    music.artist_marquee_phase = "scrolling"
+                    music.artist_marquee_timer = 0
+                end
+            elseif music.artist_marquee_phase == "scrolling" then
+                music.artist_marquee_offset = music.artist_marquee_offset + dt * 40
+                if music.artist_marquee_offset >= max_offset then
+                    music.artist_marquee_offset = max_offset
+                    music.artist_marquee_phase = "pause_end"
+                    music.artist_marquee_timer = 0
+                end
+            elseif music.artist_marquee_phase == "pause_end" then
+                if music.artist_marquee_timer > 1.0 then
+                    music.artist_marquee_offset = 0
+                    music.artist_marquee_phase = "pause_start"
+                    music.artist_marquee_timer = 0
+                end
+            end
+        else
+            music.artist_marquee_offset = 0
+            music.artist_marquee_timer = 0
+            music.artist_marquee_phase = "pause_start"
+        end
 
+        -- Album marquee
+        local album_name = music.tag_album or "Unknown Album"
+        local album_text_w = album_font:getWidth(album_name)
+        if album_text_w > info_w then
+            local max_offset = album_text_w - info_w + 20
+            music.album_marquee_timer = music.album_marquee_timer + dt
+            if music.album_marquee_phase == "pause_start" then
+                if music.album_marquee_timer > 3 then
+                    music.album_marquee_phase = "scrolling"
+                    music.album_marquee_timer = 0
+                end
+            elseif music.album_marquee_phase == "scrolling" then
+                music.album_marquee_offset = music.album_marquee_offset + dt * 40
+                if music.album_marquee_offset >= max_offset then
+                    music.album_marquee_offset = max_offset
+                    music.album_marquee_phase = "pause_end"
+                    music.album_marquee_timer = 0
+                end
+            elseif music.album_marquee_phase == "pause_end" then
+                if music.album_marquee_timer > 1.0 then
+                    music.album_marquee_offset = 0
+                    music.album_marquee_phase = "pause_start"
+                    music.album_marquee_timer = 0
+                end
+            end
+        else
+            music.album_marquee_offset = 0
+            music.album_marquee_timer = 0
+            music.album_marquee_phase = "pause_start"
+        end
     end
 end
 
@@ -412,10 +505,6 @@ function music.draw()
 
     local w = love.graphics.getWidth()
     local h = love.graphics.getHeight()
-
-    -- Subtle light overlay to improve text contrast on light background
-    love.graphics.setColor(1, 1, 1, 0.3 * music.fade_alpha)
-    love.graphics.rectangle("fill", 0, 0, w, h)
 
     -- iPod Classic layout
     -- Top: "Now Playing" header
@@ -519,26 +608,36 @@ function music.draw()
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
         love.graphics.rectangle("fill", info_x, info_y + 40, info_w, 1)
 
+        -- Artist name (with marquee if needed)
         local artist_name = music.tag_artist or music.current_track.path:match(".*/(.+)/[^/]+$") or "Unknown"
         love.graphics.setFont(artist_font)
-        
-        -- Truncate artist name if too long
-        local display_artist = artist_name
-        if artist_font:getWidth(artist_name) > info_w then
-            for i = #artist_name, 1, -1 do
-                local sub = artist_name:sub(1, i) .. "..."
-                if artist_font:getWidth(sub) <= info_w then
-                    display_artist = sub
-                    break
-                end
-            end
-        end
+        local artist_text_w = artist_font:getWidth(artist_name)
 
+        love.graphics.setScissor(info_x, info_y + 46, info_w, 26)
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha)
-        love.graphics.print(display_artist, info_x, info_y + 50)
+        if artist_text_w > info_w then
+            love.graphics.print(artist_name, info_x - music.artist_marquee_offset, info_y + 46)
+        else
+            love.graphics.print(artist_name, info_x, info_y + 46)
+        end
+        love.graphics.setScissor()
+
+        -- Album name (with marquee if needed)
+        local album_name = music.tag_album or "Unknown Album"
+        love.graphics.setFont(album_font)
+        local album_text_w = album_font:getWidth(album_name)
+
+        love.graphics.setScissor(info_x, info_y + 74, info_w, 24)
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha)
+        if album_text_w > info_w then
+            love.graphics.print(album_name, info_x - music.album_marquee_offset, info_y + 74)
+        else
+            love.graphics.print(album_name, info_x, info_y + 74)
+        end
+        love.graphics.setScissor()
 
         -- ─── Extra Track Info (Next Track & File Type) ───
-        local extra_y = info_y + 85
+        local extra_y = info_y + 110
         love.graphics.setFont(small_font)
         
         -- Left: Next Track
@@ -581,7 +680,7 @@ function music.draw()
         local status_y = h - 60
         local icon_size = 48
         
-        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.6 * alpha)
+        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.8 * alpha)
         if music.paused then
             local scale = icon_size / pause_icon:getWidth()
             love.graphics.draw(pause_icon, status_x, status_y, 0, scale, scale)

@@ -3,14 +3,14 @@ local categories = {
         id = "settings", 
         name = "Settings", 
         icon = "assets/icons/settings.png",
-        path = nil, -- Settings might have its own logic
+        path = nil,
         filter = nil
     },
     { 
         id = "photo", 
         name = "Photo", 
         icon = "assets/icons/photo.png", 
-        path = "/mnt/sdcard/MUSIC",
+        path = "/mnt/sdcard/PICTURES",
         filter = "photo"
     },
     { 

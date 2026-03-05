@@ -1,3 +1,4 @@
+local theme = require("theme")
 local background = {}
 
 local particles = {}
@@ -65,7 +66,7 @@ local function draw_waveform(music)
         local layer_speed = (layer == 1) and 1.0 or (layer == 2) and 0.7 or 0.4
         local layer_freq = (layer == 1) and 1.0 or (layer == 2) and 0.6 or 0.3
         
-        love.graphics.setColor(0.3, 0.5, 0.9, opacity * (music.paused and 0.3 or 1.0))
+        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], opacity * (music.paused and 0.3 or 1.0))
         love.graphics.setLineWidth(layer == 1 and 2 or 1)
         
         for i = 0, samples do
@@ -93,18 +94,16 @@ function background.draw(music)
     local w = screen_w
     local h = screen_h
     
-    -- Light base
-    love.graphics.setColor(0.92, 0.96, 1.0, 1)
-    love.graphics.rectangle("fill", 0, 0, w, h)
+    -- Background is cleared in main.lua with theme color
     
     -- Draw reactive waveform
     if music and music.playing then
         draw_waveform(music)
     end
     
-    -- Draw particles (darker for light theme to be visible)
+    -- Draw particles
     for _, p in ipairs(particles) do
-        love.graphics.setColor(0.2, 0.4, 0.7, p.alpha * 0.5)
+        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], p.alpha * 0.5)
         love.graphics.circle("fill", p.x, p.y, p.size)
     end
     

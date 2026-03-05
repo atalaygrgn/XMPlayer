@@ -6,6 +6,7 @@ local xmb = require("xmb")
 local music = require("music_player")
 local background = require("background")
 local viewer = require("image_viewer")
+local settings = require("settings")
 
 -- Framebuffer refresh counter (flush all swap buffers after MPV)
 local refresh_frames_remaining = 0
@@ -14,10 +15,11 @@ local refresh_frames_remaining = 0
 local images = {}
 local bg_image
 local fonts = {}
+local sfx = {}
 
 function love.load()
     -- Load assets
-    bg_image = love.graphics.newImage("assets/bg.jpg")
+
     for _, cat in ipairs(categories) do
         images[cat.id] = love.graphics.newImage(cat.icon)
     end
@@ -29,10 +31,16 @@ function love.load()
     fonts.main = love.graphics.newFont(24)
     fonts.small = love.graphics.newFont(20)
     
+    -- Load SFX
+    sfx.nav = love.audio.newSource("assets/sfx/keytone.wav", "static")
+    
     -- Init subsystems
     music.init()
     background.init()
     viewer.init()
+    
+    -- Apply initial settings
+    settings.apply()
     
     -- Initial scan
     xmb.refresh_browser()
@@ -57,7 +65,7 @@ function love.update(dt)
         viewer.update(dt)
         is_paused = true
     else
-        xmb.update(dt, fonts)
+        xmb.update(dt, fonts, sfx)
     end
     background.update(dt, is_paused)
 end
@@ -85,9 +93,7 @@ function love.draw()
         -- Image viewer takes over the full screen
         viewer.draw()
     else
-        -- Draw Background image on top (subtle)
-        love.graphics.setColor(1, 1, 1, 0.1)
-        love.graphics.draw(bg_image, 0, 0, 0, screen_w / bg_image:getWidth(), screen_h / bg_image:getHeight())
+
         
         -- Draw XMB
         xmb.draw(images, fonts)
@@ -119,6 +125,6 @@ function love.keypressed(key)
     if key == "escape" then
         love.event.quit()
     else
-        xmb.keypressed(key, player, music, viewer, fonts)
+        xmb.keypressed(key, player, music, viewer, fonts, sfx)
     end
 end
