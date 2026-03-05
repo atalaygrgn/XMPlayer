@@ -7,6 +7,7 @@ local particles = {}
 local screen_w, screen_h
 local speed = 1.0
 local target_speed = 1.0
+local gradient_mesh
 
 function background.init()
     screen_w, screen_h = love.graphics.getDimensions()
@@ -21,6 +22,15 @@ function background.init()
             alpha = 0.1 + math.random() * 0.4
         })
     end
+
+    -- Create a mesh for the gradient background
+    local vertices = {
+        {0, 0, 0, 0, 1, 1, 1, 1},
+        {screen_w, 0, 0, 0, 1, 1, 1, 1},
+        {screen_w, screen_h, 0, 0, 1, 1, 1, 1},
+        {0, screen_h, 0, 0, 1, 1, 1, 1},
+    }
+    gradient_mesh = love.graphics.newMesh(vertices, "fan", "static")
 end
 
 function background.update(dt, is_paused)
@@ -92,6 +102,30 @@ local function draw_waveform(music)
 end
 
 function background.draw(music)
+    -- Update gradient colors based on theme
+    if gradient_mesh then
+        local bg = theme.colors.background
+        local acc = theme.accent
+        
+        -- Subtle gradient from background color to a tinted version
+        local c1 = {bg[1], bg[2], bg[3], 1}
+        local tint = 0.6
+        local c2 = {
+            bg[1] * (1 - tint) + acc[1] * tint,
+            bg[2] * (1 - tint) + acc[2] * tint,
+            bg[3] * (1 - tint) + acc[3] * tint,
+            1
+        }
+        
+        gradient_mesh:setVertex(1, 0, 0, 0, 0, c1[1], c1[2], c1[3], c1[4])
+        gradient_mesh:setVertex(2, screen_w, 0, 0, 0, c1[1], c1[2], c1[3], c1[4])
+        gradient_mesh:setVertex(3, screen_w, screen_h, 0, 0, c2[1], c2[2], c2[3], c2[4])
+        gradient_mesh:setVertex(4, 0, screen_h, 0, 0, c2[1], c2[2], c2[3], c2[4])
+        
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(gradient_mesh)
+    end
+
     -- Draw reactive waveform
     if music and music.playing then
         draw_waveform(music)
@@ -105,3 +139,4 @@ function background.draw(music)
 end
 
 return background
+

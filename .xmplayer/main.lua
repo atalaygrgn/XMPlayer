@@ -10,10 +10,17 @@ local settings = require("settings")
 local assets = require("assets")
 local indexing = require("indexing")
 local ui = require("ui")
+local utils = require("utils")
+
 
 -- Framebuffer refresh counter (flush all swap buffers after MPV)
 local refresh_frames_remaining = 0
 local scan_co = nil
+
+-- Battery status caching
+local battery_percentage = nil
+local battery_timer = 0
+local BATTERY_UPDATE_INTERVAL = 10 -- Update every 10 seconds
 
 function love.load()
     -- Load assets
@@ -31,7 +38,7 @@ function love.load()
     indexing.load()
     
     -- Trigger indexing if no data or requested
-    if not indexing.data.music.files or not next(indexing.data.music.files) then
+    if not next(indexing.data.music.files) or not next(indexing.data.photos) then
         local photo_dir = settings.get_option("photo_dir").value
         local music_dir = settings.get_option("music_dir").value
         local video_dir = settings.get_option("video_dir").value
@@ -43,6 +50,9 @@ function love.load()
     else
         xmb.refresh_browser()
     end
+    
+    -- Initial battery check
+    battery_percentage = utils.get_battery_percentage()
     
     -- Screen setup
     love.graphics.setBackgroundColor(theme.colors.background)
@@ -56,7 +66,7 @@ function love.update(dt)
     end
     
     -- Update music player if active, otherwise update XMB
-    local is_paused = true
+    local is_paused = false
     if music.active then
         music.update(dt)
         is_paused = music.paused
@@ -80,6 +90,14 @@ function love.update(dt)
     else
         xmb.update(dt)
     end
+    
+    -- Update battery status
+    battery_timer = battery_timer + dt
+    if battery_timer >= BATTERY_UPDATE_INTERVAL then
+        battery_timer = 0
+        battery_percentage = utils.get_battery_percentage()
+    end
+    
     background.update(dt, is_paused)
 end
 
@@ -110,8 +128,17 @@ function love.draw()
         -- Clock and info
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
         love.graphics.setFont(assets.fonts.small)
+        
+        -- Left: Clock
         love.graphics.print(os.date("%H:%M"), 20, 20)
-        love.graphics.print("XMPlayer v0.1", screen_w - 160, 20)
+        
+        -- Right: Battery
+        if battery_percentage then
+            local batt_str = string.format("%d%%", battery_percentage)
+            local batt_w = assets.fonts.small:getWidth(batt_str)
+            -- Add an icon placeholder or just text for now
+            love.graphics.print(batt_str, screen_w - batt_w - 20, 20)
+        end
     end
 end
 

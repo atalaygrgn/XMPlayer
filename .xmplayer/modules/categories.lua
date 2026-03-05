@@ -30,7 +30,7 @@ local categories = {
     { 
         id = "folder", 
         name = "Files", 
-        icon = "assets/icons/folder.png", 
+        icon = "assets/icons/drive.png", 
         path = "/mnt/sdcard",
         filter = nil -- Show all
     },

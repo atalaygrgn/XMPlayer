@@ -9,7 +9,7 @@ local indexing = require("indexing")
 
 local xmb = {}
 
-xmb.current_category_idx = 3 -- Default to Videos
+xmb.current_category_idx = 3 -- Default to Music
 xmb.current_item_idx = 1
 
 -- Animation state
@@ -73,7 +73,7 @@ function xmb.in_submenu()
         return settings.in_submenu()
     end
     
-    if (cat.id == "music" or cat.id == "video") and xmb.view_type ~= "category_root" then
+    if (cat.id == "music" or cat.id == "video" or cat.id == "photo") and xmb.view_type ~= "category_root" then
         return true
     end
     
@@ -113,7 +113,7 @@ function xmb.go_back()
             local current = normalize_path(browser.current_dir)
             local base = normalize_path(browser.base_dir)
             
-            if (cat.id == "music" or cat.id == "video") and current == base then
+            if (cat.id == "music" or cat.id == "video" or cat.id == "photo") and current == base then
                 -- Return to categorical root
                 xmb.view_type = "category_root"
                 xmb.refresh_items()
@@ -160,7 +160,10 @@ function xmb.refresh_items()
         if xmb.view_type == "category_root" then
             table.insert(browser.files, {name = "Albums", type = "view_trigger", target_view = "music_albums"})
             table.insert(browser.files, {name = "Artists", type = "view_trigger", target_view = "music_artists"})
-            table.insert(browser.files, {name = "Music Files", type = "directory_trigger", path = cat.path})
+            table.insert(browser.files, {name = "Music Files", type = "directory_trigger", path = cat.path, icon = "drive"})
+            browser.base_dir = cat.path
+            browser.current_dir = cat.path
+            browser.set_filter(cat.filter)
         elseif xmb.view_type == "music_albums" then
             for key, album in pairs(indexing.data.music.albums) do
                 table.insert(browser.files, {name = album.name, type = "album", data = album})
@@ -179,14 +182,26 @@ function xmb.refresh_items()
         elseif xmb.view_type == "artist_tracks" then
             for _, path in ipairs(xmb.view_data.tracks) do
                 local info = indexing.data.music.files[path]
-                table.insert(browser.files, {name = (info.album or "Unknown") .. " - " .. (info.title or "Unknown"), path = path, type = "file"})
+                table.insert(browser.files, {name = info.title or "Unknown", path = path, type = "file"})
             end
         elseif xmb.view_type == "browser" then
             browser.scan()
         end
     elseif cat.id == "video" then
         if xmb.view_type == "category_root" then
-            table.insert(browser.files, {name = "Video Files", type = "directory_trigger", path = cat.path})
+            table.insert(browser.files, {name = "Video Files", type = "directory_trigger", path = cat.path, icon = "drive"})
+            browser.base_dir = cat.path
+            browser.current_dir = cat.path
+            browser.set_filter(cat.filter)
+        elseif xmb.view_type == "browser" then
+            browser.scan()
+        end
+    elseif cat.id == "photo" then
+        if xmb.view_type == "category_root" then
+            table.insert(browser.files, {name = "Photo Files", type = "directory_trigger", path = cat.path, icon = "drive"})
+            browser.base_dir = cat.path
+            browser.current_dir = cat.path
+            browser.set_filter(cat.filter)
         elseif xmb.view_type == "browser" then
             browser.scan()
         end
@@ -194,21 +209,28 @@ function xmb.refresh_items()
         browser.files = settings.get_browser_items()
     elseif cat.path then
         browser.base_dir = cat.path
-        browser.current_dir = cat.path
-        browser.set_filter(cat.filter)
-        browser.scan()
+        if xmb.view_type == "browser" then
+            browser.set_filter(cat.filter)
+            browser.scan()
+        end
     end
 end
 
 function xmb.refresh_browser(slide_dir)
     local cat = categories[xmb.current_category_idx]
-    if cat.id == "music" or cat.id == "video" then
+    if cat.id == "music" or cat.id == "video" or cat.id == "photo" then
         xmb.view_type = "category_root"
     else
         xmb.view_type = "browser"
     end
     
     xmb.view_data = nil
+    
+    -- Ensure browser state is clean for the new category
+    browser.base_dir = cat.path or "/mnt/sdcard"
+    browser.current_dir = browser.base_dir
+    browser.set_filter(cat.filter)
+    
     xmb.refresh_items()
     
     xmb.current_item_idx = 1
@@ -368,7 +390,7 @@ function xmb.draw()
         local x = (i - 1) * (theme.icon_size + theme.icon_spacing)
         local is_focused = (i == xmb.current_category_idx)
         
-        local img = assets.images[cat.id]
+        local img = assets.images["cat_" .. cat.id]
         local base_scale = theme.icon_size / img:getWidth()
         local scale = is_focused and base_scale * 1.1 or base_scale * 0.7
         local alpha = is_focused and 1 or 0.4
@@ -428,7 +450,12 @@ function xmb.draw()
             -- Draw icon
             local icon = assets.images.folder
             local thumb = nil
-            if item.type == "file" then
+            
+            if item.icon and assets.images[item.icon] then
+                icon = assets.images[item.icon]
+            elseif item.type == "directory" then
+                if cat_id == "folder" then icon = assets.images.drive else icon = assets.images.folder end
+            elseif item.type == "file" then
                 if cat_id == "video" then icon = assets.images.video
                 elseif cat_id == "music" then icon = assets.images.music
                 elseif cat_id == "photo" then 
@@ -436,8 +463,7 @@ function xmb.draw()
                     local info = indexing.data.photos[item.path]
                     if info and info.thumb_path then
                         if not xmb.thumbs[info.thumb_path] then
-                            local ok, img = pcall(love.graphics.newImage, info.thumb_path)
-                            if ok then xmb.thumbs[info.thumb_path] = img end
+                            xmb.thumbs[info.thumb_path] = utils.load_image(info.thumb_path)
                         end
                         thumb = xmb.thumbs[info.thumb_path]
                     end
@@ -445,7 +471,7 @@ function xmb.draw()
                 end
             end
 
-            ui.draw_icon(icon, -29, y + 21, 32, theme.text, final_alpha, thumb)
+            ui.draw_icon(icon, -29, y + 14, 48, theme.text, final_alpha, thumb)
             
             -- Draw text
             if is_focused then
@@ -494,7 +520,7 @@ function xmb.keypressed(key, player, music, viewer)
         xmb.navigate(key)
     elseif key == "return" or key == "enter" or key == "a" then
         local selected = browser.files[xmb.current_item_idx]
-        if selected and selected.type ~= "info" then
+        if selected and selected.type ~= "info" and selected.type ~= "info_text" then
             if selected.type == "directory" then
                 table.insert(xmb.nav_stack, xmb.current_item_idx)
                 browser.current_dir = selected.path

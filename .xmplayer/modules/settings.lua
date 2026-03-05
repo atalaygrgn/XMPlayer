@@ -20,9 +20,14 @@ settings.current_group = nil  -- nil = top-level groups, string = group id
 -- Grouped settings
 settings.groups = {
     {
+        id = "general",
+        name = "General Settings",
+        icon = "option",
+    },
+    {
         id = "theme_settings",
         name = "Theme Settings",
-        icon = "settings",
+        icon = "option",
     },
     {
         id = "media_dirs",
@@ -30,9 +35,9 @@ settings.groups = {
         icon = "folder",
     },
     {
-        id = "general",
-        name = "General",
-        icon = "settings",
+        id = "about",
+        name = "About XMPlayer",
+        icon = "info",
     },
 }
 
@@ -81,7 +86,21 @@ settings.options = {
         group = "general",
         choices = {"On", "Off"},
         value = 1
-    }
+    },
+    {
+        id = "version",
+        name = "Version",
+        type = "info",
+        group = "about",
+        value = "v0.1"
+    },
+    {
+        id = "website",
+        name = "Website",
+        type = "info",
+        group = "about",
+        value = "github.com/atalaygrgn/XMPlayer"
+    },
 }
 
 -- Helper to find option by id
@@ -162,10 +181,15 @@ function settings.get_browser_items()
                 else
                     display_value = tostring(opt.value)
                 end
+                local icon = "folder"
+                if opt.group == "about" then icon = "info"
+                elseif opt.group == "general" or opt.group == "theme_settings" then icon = "option"
+                end
                 table.insert(items, {
                     name = opt.name .. ": " .. display_value,
-                    type = "setting",
-                    setting_idx = i
+                    type = (opt.type == "info") and "info_text" or "setting",
+                    setting_idx = i,
+                    icon = icon
                 })
             end
         end
@@ -178,7 +202,8 @@ function settings.get_browser_items()
                 name = grp.name,
                 type = "settings_group",
                 group_idx = i,
-                group_id = grp.id
+                group_id = grp.id,
+                icon = grp.icon
             })
         end
         return items
@@ -233,7 +258,7 @@ function settings.draw_popup(setting_idx)
     if not opt or opt.type ~= "choice" or settings.alpha <= 0 then return end
 
     local screen_w, screen_h = love.graphics.getDimensions()
-    local panel_w = screen_w * 0.5
+    local panel_w = screen_w * 0.25
     local item_h = 50
     local alpha = settings.alpha
     local x = screen_w - (panel_w * alpha)

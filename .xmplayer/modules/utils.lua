@@ -1,5 +1,14 @@
 local utils = {}
 
+function utils.split(str, sep)
+    local result = {}
+    for part in str:gmatch("([^" .. sep .. "]+)") do
+        table.insert(result, part:match("^%s*(.-)%s*$"))
+    end
+    return result
+end
+
+
 function utils.lerp(a, b, t)
     return a + (b - a) * t
 end
@@ -85,5 +94,43 @@ function utils.truncate_text(text, font, max_w)
     return "..."
 end
 
+function utils.load_image(path)
+    if not path or path == "" then return nil end
+    -- Try direct load first (works if path is relative to source or save, or valid absolute in some environments)
+    local ok, img = pcall(love.graphics.newImage, path)
+    if ok then return img end
+    
+    -- Try reading via io if newImage failed (common issue for absolute paths in Love2D)
+    local f = io.open(path, "rb")
+    if f then
+        local data = f:read("*a")
+        f:close()
+        if data and #data > 0 then
+            local success, file_data = pcall(love.filesystem.newFileData, data, "temp_img")
+            if success then
+                local ok2, img_data = pcall(love.image.newImageData, file_data)
+                if ok2 then
+                    local ok3, img3 = pcall(love.graphics.newImage, img_data)
+                    if ok3 then return img3 end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+function utils.get_battery_percentage()
+    local path = "/sys/class/power_supply/axp2202-battery/capacity"
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    if content then
+        return tonumber(content:match("(%d+)"))
+    end
+    return nil
+end
+
 return utils
+
 

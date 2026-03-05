@@ -112,7 +112,7 @@ function indexing.generate_thumbnail(image_path)
         end
         return thumb_path
     end
-    return nil
+    return image_path
 end
 
 local function get_files_recursive(path, extensions)
@@ -170,26 +170,40 @@ function indexing.scan(photo_dir, music_dir, video_dir)
         
         local tags = metadata.get_tags(path)
         local title = tags.title or utils.get_track_name(path)
-        local artist = tags.artist or "Unknown Artist"
+        local artist_str = tags.artist or "Unknown Artist"
         local album = tags.album or "Unknown Album"
         
         indexing.data.music.files[path] = {
             title = title,
-            artist = artist,
+            artist = artist_str,
             album = album
         }
 
-        -- Group by Artist
-        if not indexing.data.music.artists[artist] then
-            indexing.data.music.artists[artist] = {name = artist, albums = {}, tracks = {}}
-        end
-        table.insert(indexing.data.music.artists[artist].tracks, path)
+        -- Split artists by comma
+        local artists = utils.split(artist_str, ",")
+        if #artists == 0 then table.insert(artists, "Unknown Artist") end
 
-        -- Group by Album
-        local album_key = artist .. " - " .. album
+        for _, a in ipairs(artists) do
+            -- Group by Artist
+            if not indexing.data.music.artists[a] then
+                indexing.data.music.artists[a] = {name = a, albums = {}, tracks = {}}
+            end
+            table.insert(indexing.data.music.artists[a].tracks, path)
+
+            -- Add to artist's album list if not already there
+            local found = false
+            for _, al in ipairs(indexing.data.music.artists[a].albums) do
+                if al == album then found = true break end
+            end
+            if not found then
+                table.insert(indexing.data.music.artists[a].albums, album)
+            end
+        end
+
+        -- Group by Album (Global) - Use full artist_str to keep it unique per album-artist combo
+        local album_key = artist_str .. " - " .. album
         if not indexing.data.music.albums[album_key] then
-            indexing.data.music.albums[album_key] = {name = album, artist = artist, tracks = {}}
-            table.insert(indexing.data.music.artists[artist].albums, album)
+            indexing.data.music.albums[album_key] = {name = album, artist = artist_str, tracks = {}}
         end
         table.insert(indexing.data.music.albums[album_key].tracks, path)
     end
@@ -202,7 +216,7 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     local new_photos = {}
     for i, path in ipairs(photo_files) do
         indexing.scan_progress = string.format("Indexing Photos (%d/%d)", i, #photo_files)
-        coroutine.yield(indexing.scan_progress)
+        if i % 10 == 0 then coroutine.yield(indexing.scan_progress) end
         
         local photo_info = indexing.data.photos[path] or {thumb_path = nil}
         if not photo_info.thumb_path then
