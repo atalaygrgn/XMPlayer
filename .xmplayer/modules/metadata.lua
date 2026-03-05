@@ -1,61 +1,85 @@
 local metadata = {}
 
 -- Extract a text frame (like TIT2, TPE1) from ID3v2 data
-function metadata.extract_id3_text(data, frame_id)
-    if #data < 10 then return nil end
-    if data:sub(1, 3) ~= "ID3" then return nil end
+local function parse_syncsafe(b1, b2, b3, b4)
+    return b1 * 2097152 + b2 * 16384 + b3 * 128 + b4
+end
 
-    local pos = data:find(frame_id, 1, true)
-    if not pos then return nil end
+local function parse_int32(b1, b2, b3, b4)
+    return b1 * 16777216 + b2 * 65536 + b3 * 256 + b4
+end
 
-    if pos + 10 > #data then return nil end
-
-    local b1 = data:byte(pos + 4)
-    local b2 = data:byte(pos + 5)
-    local b3 = data:byte(pos + 6)
-    local b4 = data:byte(pos + 7)
-    local frame_size = b1 * 16777216 + b2 * 65536 + b3 * 256 + b4
-
-    if frame_size <= 0 or frame_size > 10000 then return nil end
-
-    local data_start = pos + 10  -- skip frame header
-    if data_start + frame_size > #data then return nil end
-
-    local frame_data = data:sub(data_start, data_start + frame_size - 1)
-
-    -- First byte is encoding: 0=ISO-8859-1, 1=UTF-16, 2=UTF-16BE, 3=UTF-8
-    local encoding = frame_data:byte(1)
-    local text = frame_data:sub(2)
-
-    if encoding == 1 or encoding == 2 then
-        -- UTF-16: strip BOM and null bytes, convert to simple ASCII-safe string
-        -- Remove BOM (FF FE or FE FF)
-        if #text >= 2 then
-            local b1, b2 = text:byte(1), text:byte(2)
-            if (b1 == 0xFF and b2 == 0xFE) or (b1 == 0xFE and b2 == 0xFF) then
-                text = text:sub(3)
-            end
+local function iso_to_utf8(str)
+    local chars = {}
+    for i = 1, #str do
+        local b = str:byte(i)
+        if b < 128 then
+            table.insert(chars, string.char(b))
+        else
+            table.insert(chars, string.char(192 + math.floor(b/64), 128 + (b % 64)))
         end
-        -- Simple UTF-16LE to ASCII extraction (take every other byte)
-        local chars = {}
-        for i = 1, #text - 1, 2 do
-            local c = text:byte(i)
-            if c > 0 and c < 128 then
-                table.insert(chars, string.char(c))
-            elseif c == 0 then
-                break  -- null terminator
-            end
-        end
-        text = table.concat(chars)
-    else
-        -- UTF-8 or ISO-8859-1: strip trailing nulls
-        text = text:gsub("%z+$", "")
     end
+    return table.concat(chars)
+end
 
-    -- Trim whitespace
-    text = text:match("^%s*(.-)%s*$")
-    if text and #text > 0 then
-        return text
+function metadata.extract_id3_text(data, frame_id)
+    if #data < 10 or data:sub(1, 3) ~= "ID3" then return nil end
+
+    local version = data:byte(4)
+    local tag_size = parse_syncsafe(data:byte(7), data:byte(8), data:byte(9), data:byte(10))
+    
+    local pos = 11
+    local end_pos = math.min(tag_size + 10, #data)
+    
+    while pos + 10 < end_pos do
+        local id = data:sub(pos, pos + 3)
+        if id:match("^%z+$") or id == "" then break end
+        
+        local b1, b2, b3, b4 = data:byte(pos+4), data:byte(pos+5), data:byte(pos+6), data:byte(pos+7)
+        local frame_size
+        if version == 4 then
+            frame_size = parse_syncsafe(b1, b2, b3, b4)
+        else
+            frame_size = parse_int32(b1, b2, b3, b4)
+        end
+        
+        if frame_size <= 0 or pos + 10 + frame_size > end_pos then break end
+        
+        if id == frame_id then
+            local frame_data = data:sub(pos + 10, pos + 10 + frame_size - 1)
+            local encoding = frame_data:byte(1)
+            local text = frame_data:sub(2)
+            
+            if encoding == 1 or encoding == 2 then
+                -- UTF-16
+                if #text >= 2 then
+                    local bb1, bb2 = text:byte(1), text:byte(2)
+                    if (bb1 == 0xFF and bb2 == 0xFE) or (bb1 == 0xFE and bb2 == 0xFF) then
+                        text = text:sub(3)
+                    end
+                end
+                local chars = {}
+                for i = 1, #text - 1, 2 do
+                    local c = text:byte(i)
+                    if c > 0 and c < 128 then table.insert(chars, string.char(c))
+                    elseif c >= 128 then -- very basic UTF-16 to UTF-8
+                         table.insert(chars, string.char(192 + math.floor(c/64), 128 + (c % 64)))
+                    elseif c == 0 then break end
+                end
+                text = table.concat(chars)
+            elseif encoding == 0 then
+                -- ISO-8859-1 to UTF-8
+                text = iso_to_utf8(text:gsub("%z+$", ""))
+            else
+                -- Assume UTF-8
+                text = text:gsub("%z+$", "")
+            end
+            
+            text = text:match("^%s*(.-)%s*$")
+            if text and #text > 0 then return text end
+        end
+        
+        pos = pos + 10 + frame_size
     end
     return nil
 end

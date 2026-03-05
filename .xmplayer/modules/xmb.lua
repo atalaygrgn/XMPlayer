@@ -5,6 +5,7 @@ local settings = require("settings")
 local assets = require("assets")
 local ui = require("ui")
 local utils = require("utils")
+local indexing = require("indexing")
 
 local xmb = {}
 
@@ -24,14 +25,35 @@ xmb.item_marquee = ui.new_marquee(0, 50, 1.5, 1.0) -- width set in update
 xmb.list_slide_x = 0
 xmb.list_slide_alpha = 1
 
--- Navigation history stack (stores item index when entering subfolders)
+-- Navigation history stack (stores state when entering sub-menus)
+-- Each entry: {item_idx, dir, view_type, view_data}
 xmb.nav_stack = {}
+xmb.nav_stack = {}
+xmb.view_type = "browser" -- "category_root", "browser", "music_albums", "music_artists", "album_tracks", "artist_tracks"
+xmb.view_data = nil
 
 -- Continuous Repeat State
 xmb.repeat_timer = 0
 xmb.last_key = nil
 local REPEAT_DELAY = 0.4
 local REPEAT_INTERVAL = 0.08
+
+-- Thumbnail cache
+xmb.thumbs = {} -- {path = LoveImage}
+
+local function normalize_path(p)
+    if not p then return "" end
+    p = p:gsub("\\", "/"):gsub("/+", "/")
+    if p:sub(-1) == "/" and #p > 1 then p = p:sub(1, -2) end
+    return p
+end
+
+local function is_subpath(base, current)
+    base = normalize_path(base)
+    current = normalize_path(current)
+    if base == current then return true end
+    return current:sub(1, #base + 1) == base .. "/"
+end
 
 local function prep_files()
     local screen_w = love.graphics.getWidth()
@@ -40,26 +62,23 @@ local function prep_files()
     local font = assets.fonts.small
     
     for _, item in ipairs(browser.files) do
-        item.display_name = item.name
-        if font:getWidth(item.name) > max_w then
-            for j = #item.name, 1, -1 do
-                local sub = item.name:sub(1, j) .. "..."
-                if font:getWidth(sub) <= max_w then
-                    item.display_name = sub
-                    break
-                end
-            end
-        end
+        item.name = utils.clean_utf8(item.name)
+        item.display_name = utils.truncate_text(item.name, font, max_w)
     end
 end
 
--- Check if the XMB is currently inside a submenu (subfolder or settings group)
 function xmb.in_submenu()
     local cat = categories[xmb.current_category_idx]
     if cat.id == "settings" then
         return settings.in_submenu()
-    elseif cat.path then
-        return browser.current_dir ~= browser.base_dir
+    end
+    
+    if (cat.id == "music" or cat.id == "video") and xmb.view_type ~= "category_root" then
+        return true
+    end
+    
+    if cat.path then
+        return normalize_path(browser.current_dir) ~= normalize_path(browser.base_dir)
     end
     return false
 end
@@ -79,12 +98,41 @@ function xmb.go_back()
         xmb.current_item_idx = math.min(prev_idx, #browser.files)
         prep_files()
     elseif cat.path then
-        if browser.current_dir ~= browser.base_dir then
-            browser.current_dir = browser.current_dir:match("(.*)/")
-            if not browser.current_dir or browser.current_dir == "" then browser.current_dir = "/" end
-            browser.scan()
+        if xmb.view_type ~= "browser" then
+            -- Handle categorical views
+            if xmb.view_type == "album_tracks" or xmb.view_type == "artist_tracks" then
+                if xmb.view_type == "album_tracks" then xmb.view_type = "music_albums" else xmb.view_type = "music_artists" end
+                xmb.refresh_items()
+            else
+                xmb.view_type = "category_root"
+                xmb.refresh_items()
+            end
             xmb.current_item_idx = math.min(prev_idx, #browser.files)
             prep_files()
+        else
+            local current = normalize_path(browser.current_dir)
+            local base = normalize_path(browser.base_dir)
+            
+            if (cat.id == "music" or cat.id == "video") and current == base then
+                -- Return to categorical root
+                xmb.view_type = "category_root"
+                xmb.refresh_items()
+                xmb.current_item_idx = math.min(prev_idx, #browser.files)
+                prep_files()
+            elseif current ~= base then
+                local parent = browser.current_dir:match("(.*)/")
+                if parent and is_subpath(base, parent) then
+                    browser.current_dir = parent
+                    browser.scan()
+                    xmb.current_item_idx = math.min(prev_idx, #browser.files)
+                    prep_files()
+                else
+                    browser.current_dir = base
+                    browser.scan()
+                    xmb.current_item_idx = math.min(prev_idx, #browser.files)
+                    prep_files()
+                end
+            end
         end
     end
     
@@ -104,19 +152,65 @@ function xmb.go_back()
     end
 end
 
-function xmb.refresh_browser(slide_dir)
+function xmb.refresh_items()
     local cat = categories[xmb.current_category_idx]
-    if cat.path then
+    browser.files = {}
+    
+    if cat.id == "music" then
+        if xmb.view_type == "category_root" then
+            table.insert(browser.files, {name = "Albums", type = "view_trigger", target_view = "music_albums"})
+            table.insert(browser.files, {name = "Artists", type = "view_trigger", target_view = "music_artists"})
+            table.insert(browser.files, {name = "Music Files", type = "directory_trigger", path = cat.path})
+        elseif xmb.view_type == "music_albums" then
+            for key, album in pairs(indexing.data.music.albums) do
+                table.insert(browser.files, {name = album.name, type = "album", data = album})
+            end
+            table.sort(browser.files, function(a, b) return a.name:lower() < b.name:lower() end)
+        elseif xmb.view_type == "music_artists" then
+            for name, artist in pairs(indexing.data.music.artists) do
+                table.insert(browser.files, {name = name, type = "artist", data = artist})
+            end
+            table.sort(browser.files, function(a, b) return a.name:lower() < b.name:lower() end)
+        elseif xmb.view_type == "album_tracks" then
+            for _, path in ipairs(xmb.view_data.tracks) do
+                local info = indexing.data.music.files[path]
+                table.insert(browser.files, {name = info.title or "Unknown", path = path, type = "file"})
+            end
+        elseif xmb.view_type == "artist_tracks" then
+            for _, path in ipairs(xmb.view_data.tracks) do
+                local info = indexing.data.music.files[path]
+                table.insert(browser.files, {name = (info.album or "Unknown") .. " - " .. (info.title or "Unknown"), path = path, type = "file"})
+            end
+        elseif xmb.view_type == "browser" then
+            browser.scan()
+        end
+    elseif cat.id == "video" then
+        if xmb.view_type == "category_root" then
+            table.insert(browser.files, {name = "Video Files", type = "directory_trigger", path = cat.path})
+        elseif xmb.view_type == "browser" then
+            browser.scan()
+        end
+    elseif cat.id == "settings" then
+        browser.files = settings.get_browser_items()
+    elseif cat.path then
         browser.base_dir = cat.path
         browser.current_dir = cat.path
         browser.set_filter(cat.filter)
         browser.scan()
-    elseif cat.id == "settings" then
-        settings.current_group = nil -- Reset to top-level on category switch
-        browser.files = settings.get_browser_items()
-    else
-        browser.files = {{name = cat.name .. " (Coming Soon)", path = "", type = "info"}}
     end
+end
+
+function xmb.refresh_browser(slide_dir)
+    local cat = categories[xmb.current_category_idx]
+    if cat.id == "music" or cat.id == "video" then
+        xmb.view_type = "category_root"
+    else
+        xmb.view_type = "browser"
+    end
+    
+    xmb.view_data = nil
+    xmb.refresh_items()
+    
     xmb.current_item_idx = 1
     
     xmb.item_marquee.offset = 0
@@ -313,6 +407,8 @@ function xmb.draw()
     local first = math.max(1, math.floor(-xmb.item_scroll_y / item_h) - 2)
     local last = math.min(#browser.files, first + math.ceil(screen_h / item_h) + 4)
     
+    local cat_id = categories[xmb.current_category_idx].id
+
     for i = first, last do
         local item = browser.files[i]
         local y = (i - 1) * item_h
@@ -330,17 +426,26 @@ function xmb.draw()
         
         if final_alpha > 0 then
             -- Draw icon
-            local cat_id = categories[xmb.current_category_idx].id
             local icon = assets.images.folder
+            local thumb = nil
             if item.type == "file" then
                 if cat_id == "video" then icon = assets.images.video
                 elseif cat_id == "music" then icon = assets.images.music
-                elseif cat_id == "photo" then icon = assets.images.photo
+                elseif cat_id == "photo" then 
+                    icon = assets.images.photo
+                    local info = indexing.data.photos[item.path]
+                    if info and info.thumb_path then
+                        if not xmb.thumbs[info.thumb_path] then
+                            local ok, img = pcall(love.graphics.newImage, info.thumb_path)
+                            if ok then xmb.thumbs[info.thumb_path] = img end
+                        end
+                        thumb = xmb.thumbs[info.thumb_path]
+                    end
                 else icon = assets.images.video
                 end
             end
-            
-            ui.draw_icon(icon, -29, y + 21, 32, theme.text, final_alpha)
+
+            ui.draw_icon(icon, -29, y + 21, 32, theme.text, final_alpha, thumb)
             
             -- Draw text
             if is_focused then
@@ -373,6 +478,7 @@ function xmb.keypressed(key, player, music, viewer)
             local opt = settings.options[selected.setting_idx]
             opt.value = settings.selected_option_idx
             settings.apply()
+            settings.save()
             
             local old_idx = xmb.current_item_idx
             browser.files = settings.get_browser_items()
@@ -414,6 +520,9 @@ function xmb.keypressed(key, player, music, viewer)
                     settings.active = true
                     settings.selected_option_idx = opt.value
                 end
+                if settings.keytone_enabled then
+                    assets.play_sfx("nav")
+                end
             elseif selected.type == "settings_group" then
                 table.insert(xmb.nav_stack, xmb.current_item_idx)
                 settings.enter_group(selected.group_id)
@@ -430,6 +539,32 @@ function xmb.keypressed(key, player, music, viewer)
                 if settings.keytone_enabled then
                     assets.play_sfx("nav")
                 end
+            elseif selected.type == "view_trigger" then
+                table.insert(xmb.nav_stack, xmb.current_item_idx)
+                xmb.view_type = selected.target_view
+                xmb.refresh_items()
+                xmb.current_item_idx = 1
+                prep_files()
+                xmb.list_slide_x = 120
+                xmb.list_slide_alpha = 0
+            elseif selected.type == "directory_trigger" then
+                table.insert(xmb.nav_stack, xmb.current_item_idx)
+                browser.current_dir = selected.path
+                xmb.view_type = "browser"
+                xmb.refresh_items()
+                xmb.current_item_idx = 1
+                prep_files()
+                xmb.list_slide_x = 120
+                xmb.list_slide_alpha = 0
+            elseif selected.type == "album" or selected.type == "artist" then
+                table.insert(xmb.nav_stack, xmb.current_item_idx)
+                xmb.view_type = (selected.type == "album") and "album_tracks" or "artist_tracks"
+                xmb.view_data = selected.data
+                xmb.refresh_items()
+                xmb.current_item_idx = 1
+                prep_files()
+                xmb.list_slide_x = 120
+                xmb.list_slide_alpha = 0
             end
         end
     elseif key == "backspace" or key == "b" then

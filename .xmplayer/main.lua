@@ -8,9 +8,12 @@ local background = require("background")
 local viewer = require("image_viewer")
 local settings = require("settings")
 local assets = require("assets")
+local indexing = require("indexing")
+local ui = require("ui")
 
 -- Framebuffer refresh counter (flush all swap buffers after MPV)
 local refresh_frames_remaining = 0
+local scan_co = nil
 
 function love.load()
     -- Load assets
@@ -21,11 +24,25 @@ function love.load()
     background.init()
     viewer.init()
     
-    -- Apply initial settings
-    settings.apply()
+    -- Load and Apply settings
+    settings.load()
     
-    -- Initial scan
-    xmb.refresh_browser()
+    -- Initial scan / Indexing
+    indexing.load()
+    
+    -- Trigger indexing if no data or requested
+    if not indexing.data.music.files or not next(indexing.data.music.files) then
+        local photo_dir = settings.get_option("photo_dir").value
+        local music_dir = settings.get_option("music_dir").value
+        local video_dir = settings.get_option("video_dir").value
+        
+        scan_co = coroutine.create(function()
+            indexing.scan(photo_dir, music_dir, video_dir)
+        end)
+        indexing.is_scanning = true
+    else
+        xmb.refresh_browser()
+    end
     
     -- Screen setup
     love.graphics.setBackgroundColor(theme.colors.background)
@@ -46,6 +63,20 @@ function love.update(dt)
     elseif viewer.active then
         viewer.update(dt)
         is_paused = true
+    elseif indexing.is_scanning then
+        if scan_co then
+            local ok, err = coroutine.resume(scan_co)
+            if not ok then
+                print("Indexing error: " .. tostring(err))
+                indexing.is_scanning = false
+                scan_co = nil
+                xmb.refresh_browser()
+            elseif coroutine.status(scan_co) == "dead" then
+                scan_co = nil
+                xmb.refresh_browser()
+            end
+        end
+        return
     else
         xmb.update(dt)
     end
@@ -71,6 +102,8 @@ function love.draw()
         music.draw()
     elseif viewer.active then
         viewer.draw()
+    elseif indexing.is_scanning then
+        ui.draw_indexing_popup(indexing.scan_progress)
     else
         xmb.draw()
         

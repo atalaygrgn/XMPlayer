@@ -11,6 +11,8 @@ settings.selected_option_idx = 1
 settings.scroll_y = 0
 settings.target_scroll_y = 0
 settings.keytone_enabled = true
+local storage_path = love.filesystem.getSource()
+settings.file_path = storage_path .. "/settings.cfg"
 
 -- Current submenu depth for settings category
 settings.current_group = nil  -- nil = top-level groups, string = group id
@@ -88,6 +90,43 @@ function settings.get_option(id)
         if opt.id == id then return opt end
     end
     return nil
+end
+
+function settings.save()
+    local data_str = "return {\n"
+    for _, opt in ipairs(settings.options) do
+        if type(opt.value) == "string" then
+            data_str = data_str .. string.format("  [\"%s\"] = %q,\n", opt.id, opt.value)
+        else
+            data_str = data_str .. string.format("  [\"%s\"] = %s,\n", opt.id, tostring(opt.value))
+        end
+    end
+    data_str = data_str .. "}\n"
+    local f = io.open(settings.file_path, "w")
+    if f then
+        f:write(data_str)
+        f:close()
+    end
+end
+
+function settings.load()
+    local f = io.open(settings.file_path, "r")
+    if f then
+        f:close()
+        local chunk, err = loadfile(settings.file_path)
+        if chunk then
+            local ok, data = pcall(chunk)
+            if ok and type(data) == "table" then
+                for id, val in pairs(data) do
+                    local opt = settings.get_option(id)
+                    if opt then
+                        opt.value = val
+                    end
+                end
+            end
+        end
+    end
+    settings.apply()
 end
 
 function settings.apply()

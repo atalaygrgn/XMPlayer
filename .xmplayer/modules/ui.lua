@@ -1,4 +1,5 @@
 local theme = require("theme")
+local assets = require("assets")
 local ui = {}
 
 -- Marquee component state management and rendering
@@ -75,14 +76,52 @@ function ui.draw_progress_bar(x, y, w, h, progress, color, bg_color)
 end
 
 -- Icon helper
-function ui.draw_icon(icon, x, y, size, color, alpha)
-    if not icon then return end
-    local img_w = icon:getWidth()
-    local img_h = icon:getHeight()
-    local scale = size / math.max(img_w, img_h)
+function ui.draw_indexing_popup(progress_text)
+    local screen_w, screen_h = love.graphics.getDimensions()
+    local w, h = 400, 150
+    local x, y = (screen_w - w) / 2, (screen_h - h) / 2
     
-    love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1) * (alpha or 1))
-    love.graphics.draw(icon, x, y, 0, scale, scale, img_w/2, img_h/2)
+    -- Blurred background (dim)
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", 0, 0, screen_w, screen_h)
+    
+    -- Popup box
+    love.graphics.setColor(0.1, 0.1, 0.15, 0.95)
+    love.graphics.rectangle("fill", x, y, w, h, 10)
+    love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.8)
+    love.graphics.rectangle("line", x, y, w, h, 10)
+    
+    -- Text
+    love.graphics.setFont(assets.fonts.main)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf("Indexing Media Files...", x, y + 40, w, "center")
+    
+    love.graphics.setFont(assets.fonts.small)
+    love.graphics.setColor(1, 1, 1, 0.7)
+    love.graphics.printf(progress_text or "Scanning...", x, y + 80, w, "center")
+    
+    -- Spinner or dots
+    local dots = math.floor(love.timer.getTime() * 2) % 4
+    local dot_str = string.rep(".", dots)
+    love.graphics.print(dot_str, x + w/2 + 80, y + 40)
+end
+
+function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail)
+    if not icon and not thumbnail then return end
+    
+    if thumbnail and type(thumbnail) ~= "string" then
+        local iw = thumbnail:getWidth()
+        local ih = thumbnail:getHeight()
+        local scale = size / math.max(iw, ih)
+        love.graphics.setColor(1, 1, 1, alpha or 1)
+        love.graphics.draw(thumbnail, x, y, 0, scale, scale, iw/2, ih/2)
+    elseif icon then
+        local img_w = icon:getWidth()
+        local img_h = icon:getHeight()
+        local scale = size / math.max(img_w, img_h)
+        love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1) * (alpha or 1))
+        love.graphics.draw(icon, x, y, 0, scale, scale, img_w/2, img_h/2)
+    end
 end
 
 return ui
