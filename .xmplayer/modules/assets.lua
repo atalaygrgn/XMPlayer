@@ -17,6 +17,20 @@ function assets.load(categories)
     assets.images.play = love.graphics.newImage("assets/icons/play.png")
     assets.images.pause = love.graphics.newImage("assets/icons/pause.png")
 
+    -- New icons
+    assets.images.albums = love.graphics.newImage("assets/icons/albums.png")
+    assets.images.album = love.graphics.newImage("assets/icons/album.png")
+    assets.images.track = love.graphics.newImage("assets/icons/track.png")
+    assets.images.mic = love.graphics.newImage("assets/icons/mic.png")
+    assets.images.artist = love.graphics.newImage("assets/icons/artist.png")
+    assets.images.folder_music = love.graphics.newImage("assets/icons/folder-music.png")
+    assets.images.file_music = love.graphics.newImage("assets/icons/file-music.png")
+    assets.images.folder_image = love.graphics.newImage("assets/icons/folder-image.png")
+    assets.images.folder_video = love.graphics.newImage("assets/icons/folder-video.png")
+    assets.images.file_video = love.graphics.newImage("assets/icons/file-video.png")
+    assets.images.folders = love.graphics.newImage("assets/icons/folders.png")
+    assets.images.file = love.graphics.newImage("assets/icons/file.png")
+
     -- Load category icons (overwrites specifics if they share names)
     if categories then
         for _, cat in ipairs(categories) do

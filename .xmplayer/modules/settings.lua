@@ -55,7 +55,7 @@ settings.options = {
         name = "Theme Color",
         type = "choice",
         group = "theme_settings",
-        choices = {"Blue", "Red", "Green", "Teal", "Purple", "Yellow", "Orange"},
+        choices = {"Blue", "Red", "Green", "Teal", "Purple", "Yellow", "Orange", "Silver", "Black", "Beige", "Tan"},
         value = 1
     },
     {

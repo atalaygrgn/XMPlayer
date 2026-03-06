@@ -158,9 +158,9 @@ function xmb.refresh_items()
     
     if cat.id == "music" then
         if xmb.view_type == "category_root" then
-            table.insert(browser.files, {name = "Albums", type = "view_trigger", target_view = "music_albums"})
-            table.insert(browser.files, {name = "Artists", type = "view_trigger", target_view = "music_artists"})
-            table.insert(browser.files, {name = "Music Files", type = "directory_trigger", path = cat.path, icon = "drive"})
+            table.insert(browser.files, {name = "Albums", type = "view_trigger", target_view = "music_albums", icon = "albums"})
+            table.insert(browser.files, {name = "Artists", type = "view_trigger", target_view = "music_artists", icon = "mic"})
+            table.insert(browser.files, {name = "Music Files", type = "directory_trigger", path = cat.path, icon = "folder_music"})
             browser.base_dir = cat.path
             browser.current_dir = cat.path
             browser.set_filter(cat.filter)
@@ -189,7 +189,7 @@ function xmb.refresh_items()
         end
     elseif cat.id == "video" then
         if xmb.view_type == "category_root" then
-            table.insert(browser.files, {name = "Video Files", type = "directory_trigger", path = cat.path, icon = "drive"})
+            table.insert(browser.files, {name = "Video Files", type = "directory_trigger", path = cat.path, icon = "folder_video"})
             browser.base_dir = cat.path
             browser.current_dir = cat.path
             browser.set_filter(cat.filter)
@@ -198,7 +198,7 @@ function xmb.refresh_items()
         end
     elseif cat.id == "photo" then
         if xmb.view_type == "category_root" then
-            table.insert(browser.files, {name = "Photo Files", type = "directory_trigger", path = cat.path, icon = "drive"})
+            table.insert(browser.files, {name = "Photo Files", type = "directory_trigger", path = cat.path, icon = "folder_image"})
             browser.base_dir = cat.path
             browser.current_dir = cat.path
             browser.set_filter(cat.filter)
@@ -454,10 +454,20 @@ function xmb.draw()
             if item.icon and assets.images[item.icon] then
                 icon = assets.images[item.icon]
             elseif item.type == "directory" then
-                if cat_id == "folder" then icon = assets.images.drive else icon = assets.images.folder end
+                icon = assets.images.folder
+            elseif item.type == "album" then
+                icon = assets.images.album
+            elseif item.type == "artist" then
+                icon = assets.images.artist
             elseif item.type == "file" then
-                if cat_id == "video" then icon = assets.images.video
-                elseif cat_id == "music" then icon = assets.images.music
+                if cat_id == "video" then 
+                    icon = assets.images.file_video
+                elseif cat_id == "music" then 
+                    if xmb.view_type == "album_tracks" or xmb.view_type == "artist_tracks" then
+                        icon = assets.images.track
+                    else
+                        icon = assets.images.file_music
+                    end
                 elseif cat_id == "photo" then 
                     icon = assets.images.photo
                     local info = indexing.data.photos[item.path]
@@ -467,11 +477,14 @@ function xmb.draw()
                         end
                         thumb = xmb.thumbs[info.thumb_path]
                     end
-                else icon = assets.images.video
+                elseif cat_id == "folder" then
+                    icon = assets.images.file
+                else 
+                    icon = assets.images.file
                 end
             end
 
-            ui.draw_icon(icon, -29, y + 14, 48, theme.text, final_alpha, thumb)
+            ui.draw_icon(icon, -29, y + 14, 32, theme.text, final_alpha, thumb)
             
             -- Draw text
             if is_focused then

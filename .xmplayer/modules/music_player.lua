@@ -313,7 +313,7 @@ function music.draw()
 
         -- Player Status Icon
         local status_icon = music.paused and assets.images.pause or assets.images.play
-        ui.draw_icon(status_icon, 48, h - 36, 48, theme.accent, 0.8 * alpha)
+        ui.draw_icon(status_icon, 48, h - 36, 48, theme.text, 0.8 * alpha)
     end
 
     -- ─── Progress Bar ───
