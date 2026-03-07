@@ -89,7 +89,7 @@ function love.update(dt)
                 indexing.is_scanning = false
                 scan_co = nil
                 xmb.refresh_browser()
-                ui.show_toast("Indexing completed", "info", "top_center")
+                ui.show_toast("Indexing error, see log.txt for details", "info", "top_center")
             elseif coroutine.status(scan_co) == "dead" then
                 indexing.is_scanning = false
                 scan_co = nil

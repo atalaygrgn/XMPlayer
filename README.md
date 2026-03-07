@@ -1,89 +1,84 @@
-# XMPlayer 🎵
+# XMPlayer
 
 ![XMPlayer Hero](assets/readme/hero.png)
 
-**XMPlayer** is a premium, XMB-inspired media player designed specifically for handheld gaming devices running **muOS** (like the Anbernic RG35XX series). It provides a sleek, high-end interface for managing and enjoying your music, videos, and photos.
+**XMPlayer** is a premium, XMB-inspired media suite designed specifically for handheld gaming devices running **muOS** (support for other firmwares are planned). It provides a clean, easy-to-use interface for managing and enjoying your music, videos, and photos.
+
+**Disclaimer:** XMPlayer is developed for educational purposes and is not affiliated with Sony or the XrossMediaBar brand.
+
+> XMPlayer is a **media suite application** for Linux handhelds running muOS (and other firmwares, WIP). It is **NOT** a custom firmware or an emulation frontend. The main focus is on media content **other than games**.
 
 ---
 
-## ✨ Features
+## Features
 
-- 💎 **XMB Interface:** A beautiful, responsive XrossMediaBar UI inspired by classic console interfaces.
-- 🎧 **iPod Classic Mode:** A dedicated full-screen music player interface with album art, smooth progress bars, and classic controls.
-- 📽️ **Video Playback:** Integrated **MPV** support for high-performance video playing with custom gamepad mappings.
-- 🖼️ **Photo Viewer:** Browse and view your photo collection with smooth transitions and slideshow support.
-- 🌈 **Dynamic Backgrounds:** Fluid particle animations and customizable gradients that react to the current theme.
-- 🎨 **Premium Themes:** Choose between Light and Dark modes with a variety of accent colors including Silver, Black, Beige, Tan, and more.
-- ⚡ **Fast Indexing:** High-performance background indexing to handle large media libraries without slowing down the UI.
-- 🔋 **System Integration:** Live battery percentage and clock display in the status bar.
+- **XMB Interface:** A responsive XrossMediaBar UI we all know and love.
+- **Responsive UI**: UI is responsive to different screen sizes, resolutions, and aspect ratios.
+- **Music Player:** A dedicated audio player interface with album art, track info, and playback controls. Most audio formats, **including FLAC**, are supported.
+- **Video Player:** Integrated **MPV** support for high-performance video playback.
+- **Photo Viewer:** Browse and view your photo collection.
+- **Customizable Themes:** Fluid particle animations and customizable themes to your liking.
+- **Content Indexing:** Content indexing allows large media libraries without slowing down the UI.
+- **System Integration:** Live battery percentage and clock display in the status bar.
+
+> This project's aim is to utilize XMB's ease of use for media content and familiarity by many people in the retro gaming community. This project does not aim to fully replicate or provide 1:1 functionalities with the original XMB interface of Sony consoles.
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
 - A handheld device running **muOS**.
-- Your music, videos, and photos organized on your SD card.
+- Your music, videos, and photos organized into dedicated folders on your SD card.
+- - Both single and dual SD card setups are supported.
 
 ### Steps
-1. Download the latest release or clone this repository.
-2. Copy the `XMPlayer` folder to your muOS application directory (usually `/mnt/sdcard/MUOS/app/` or `/mnt/mmc/MUOS/app/`).
-3. Ensure the `mux_launch.sh` script is executable.
-4. Launch **XMPlayer** from the Apps menu in muOS.
+1. Download the latest release and put in in the `ARCHIVES` folder on your SD card.
+2. Install the `XMPlayer.muxapp` file using Archive Manager.
+3. Go to Applications menu and launch XMPlayer.
+4. At launch, XMPlayer will ask you to set media directories. Use the file browser to select folders for each media type.
+> **Need help where to locate?** <br>
+> - For single SD card setups, the SD card contents are mounted to `/mnt/mmc`. <br>
+> - For dual SD card setups, `/mnt/mmc` refers to the 1st SD card, and `/mnt/sdcard` refers to the 2nd.
+5. XMPlayer will index your media content for you. After that, XMPlayer is ready to use.
 
 ---
 
-## 🎮 Controls
+## Controls
 
-XMPlayer uses a custom `gptokeyb` mapping to ensure a comfortable handheld experience.
-
-| Button | Function (Global) | Function (Music Player) |
-| :--- | :--- | :--- |
-| **D-Pad Up/Down** | Navigate Menu | Volume Up/Down |
-| **D-Pad Left/Right** | Change Category | Skip Forward/Backward |
-| **A** | Select / Open | Play / Pause |
-| **B** | Back | Close Player |
-| **X** | Context Menu | Toggle Shuffle |
-| **Y** | - | Toggle Repeat |
-| **L1 / R1** | Page Up / Down | Previous / Next Track |
-| **Start** | Play Selection | - |
-| **Select** | Settings | - |
-| **Menu (Guide)** | Exit Application | Exit to XMB |
-
-> [!TIP]
-> While in the Video Player (MPV), use **A** to Pause, **Y** for OSD, and **Select** to Quit.
+| Button | XMB Menu | Music Player | Video Player (MPV) | Photo Viewer |
+| :--- | :--- | :--- | :--- | :--- |
+| **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s | - |
+| **D-Pad Left/Right** | Change Tab | Previous/Next Track | Seek +-5s | Next/Previous Photo |
+| **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset Zoom & Fit to Screen |
+| **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |
+| **X** | Context Menu | Toggle Shuffle | Mute | Zoom In |
+| **Y** | - | Toggle Repeat | Toggle OSD | (Hold Y + D-Pad) Pan |
+| **L1** | - | - | Previous Video | - |
+| **L2** | - | - | Toggle Subtitles | - |
+| **R1** | - | - | Next Video | - |
+| **R2** | - | - | Next Subtitle | - |
+| **Start** | - | - | Play / Pause | - |
+| **Select** | - | - | Return to XMB | - |
+| **Menu (Guide)** | - | Return to XMB | - | Return to XMB |
 
 ---
 
-## 🎨 Customization
+## Customization
 
-You can personalize XMPlayer via the **Settings** menu:
+You can personalize XMPlayer via **Settings** > **Theme Settings**:
 
-- **Themes:** Toggle between `Light` and `Dark` modes.
-- **Accents:** Choose from `Blue`, `Red`, `Green`, `Teal`, `Purple`, `Yellow`, `Orange`, `Silver`, `Black`, `Beige`, or `Tan`.
-- **Paths:** Configure your media directories for Music, Photos, and Videos.
-
----
-
-## 🛠️ Architecture
-
-XMPlayer is built using the **LÖVE (Love2D)** framework and organized into modular Lua scripts:
-
-- `xmb.lua`: Core interface and navigation logic.
-- `music_player.lua`: iPod-style playback interface.
-- `player.lua`: MPV integration for video playback.
-- `background.lua`: Particle and gradient rendering.
-- `indexing.lua`: Media library scanning and metadata extraction.
-- `theme.lua`: Color palette and styling system.
+- **Theme:** Toggle between `Light` and `Dark` modes.
+- **Theme Color:** Choose from `Blue`, `Red`, `Green`, `Teal`, `Purple`, `Yellow`, `Orange`.
 
 ---
 
-## 📜 Credits
+## Credits
 
 - Developed for the **muOS** community.
 - Built with **Love2D**.
-- Icons provided by various open-source libraries.
+- Icons provided by **Remix Icon** library.
 
 ---
 
-*Made with ❤️ for handheld enthusiasts.*
+*Made with ❤️ for the retro gaming community.*
