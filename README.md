@@ -2,7 +2,7 @@
 
 ![XMPlayer Hero](assets/readme/hero.png)
 
-**XMPlayer** is a premium, XMB-inspired media suite designed specifically for handheld gaming devices running **muOS** (support for other firmwares are planned). It provides a clean, easy-to-use interface for managing and enjoying your music, videos, and photos.
+**XMPlayer** is an all-in-one, XMB-inspired media suite designed specifically for handheld gaming devices running **muOS** (support for other firmwares are planned). It provides a clean, easy-to-use interface for managing and enjoying your music, videos, and photos.
 
 **Disclaimer:** XMPlayer is developed for educational purposes and is not affiliated with Sony or the XrossMediaBar brand.
 
@@ -18,10 +18,10 @@
 - **Video Player:** Integrated **MPV** support for high-performance video playback.
 - **Photo Viewer:** Browse and view your photo collection.
 - **Customizable Themes:** Fluid particle animations and customizable themes to your liking.
-- **Content Indexing:** Content indexing allows large media libraries without slowing down the UI.
+- **Content Indexing:** Content indexing allows handling large media libraries without slowing down the UI.
 - **System Integration:** Live battery percentage and clock display in the status bar.
 
-> This project's aim is to utilize XMB's ease of use for media content and familiarity by many people in the retro gaming community. This project does not aim to fully replicate or provide 1:1 functionalities with the original XMB interface of Sony consoles. This project is a reimagination and adaptation, not a hard copy.
+> This project's aim is to utilize XMB's ease of use for media content and many people's familiarity in the retro gaming community. This project does not aim to fully replicate or provide 1:1 functionalities with the original XMB interface of Sony devices. This project is a reimagination and adaptation, not a hard copy.
 
 ---
 
@@ -39,7 +39,7 @@
 > **Need help where to locate?** <br>
 > - For single SD card setups, the SD card contents are mounted to `/mnt/mmc`. <br>
 > - For dual SD card setups, `/mnt/mmc` refers to the 1st SD card, and `/mnt/sdcard` refers to the 2nd.
-5. XMPlayer will index your media content for you. After that, XMPlayer is ready to use.
+5. XMPlayer will index your media library for you. After that, XMPlayer is ready to use.
 
 ---
 
@@ -48,7 +48,7 @@
 | Button | XMB Menu | Music Player | Video Player (MPV) | Photo Viewer |
 | :--- | :--- | :--- | :--- | :--- |
 | **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s | - |
-| **D-Pad Left/Right** | Change Tab | Previous/Next Track | Seek +-5s | Next/Previous Photo |
+| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek +-5s | Next/Previous Photo |
 | **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset Zoom & Fit to Screen |
 | **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |
 | **X** | Context Menu | Toggle Shuffle | Toggle Mute | Zoom In |
@@ -69,6 +69,32 @@ You can personalize XMPlayer via **Settings** > **Theme Settings**:
 
 - **Theme:** Toggle between `Light` and `Dark` modes.
 - **Theme Color:** Choose from `Blue`, `Red`, `Green`, `Teal`, `Purple`, `Yellow`, `Orange`.
+
+More customization options are on the way!
+
+---
+
+## Roadmap
+
+- [ ] Add support for other firmwares (Knulli, ROCKNIX, ArkOS, etc.)
+- [x] Watch history.
+- [ ] Mark/unmark videos as watched.
+- [ ] Play videos from where you left off.
+- [ ] Extended music playback controls. (shuffle, repeat, hold, sleep, etc.)
+- [ ] Continue playback while display turned off (+ lid closed for clamshells)
+- [ ] More visualizer options.
+- [ ] Custom playlists for video and music.
+- [ ] Photo gallery.
+- [ ] Image slideshows.
+- [ ] Custom themes (wallpapers, icon sets)
+- [ ] External display support.
+- [ ] Add support for other media formats?
+
+---
+
+## License
+
+XMPlayer is released under the **MIT License**.
 
 ---
 
