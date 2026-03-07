@@ -1,0 +1,17 @@
+a_hk = esc
+
+a = p    # pause/play
+b = .    # frame step
+x = m    # mute sound
+y = o    # on screen display
+
+up = up        # seek +1min
+down = down    # seek -1min
+left = left    # seek -5sec
+right = right  # seek +5sec
+
+l1 = v     # subtitle visibility
+l2 = j     # subtitle next
+
+start = p  # pause/play
+select = q # quit
