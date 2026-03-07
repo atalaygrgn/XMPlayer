@@ -21,7 +21,7 @@
 - **Content Indexing:** Content indexing allows large media libraries without slowing down the UI.
 - **System Integration:** Live battery percentage and clock display in the status bar.
 
-> This project's aim is to utilize XMB's ease of use for media content and familiarity by many people in the retro gaming community. This project does not aim to fully replicate or provide 1:1 functionalities with the original XMB interface of Sony consoles.
+> This project's aim is to utilize XMB's ease of use for media content and familiarity by many people in the retro gaming community. This project does not aim to fully replicate or provide 1:1 functionalities with the original XMB interface of Sony consoles. This project is a reimagination and adaptation, not a hard copy.
 
 ---
 
@@ -29,8 +29,7 @@
 
 ### Prerequisites
 - A handheld device running **muOS**.
-- Your music, videos, and photos organized into dedicated folders on your SD card.
-- - Both single and dual SD card setups are supported.
+- Your music, videos, and photos organized into dedicated folders on your SD card. Both single and dual SD card setups are supported.
 
 ### Steps
 1. Download the latest release and put in in the `ARCHIVES` folder on your SD card.
@@ -52,15 +51,15 @@
 | **D-Pad Left/Right** | Change Tab | Previous/Next Track | Seek +-5s | Next/Previous Photo |
 | **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset Zoom & Fit to Screen |
 | **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |
-| **X** | Context Menu | Toggle Shuffle | Mute | Zoom In |
-| **Y** | - | Toggle Repeat | Toggle OSD | (Hold Y + D-Pad) Pan |
+| **X** | Context Menu | Toggle Shuffle | Toggle Mute | Zoom In |
+| **Y** | - | Toggle Repeat | Show OSD | (Hold Y + D-Pad) Pan |
 | **L1** | - | - | Previous Video | - |
 | **L2** | - | - | Toggle Subtitles | - |
 | **R1** | - | - | Next Video | - |
 | **R2** | - | - | Next Subtitle | - |
 | **Start** | - | - | Play / Pause | - |
 | **Select** | - | - | Return to XMB | - |
-| **Menu (Guide)** | - | Return to XMB | - | Return to XMB |
+| **Menu** | - | Return to XMB | - | Return to XMB |
 
 ---
 
@@ -75,9 +74,10 @@ You can personalize XMPlayer via **Settings** > **Theme Settings**:
 
 ## Credits
 
-- Developed for the **muOS** community.
 - Built with **Love2D**.
 - Icons provided by **Remix Icon** library.
+- System information provided by **muOS**.
+- **PlayStation**, **XrossMediaBar**, and **XMB** are trademarks of Sony Interactive Entertainment Inc.
 
 ---
 

@@ -109,7 +109,7 @@ function background.draw(music)
         
         -- Subtle gradient from background color to a tinted version
         local c1 = {bg[1], bg[2], bg[3], 1}
-        local tint = 0.6
+        local tint = (theme.current_mode == "Light") and 0.8 or 0.6
         local c2 = {
             bg[1] * (1 - tint) + acc[1] * tint,
             bg[2] * (1 - tint) + acc[2] * tint,

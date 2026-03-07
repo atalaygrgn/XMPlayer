@@ -68,10 +68,10 @@ function ui.draw_marquee(m, text, x, y, font, color, abs_x, abs_y, glow_color)
     end
     -- Adaptive intensities
     local shadow_alpha = theme.shadow_intensity * alpha
-    local glow_mult = (theme.current_mode == "Dark") and 1.5 or 1.0
+    local glow_mult = (theme.current_mode == "Dark") and 1.5 or 1.3
     
     -- Draw Shadow
-    draw_text(2, 2, {0, 0, 0, shadow_alpha})
+    draw_text(3, 3, {0, 0, 0, shadow_alpha})
 
     if glow_color then
         for i = 1, theme.glow_radius do
@@ -143,35 +143,37 @@ end
 
 -- Draw text with a soft glow effect
 function ui.draw_glow_text(text, x, y, font, color, glow_color, limit, align)
-    local gc = glow_color or theme.accent
     local alpha = color[4] or 1
     
     -- Adaptive intensities
     local shadow_alpha = theme.shadow_intensity * alpha
-    local glow_mult = (theme.current_mode == "Dark") and 1.5 or 1.0
+    local glow_mult = (theme.current_mode == "Dark") and 1.5 or 1.3
     
     -- Draw Shadow
     love.graphics.setColor(0, 0, 0, shadow_alpha)
     if limit and align then
-        love.graphics.printf(text, x + 2, y + 2, limit, align)
+        love.graphics.printf(text, x + 3, y + 3, limit, align)
     else
-        love.graphics.print(text, x + 2, y + 2)
+        love.graphics.print(text, x + 3, y + 3)
     end
     
     -- Draw glow layers
-    for i = 1, theme.glow_radius do
-        local layer_alpha = (theme.glow_intensity * glow_mult / i) * alpha
-        love.graphics.setColor(gc[1], gc[2], gc[3], layer_alpha)
-        if limit and align then
-            love.graphics.printf(text, x - i, y, limit, align)
-            love.graphics.printf(text, x + i, y, limit, align)
-            love.graphics.printf(text, x, y - i, limit, align)
-            love.graphics.printf(text, x, y + i, limit, align)
-        else
-            love.graphics.print(text, x - i, y)
-            love.graphics.print(text, x + i, y)
-            love.graphics.print(text, x, y - i)
-            love.graphics.print(text, x, y + i)
+    if glow_color then
+        local gc = glow_color or theme.accent
+        for i = 1, theme.glow_radius do
+            local layer_alpha = (theme.glow_intensity * glow_mult / i) * alpha
+            love.graphics.setColor(gc[1], gc[2], gc[3], layer_alpha)
+            if limit and align then
+                love.graphics.printf(text, x - i, y, limit, align)
+                love.graphics.printf(text, x + i, y, limit, align)
+                love.graphics.printf(text, x, y - i, limit, align)
+                love.graphics.printf(text, x, y + i, limit, align)
+            else
+                love.graphics.print(text, x - i, y)
+                love.graphics.print(text, x + i, y)
+                love.graphics.print(text, x, y - i)
+                love.graphics.print(text, x, y + i)
+            end
         end
     end
     
@@ -189,7 +191,6 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
     local img = (thumbnail and type(thumbnail) ~= "string") and thumbnail or icon
     if not img then return end
     
-    local gc = glow_color or theme.accent
     local a = alpha or 1
     
     local img_w = img:getWidth()
@@ -198,18 +199,26 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
 
     -- Adaptive intensities
     local shadow_alpha = theme.shadow_intensity * a
-    local glow_base = (theme.current_mode == "Dark") and (theme.glow_intensity * 1.2) or (theme.glow_intensity * 0.75)
-
+    local glow_base = (theme.current_mode == "Dark") and (theme.glow_intensity * 1.2) or (theme.glow_intensity * 1.1)
     -- Draw Shadow
     love.graphics.setColor(0, 0, 0, shadow_alpha)
-    love.graphics.draw(img, x + 2, y + 2, 0, base_scale, base_scale, img_w/2, img_h/2)
+    love.graphics.draw(img, x + 3, y + 3, 0, base_scale, base_scale, img_w/2, img_h/2)
 
     -- Draw glow layers
-    for i = 1, theme.glow_radius do
-        local layer_alpha = (glow_base / i) * a
-        local scale = base_scale * (1 + i * 0.05)
-        love.graphics.setColor(gc[1], gc[2], gc[3], layer_alpha)
-        love.graphics.draw(img, x, y, 0, scale, scale, img_w/2, img_h/2)
+    if glow_color then
+        local gc = glow_color or theme.accent
+        local radius = size * 0.3 -- Base radius for the aura
+        local time = love.timer.getTime()
+        local pulse = 0.8 + 0.2 * math.sin(time * 3) -- Pulse between 0.6 and 1.0
+        
+        for i = 1, theme.glow_radius do
+            -- Create a smoother, non-linear alpha decay for a softer look
+            local layer_alpha = (glow_base * 0.8 / (i^1.2)) * a * pulse
+            local scale = (1.0 + (i * 0.1)) * (0.95 + pulse * 0.05) -- Subtle scale pulse
+            
+            love.graphics.setColor(gc[1], gc[2], gc[3], layer_alpha)
+            love.graphics.circle("fill", x, y, radius * scale)
+        end
     end
     
     -- Main image

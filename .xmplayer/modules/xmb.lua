@@ -132,7 +132,7 @@ function xmb.go_back()
     xmb.item_marquee.phase = "pause_start"
 
     -- Snap vertical scroll to new position instantly
-    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 45
+    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
     xmb.item_scroll_y = xmb.target_item_scroll_y
     -- Slide in from the left (going back)
     xmb.list_slide_x = -120
@@ -241,7 +241,7 @@ function xmb.refresh_browser(slide_dir)
     
     xmb.nav_stack = {} -- Clear history on category switch
     -- Snap vertical scroll to top or focused item instantly
-    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 45
+    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
     xmb.item_scroll_y = xmb.target_item_scroll_y
     -- Slide direction based on navigation
     local slide = (slide_dir == "left") and -120 or 120
@@ -331,7 +331,7 @@ function xmb.update(dt)
     xmb.target_category_scroll_x = -(xmb.current_category_idx - 1) * (theme.icon_size + theme.icon_spacing)
     
     -- Items are scrolled based on current selection
-    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 45
+    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
     
     local cat_base_x = love.graphics.getWidth() * 0.25
     xmb.item_marquee.max_width = love.graphics.getWidth() - cat_base_x - 40
@@ -380,7 +380,7 @@ function xmb.draw()
     local screen_w, screen_h = love.graphics.getDimensions()
     
     -- Draw Horizontal Category Bar
-    local cat_base_x = screen_w * 0.25
+    local cat_base_x = screen_w * 0.2
     local cat_y = screen_h * 0.25
     
     love.graphics.push()
@@ -398,8 +398,7 @@ function xmb.draw()
         if is_focused then
             ui.draw_glow_icon(img, x, 0, theme.icon_size * 1.1, theme.text, alpha)
             
-            love.graphics.setFont(assets.fonts.main)
-            ui.draw_glow_text(cat.name, x - 100, theme.icon_size/2 + 15, assets.fonts.main, {theme.text[1], theme.text[2], theme.text[3], alpha}, theme.accent, 200, "center")
+            ui.draw_glow_text(cat.name, x - 100, theme.icon_size/2 + 12, assets.fonts.main, {theme.text[1], theme.text[2], theme.text[3], alpha}, nil, 200, "center")
         else
             love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], alpha)
             love.graphics.draw(img, x, 0, 0, scale, scale, img:getWidth()/2, img:getHeight()/2)
@@ -409,24 +408,24 @@ function xmb.draw()
     
     -- ─── Left Arrow Indicator (submenu back) ───
     if xmb.in_submenu() then
-        local arrow_x = cat_base_x - 96
-        local arrow_y = cat_y + theme.icon_size + 70
+        local arrow_x = cat_base_x - 90
+        local arrow_y = cat_y + theme.icon_size + 87
         local pulse = 0.5 + 0.3 * math.sin(love.timer.getTime() * 3)
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], pulse)
         love.graphics.polygon("fill", arrow_x + 12, arrow_y, arrow_x + 24, arrow_y - 10, arrow_x + 24, arrow_y + 10)
     end
     
     -- ─── Vertical Item List ───
-    local list_x = cat_base_x
-    local list_base_y = cat_y + theme.icon_size + 60
+    local list_x = cat_base_x + 32
+    local list_base_y = cat_y + theme.icon_size + 75
     local fade_top = cat_y + theme.icon_size / 2 + 50
-    local fade_range = 80
+    local fade_range = 100
     
     love.graphics.setScissor(0, fade_top - 20, screen_w, screen_h - (fade_top - 20))
     love.graphics.push()
     love.graphics.translate(list_x + xmb.list_slide_x, list_base_y + xmb.item_scroll_y)
     
-    local item_h = 45
+    local item_h = 75
     local first = math.max(1, math.floor(-xmb.item_scroll_y / item_h) - 2)
     local last = math.min(#browser.files, first + math.ceil(screen_h / item_h) + 4)
     
@@ -486,14 +485,14 @@ function xmb.draw()
             end
 
             if is_focused then
-                ui.draw_glow_icon(icon, -29, y + 14, 32, theme.text, final_alpha, theme.accent, thumb)
+                ui.draw_glow_icon(icon, -36, y + 14, 48, theme.text, final_alpha, theme.accent, thumb)
             else
-                ui.draw_icon(icon, -29, y + 14, 32, theme.text, final_alpha, thumb)
+                ui.draw_icon(icon, -36, y + 14, 48, theme.text, final_alpha, thumb)
             end
             
             -- Draw text
             if is_focused then
-                ui.draw_marquee(xmb.item_marquee, item.name, 0, y, assets.fonts.main, {theme.text[1], theme.text[2], theme.text[3], final_alpha}, list_x + xmb.list_slide_x, screen_y, theme.accent)
+                ui.draw_marquee(xmb.item_marquee, item.name, 0, y, assets.fonts.main, {theme.text[1], theme.text[2], theme.text[3], final_alpha}, list_x + xmb.list_slide_x, screen_y)
             else
                 love.graphics.setFont(assets.fonts.small)
                 love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha)
