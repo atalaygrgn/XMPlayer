@@ -15,6 +15,7 @@
 - **XMB Interface:** A responsive XrossMediaBar UI we all know and love.
 - **Responsive UI**: UI is responsive to different screen sizes, resolutions, and aspect ratios.
 - **Music Player:** A dedicated audio player interface with album art, track info, and playback controls. Most audio formats, **including FLAC**, are supported.
+![XMPlayer Music Player](assets/readme/player.png)
 - **Video Player:** Integrated **MPV** support for high-performance video playback.
 - **Photo Viewer:** Browse and view your photo collection.
 - **Customizable Themes:** Fluid particle animations and customizable themes to your liking.
@@ -68,6 +69,8 @@ You can personalize XMPlayer via **Settings** > **Theme Settings**:
 
 - **Theme:** Toggle between `Light` and `Dark` modes.
 - **Theme Color:** Choose from `Blue`, `Red`, `Green`, `Teal`, `Purple`, `Yellow`, `Orange`.
+
+![XMPlayer Theme](assets/readme/albums.png)
 
 More customization options are on the way!
 

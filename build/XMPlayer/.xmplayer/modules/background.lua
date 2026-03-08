@@ -1,5 +1,6 @@
 local theme = require("theme")
 local utils = require("utils")
+local settings = require("settings")
 
 local background = {}
 
@@ -39,11 +40,13 @@ function background.update(dt, is_paused)
     speed = utils.lerp(speed, target_speed, dt * 2)
 
     -- Update particles
-    for _, p in ipairs(particles) do
-        p.x = p.x + p.speed * dt * speed * 0.5
-        if p.x > screen_w then
-            p.x = -10
-            p.y = math.random() * screen_h
+    if settings.show_particles then
+        for _, p in ipairs(particles) do
+            p.x = p.x + p.speed * dt * speed * 0.5
+            if p.x > screen_w then
+                p.x = -10
+                p.y = math.random() * screen_h
+            end
         end
     end
 end
@@ -175,9 +178,11 @@ function background.draw(music)
     end
 
     -- Draw particles
-    for _, p in ipairs(particles) do
-        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], p.alpha * 0.5)
-        love.graphics.circle("fill", p.x, p.y, p.size)
+    if settings.show_particles then
+        for _, p in ipairs(particles) do
+            love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], p.alpha * 0.5)
+            love.graphics.circle("fill", p.x, p.y, p.size)
+        end
     end
 end
 

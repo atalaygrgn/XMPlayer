@@ -501,7 +501,7 @@ function xmb.draw()
             end
 
             if is_focused then
-                ui.draw_glow_icon(icon, -36, y + 14, 48, theme.text, final_alpha, theme.accent, thumb)
+                ui.draw_glow_icon(icon, -36, y + 14, 48, theme.text, final_alpha, theme.text, thumb)
             else
                 ui.draw_icon(icon, -36, y + 14, 48, theme.text, final_alpha, thumb)
             end

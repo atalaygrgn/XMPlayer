@@ -69,6 +69,14 @@ settings.options = {
         value = 1
     },
     {
+        id = "particles",
+        name = "Particle Effects",
+        type = "choice",
+        group = "theme_settings",
+        choices = { "Show", "Hide" },
+        value = 2
+    },
+    {
         id = "photo_dir",
         name = "Photo Directory",
         type = "path",
@@ -196,11 +204,11 @@ function settings.apply()
     local opt_music = settings.get_option("music_dir")
     local opt_video = settings.get_option("video_dir")
     for _, cat in ipairs(categories) do
-        if cat.id == "photo" then
+        if cat.id == "photo" and opt_photo then
             cat.path = opt_photo.value
-        elseif cat.id == "music" then
+        elseif cat.id == "music" and opt_music then
             cat.path = opt_music.value
-        elseif cat.id == "video" then
+        elseif cat.id == "video" and opt_video then
             cat.path = opt_video.value
         end
     end
@@ -212,6 +220,10 @@ function settings.apply()
     -- Update volume & brightness control visibility
     local opt_vol_bright = settings.get_option("vol_bright_control")
     settings.vol_bright_enabled = (opt_vol_bright.value == 1)
+
+    -- Update particles visibility
+    local opt_particles = settings.get_option("particles")
+    settings.show_particles = (opt_particles.value == 1)
 end
 
 function settings.get_browser_items()
