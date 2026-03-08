@@ -34,6 +34,12 @@ function assets.load(categories)
     assets.images.history = love.graphics.newImage("assets/icons/history.png")
     assets.images.quit = love.graphics.newImage("assets/icons/quit.png")
 
+    -- Load volume icons
+    assets.images.volume_up = love.graphics.newImage("assets/icons/volume-up.png")
+    assets.images.volume_down = love.graphics.newImage("assets/icons/volume-down.png")
+    assets.images.volume_mute = love.graphics.newImage("assets/icons/volume-mute.png")
+    assets.images.brightness = love.graphics.newImage("assets/icons/bulb.png")
+
     -- Load category icons (overwrites specifics if they share names)
     if categories then
         for _, cat in ipairs(categories) do
@@ -42,14 +48,15 @@ function assets.load(categories)
     end
 
     -- Load fonts
-    assets.fonts.main = love.graphics.newFont(24)
-    assets.fonts.small = love.graphics.newFont(20)
-    assets.fonts.title = love.graphics.newFont(26)
-    assets.fonts.artist = love.graphics.newFont(20)
-    assets.fonts.album = love.graphics.newFont(18)
-    assets.fonts.time_elapsed = love.graphics.newFont(24)
-    assets.fonts.time_dur = love.graphics.newFont(20)
-    assets.fonts.xs = love.graphics.newFont(16)
+    local font_path = "assets/font/eurostile_bold.ttf"
+    assets.fonts.main = love.graphics.newFont(font_path, 28)
+    assets.fonts.small = love.graphics.newFont(font_path, 24)
+    assets.fonts.title = love.graphics.newFont(font_path, 30)
+    assets.fonts.artist = love.graphics.newFont(font_path, 24)
+    assets.fonts.album = love.graphics.newFont(font_path, 22)
+    assets.fonts.time_elapsed = love.graphics.newFont(font_path, 28)
+    assets.fonts.time_dur = love.graphics.newFont(font_path, 24)
+    assets.fonts.xs = love.graphics.newFont(font_path, 18)
 
     -- Load SFX
     assets.sfx.nav = love.audio.newSource("assets/sfx/keytone.wav", "static")

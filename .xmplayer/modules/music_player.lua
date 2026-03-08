@@ -8,23 +8,23 @@ local utils = require("utils")
 local music = {}
 
 -- Player state
-music.active = false       -- Is the music player view showing?
-music.playing = false      -- Is audio currently playing?
+music.active = false      -- Is the music player view showing?
+music.playing = false     -- Is audio currently playing?
 music.paused = false
-music.current_track = nil  -- {name, path}
-music.current_index = 0    -- Index in the playlist
-music.playlist = {}        -- List of tracks from current folder
-music.source = nil         -- love.audio Source object
-music.elapsed = 0          -- Elapsed time in seconds
-music.duration = 0         -- Total duration in seconds
-music.cover_art = nil      -- love.graphics Image for album art
+music.current_track = nil -- {name, path}
+music.current_index = 0   -- Index in the playlist
+music.playlist = {}       -- List of tracks from current folder
+music.source = nil        -- love.audio Source object
+music.elapsed = 0         -- Elapsed time in seconds
+music.duration = 0        -- Total duration in seconds
+music.cover_art = nil     -- love.graphics Image for album art
 
 -- Metadata tags
 music.tags = {}
 music.next_tags = {}
 
 -- Animation / UI
-music.fade_alpha = 0       -- Fade-in animation
+music.fade_alpha = 0 -- Fade-in animation
 music.marquees = {}
 
 function music.init()
@@ -40,7 +40,7 @@ local function build_playlist()
     music.playlist = {}
     for i, item in ipairs(browser.files) do
         if item.type == "file" then
-            table.insert(music.playlist, {name = item.name, path = item.path, index = i})
+            table.insert(music.playlist, { name = item.name, path = item.path, index = i })
         end
     end
 end
@@ -51,7 +51,7 @@ function music.load_track(track_info)
 
     music.current_track = track_info
     music.elapsed = 0
-    
+
     -- Reset marquees
     for _, m in pairs(music.marquees) do
         m.offset = 0
@@ -61,7 +61,7 @@ function music.load_track(track_info)
 
     -- Extract metadata
     music.tags = metadata.get_tags(track_info.path)
-    
+
     -- Pre-load next track tags for display
     if #music.playlist > 1 then
         local next_idx = (music.current_index % #music.playlist) + 1
@@ -78,8 +78,8 @@ function music.load_track(track_info)
             local id = love.image.newImageData(fd)
             return love.graphics.newImage(id)
         end)
-        if ok then 
-            music.cover_art = result 
+        if ok then
+            music.cover_art = result
         end
     end
 
@@ -131,7 +131,7 @@ function music.play(filepath)
     end
 
     if not track_info then
-        track_info = {name = utils.get_filename(filepath), path = filepath}
+        track_info = { name = utils.get_filename(filepath), path = filepath }
         music.current_index = 1
     end
 
@@ -261,8 +261,9 @@ function music.draw()
     else
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
         love.graphics.rectangle("fill", art_x - 4, art_y - 4, art_size + 8, art_size + 8, 6, 6)
-        
-        ui.draw_icon(assets.images.music, art_x + art_size/2, art_y + art_size/2, art_size * 0.4, theme.text, 0.2 * alpha)
+
+        ui.draw_icon(assets.images.music, art_x + art_size / 2, art_y + art_size / 2, art_size * 0.4, theme.text,
+            0.2 * alpha)
     end
 
     -- Track Info
@@ -271,18 +272,21 @@ function music.draw()
 
         -- Title
         local track_name = music.tags.title or utils.get_track_name(music.current_track.name)
-        ui.draw_marquee(music.marquees.title, track_name, info_x, info_y, assets.fonts.title, {theme.text[1], theme.text[2], theme.text[3], alpha}, info_x, info_y)
+        ui.draw_marquee(music.marquees.title, track_name, info_x, info_y, assets.fonts.title,
+            { theme.text[1], theme.text[2], theme.text[3], alpha }, info_x, info_y)
 
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
         love.graphics.rectangle("fill", info_x, info_y + 40, info_w, 1)
 
         -- Artist
         local artist_name = music.tags.artist or "Unknown Artist"
-        ui.draw_marquee(music.marquees.artist, artist_name, info_x, info_y + 46, assets.fonts.artist, {theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha}, info_x, info_y + 46)
+        ui.draw_marquee(music.marquees.artist, artist_name, info_x, info_y + 46, assets.fonts.artist,
+            { theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha }, info_x, info_y + 46)
 
         -- Album
         local album_name = music.tags.album or "Unknown Album"
-        ui.draw_marquee(music.marquees.album, album_name, info_x, info_y + 74, assets.fonts.album, {theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha}, info_x, info_y + 74)
+        ui.draw_marquee(music.marquees.album, album_name, info_x, info_y + 74, assets.fonts.album,
+            { theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha }, info_x, info_y + 74)
 
         -- Next Track Info
         local extra_y = info_y + 110
@@ -294,7 +298,7 @@ function music.draw()
             local next_name = "Next: " .. track_name
             local next_w_max = info_w * 0.7
             local display_next = utils.truncate_text(next_name, assets.fonts.small, next_w_max)
-            
+
             love.graphics.setFont(assets.fonts.small)
             love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha)
             love.graphics.print(display_next, info_x, extra_y)
@@ -318,12 +322,13 @@ function music.draw()
 
     love.graphics.setFont(assets.fonts.time_elapsed)
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.9 * alpha)
-    love.graphics.print(utils.format_time(music.elapsed), bar_x + bar_w - 120, bar_y - 36)
+    love.graphics.print(utils.format_time(music.elapsed), bar_x + bar_w - 140, bar_y - 34)
 
     love.graphics.setFont(assets.fonts.time_dur)
     love.graphics.printf("/ " .. utils.format_time(music.duration), 0, bar_y - 30, bar_x + bar_w, "right")
 
-    ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress, {0.55, 0.65, 1.0, 0.9 * alpha}, {theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha})
+    ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress, { 0.55, 0.65, 1.0, 0.9 * alpha },
+        { theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha })
 end
 
 function music.keypressed(key)

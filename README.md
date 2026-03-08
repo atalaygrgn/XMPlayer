@@ -28,7 +28,7 @@
 ## Installation
 
 ### Prerequisites
-- A handheld device running **muOS**.
+- A handheld device running **muOS**. At least 512 MB of RAM is recommended for a smooth experience.
 - Your music, videos, and photos organized into dedicated folders on your SD card. Both single and dual SD card setups are supported.
 
 ### Steps
@@ -47,19 +47,18 @@
 
 | Button | XMB Menu | Music Player | Video Player (MPV) | Photo Viewer |
 | :--- | :--- | :--- | :--- | :--- |
+| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek +-5s | Previous/Next Photo |
 | **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s | - |
-| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek +-5s | Next/Previous Photo |
 | **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset Zoom & Fit to Screen |
 | **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |
-| **X** | Context Menu | Toggle Shuffle | Toggle Mute | Zoom In |
+| **X** | Context Menu | - | Toggle Mute | Zoom In |
 | **Y** | - | Toggle Repeat | Show OSD | (Hold Y + D-Pad) Pan |
 | **L1** | - | - | Previous Video | - |
 | **L2** | - | - | Toggle Subtitles | - |
 | **R1** | - | - | Next Video | - |
 | **R2** | - | - | Next Subtitle | - |
 | **Start** | - | - | Play / Pause | - |
-| **Select** | - | - | Return to XMB | - |
-| **Menu** | - | Return to XMB | - | Return to XMB |
+| **Select** | - | - | Return to XMB | Return to XMB |
 
 ---
 
@@ -76,18 +75,26 @@ More customization options are on the way!
 
 ## Roadmap
 
-- [ ] Add support for other firmwares (Knulli, ROCKNIX, ArkOS, etc.)
+### v0.1 (Current)
 - [x] Watch history.
 - [ ] Mark/unmark videos as watched.
 - [ ] Play videos from where you left off.
-- [ ] Extended music playback controls. (shuffle, repeat, hold, sleep, etc.)
+- [ ] Extended music playback controls. (repeat, hold, sleep, etc.)
+- [ ] Shuffle play (folder, album, artist)
+- [ ] Auto display sleep.
 - [ ] Continue playback while display turned off (+ lid closed for clamshells)
-- [ ] More visualizer options.
+
+### v0.2 (In Progress)
+- [ ] Add support for other firmwares (Knulli, ROCKNIX, ArkOS, etc.)
 - [ ] Custom playlists for video and music.
+- [ ] More visualizer options.
 - [ ] Photo gallery.
 - [ ] Image slideshows.
-- [ ] Custom themes (wallpapers, icon sets)
+
+### Planned for Later Versions
 - [ ] External display support.
+- [ ] Custom themes (wallpapers, icon sets)
+- [ ] VGM file support (through MPV)
 - [ ] Add support for other media formats?
 
 ---

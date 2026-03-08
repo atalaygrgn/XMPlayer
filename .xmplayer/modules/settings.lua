@@ -15,7 +15,7 @@ local storage_path = love.filesystem.getSource()
 settings.file_path = storage_path .. "/settings.cfg"
 
 -- Current submenu depth for settings category
-settings.current_group = nil  -- nil = top-level groups, string = group id
+settings.current_group = nil -- nil = top-level groups, string = group id
 
 -- Grouped settings
 settings.groups = {
@@ -57,7 +57,7 @@ settings.options = {
         name = "Theme",
         type = "choice",
         group = "theme_settings",
-        choices = {"Light", "Dark"},
+        choices = { "Light", "Dark" },
         value = 2
     },
     {
@@ -65,7 +65,7 @@ settings.options = {
         name = "Theme Color",
         type = "choice",
         group = "theme_settings",
-        choices = {"Blue", "Red", "Green", "Teal", "Purple", "Yellow", "Orange"},
+        choices = { "Blue", "Red", "Green", "Teal", "Purple", "Yellow", "Orange" },
         value = 1
     },
     {
@@ -94,7 +94,15 @@ settings.options = {
         name = "Keytone",
         type = "choice",
         group = "general",
-        choices = {"On", "Off"},
+        choices = { "On", "Off" },
+        value = 1
+    },
+    {
+        id = "vol_bright_control",
+        name = "Volume & Brightness Control",
+        type = "choice",
+        group = "general",
+        choices = { "Show", "Hide" },
         value = 1
     },
     {
@@ -188,15 +196,22 @@ function settings.apply()
     local opt_music = settings.get_option("music_dir")
     local opt_video = settings.get_option("video_dir")
     for _, cat in ipairs(categories) do
-        if cat.id == "photo" then cat.path = opt_photo.value
-        elseif cat.id == "music" then cat.path = opt_music.value
-        elseif cat.id == "video" then cat.path = opt_video.value
+        if cat.id == "photo" then
+            cat.path = opt_photo.value
+        elseif cat.id == "music" then
+            cat.path = opt_music.value
+        elseif cat.id == "video" then
+            cat.path = opt_video.value
         end
     end
-    
+
     -- Update keytone
     local opt_keytone = settings.get_option("keytone")
     settings.keytone_enabled = (opt_keytone.value == 1)
+
+    -- Update volume & brightness control visibility
+    local opt_vol_bright = settings.get_option("vol_bright_control")
+    settings.vol_bright_enabled = (opt_vol_bright.value == 1)
 end
 
 function settings.get_browser_items()
@@ -211,10 +226,12 @@ function settings.get_browser_items()
                 elseif opt.type == "path" or opt.type == "info" then
                     display_value = ": " .. tostring(opt.value)
                 end
-                
+
                 local icon = "folder"
-                if opt.group == "about" then icon = "info"
-                elseif opt.group == "general" or opt.group == "theme_settings" or opt.group == "devtools" then icon = "option"
+                if opt.group == "about" then
+                    icon = "info"
+                elseif opt.group == "general" or opt.group == "theme_settings" or opt.group == "devtools" then
+                    icon = "option"
                 end
                 table.insert(items, {
                     name = opt.name .. display_value,
@@ -259,7 +276,7 @@ end
 function settings.update(dt, setting_idx)
     if settings.active then
         settings.alpha = math.min(1, settings.alpha + dt * 10)
-        
+
         -- Update scroll
         if setting_idx then
             local opt = settings.options[setting_idx]
@@ -267,10 +284,11 @@ function settings.update(dt, setting_idx)
                 local item_h = 50
                 local screen_h = love.graphics.getHeight()
                 local visible_area_h = screen_h * 0.6
-                
+
                 -- Target scroll to keep selected item near the middle of visible area
-                settings.target_scroll_y = -(settings.selected_option_idx - 1) * item_h + (visible_area_h / 2) - (item_h / 2)
-                
+                settings.target_scroll_y = -(settings.selected_option_idx - 1) * item_h + (visible_area_h / 2) -
+                    (item_h / 2)
+
                 -- Clamp scroll
                 local max_scroll = 0
                 local min_scroll = math.min(0, -(#opt.choices * item_h) + visible_area_h)
@@ -280,7 +298,7 @@ function settings.update(dt, setting_idx)
     else
         settings.alpha = math.max(0, settings.alpha - dt * 10)
     end
-    
+
     settings.scroll_y = utils.lerp(settings.scroll_y, settings.target_scroll_y or 0, dt * 10)
 end
 
@@ -298,7 +316,7 @@ function settings.draw_popup(setting_idx)
     -- Panel Background
     love.graphics.setColor(0.02, 0.02, 0.05, 0.92 * alpha)
     love.graphics.rectangle("fill", x, y, panel_w, screen_h)
-    
+
     -- Left accent border
     love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.8 * alpha)
     love.graphics.rectangle("fill", x, y, 4, screen_h)
@@ -306,7 +324,7 @@ function settings.draw_popup(setting_idx)
     -- Content Container
     local content_y_base = screen_h * 0.3
     local visible_area_h = screen_h * 0.6
-    
+
     love.graphics.setScissor(x, content_y_base, panel_w, visible_area_h)
     love.graphics.push()
     love.graphics.translate(0, content_y_base + settings.scroll_y)
@@ -314,43 +332,44 @@ function settings.draw_popup(setting_idx)
     -- Choices
     love.graphics.setFont(assets.fonts.small)
     for i, choice in ipairs(opt.choices) do
-        local cy = (i-1) * item_h
+        local cy = (i - 1) * item_h
         local is_selected = (i == settings.selected_option_idx)
         local is_current = (i == opt.value)
-        
+
         if is_selected then
             love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.3 * alpha)
             love.graphics.rectangle("fill", x + 4, cy - 5, panel_w - 4, item_h)
-            
+
             love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 1 * alpha)
             love.graphics.rectangle("fill", x + 4, cy - 5, 4, item_h)
-            
+
             love.graphics.setColor(1, 1, 1, 1 * alpha)
         else
             love.graphics.setColor(1, 1, 1, 0.6 * alpha)
         end
-        
+
         love.graphics.print(choice, x + 40, cy + 5)
-        
+
         if is_current then
             love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 1 * alpha)
-            love.graphics.circle("fill", x + 25, cy + item_h/2 - 6, 4)
+            love.graphics.circle("fill", x + 25, cy + item_h / 2 - 6, 4)
         end
     end
-    
+
     love.graphics.pop()
     love.graphics.setScissor()
-    
+
     -- Scroll indicators
     if #opt.choices * item_h > visible_area_h then
         love.graphics.setColor(1, 1, 1, 0.3 * alpha)
         local centerX = x + panel_w / 2
         if settings.scroll_y < 0 then
-            love.graphics.polygon("fill", centerX-10, content_y_base-14, centerX+10, content_y_base-14, centerX, content_y_base-26)
+            love.graphics.polygon("fill", centerX - 10, content_y_base - 14, centerX + 10, content_y_base - 14, centerX,
+                content_y_base - 26)
         end
         if settings.scroll_y > -(#opt.choices * item_h) + visible_area_h then
             local targetY = content_y_base + visible_area_h + 14
-            love.graphics.polygon("fill", centerX-10, targetY, centerX+10, targetY, centerX, targetY+12)
+            love.graphics.polygon("fill", centerX - 10, targetY, centerX + 10, targetY, centerX, targetY + 12)
         end
     end
 end

@@ -8,7 +8,6 @@ function utils.split(str, sep)
     return result
 end
 
-
 function utils.lerp(a, b, t)
     return a + (b - a) * t
 end
@@ -110,14 +109,14 @@ end
 function utils.truncate_text(text, font, max_w)
     text = utils.clean_utf8(text or "")
     if font:getWidth(text) <= max_w then return text end
-    
+
     local utf8 = require("utf8")
     local last_pos = 0
     for i, _ in utf8.codes(text) do
         -- Get the byte position where the NEXT character starts
         local next_pos = utf8.offset(text, 2, i) or (#text + 1)
         local part = text:sub(1, next_pos - 1)
-        
+
         if font:getWidth(part .. "...") > max_w then
             if last_pos == 0 then return "..." end
             return text:sub(1, last_pos) .. "..."
@@ -132,7 +131,7 @@ function utils.load_image(path)
     -- Try direct load first (works if path is relative to source or save, or valid absolute in some environments)
     local ok, img = pcall(love.graphics.newImage, path)
     if ok then return img end
-    
+
     -- Try reading via io if newImage failed (common issue for absolute paths in Love2D)
     local f = io.open(path, "rb")
     if f then
@@ -176,6 +175,28 @@ function utils.is_charging()
     return false
 end
 
+function utils.get_volume()
+    local path = "/opt/muos/config/settings/general/volume"
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    if content then
+        return tonumber(content:match("(%d+)"))
+    end
+    return nil
+end
+
+function utils.get_brightness()
+    local path = "/opt/muos/config/settings/general/brightness"
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    if content then
+        return tonumber(content:match("(%d+)"))
+    end
+    return nil
+end
+
 return utils
-
-
