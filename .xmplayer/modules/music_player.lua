@@ -118,8 +118,12 @@ function music.load_track(track_info)
     end
 end
 
-function music.play(filepath)
-    build_playlist()
+function music.play(filepath, custom_playlist)
+    if custom_playlist then
+        music.playlist = custom_playlist
+    else
+        build_playlist()
+    end
 
     local track_info = nil
     for i, t in ipairs(music.playlist) do

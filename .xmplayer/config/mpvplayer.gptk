@@ -10,8 +10,10 @@ down = down    # seek -1min
 left = left    # seek -5sec
 right = right  # seek +5sec
 
-l1 = v     # subtitle visibility
-l2 = j     # subtitle next
+l1 = [     # previous video
+l2 = v     # subtitle visibility
+r1 = ]     # next video
+r2 = j     # subtitle next
 
 start = p  # pause/play
 select = q # quit

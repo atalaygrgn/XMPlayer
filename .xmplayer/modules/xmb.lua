@@ -7,6 +7,7 @@ local ui = require("ui")
 local utils = require("utils")
 local indexing = require("indexing")
 local history = require("history")
+local video_manager = require("video_manager")
 
 local xmb = {}
 
@@ -46,6 +47,30 @@ local function in_subpath(base, current)
     return utils.is_subpath(base, current)
 end
 
+-- Helper to count media files in a directory (recursive)
+local function count_media_in_dir(dir, media_type)
+    if not dir or dir == "" then return 0 end
+    local exts = indexing.compatible_extensions[media_type]
+    if not exts then return 0 end
+
+    local pattern_parts = {}
+    for _, ext in ipairs(exts) do
+        local e = ext:sub(2) -- remove leading dot
+        table.insert(pattern_parts, "-name '*." .. e .. "' -o -name '*." .. e:upper() .. "'")
+    end
+    local pattern_str = table.concat(pattern_parts, " ")
+
+    local cmd = "find \"" .. dir .. "\" -type f \\( " .. pattern_str .. " \\) 2>/dev/null | wc -l"
+    local handle = io.popen(cmd)
+    local count = 0
+    if handle then
+        local result = handle:read("*a")
+        handle:close()
+        count = tonumber(result:match("%d+")) or 0
+    end
+    return count
+end
+
 local function prep_files()
     local screen_w = love.graphics.getWidth()
     local cat_base_x = screen_w * 0.25
@@ -56,6 +81,15 @@ local function prep_files()
         item.name = utils.clean_utf8(item.name)
         item.display_name = utils.truncate_text(item.name, font, max_w)
     end
+end
+
+local function is_music_file(path)
+    local ext = utils.get_extension(path)
+    if not ext then return false end
+    for _, e in ipairs(indexing.compatible_extensions.music) do
+        if ext == e then return true end
+    end
+    return false
 end
 
 function xmb.in_submenu()
@@ -119,12 +153,12 @@ function xmb.go_back()
                 local parent = utils.get_dirname(browser.current_dir)
                 if parent ~= "" and utils.is_subpath(base, parent) then
                     browser.current_dir = parent
-                    browser.scan()
+                    xmb.refresh_items()
                     xmb.current_item_idx = math.min(prev_idx, #browser.files)
                     prep_files()
                 else
                     browser.current_dir = base
-                    browser.scan()
+                    xmb.refresh_items()
                     xmb.current_item_idx = math.min(prev_idx, #browser.files)
                     prep_files()
                 end
@@ -158,8 +192,18 @@ function xmb.refresh_items()
                 { name = "Albums", type = "view_trigger", target_view = "music_albums", icon = "albums" })
             table.insert(browser.files,
                 { name = "Artists", type = "view_trigger", target_view = "music_artists", icon = "mic" })
+
+            local music_count = 0
+            for _ in pairs(indexing.data.music.files) do music_count = music_count + 1 end
             table.insert(browser.files,
-                { name = "Music Files", type = "directory_trigger", path = cat.path, icon = "folder_music" })
+                {
+                    name = "Music Files",
+                    type = "directory_trigger",
+                    path = cat.path,
+                    icon = "folder_music",
+                    description = music_count .. " tracks"
+                })
+
             browser.base_dir = cat.path
             browser.current_dir = cat.path
             browser.set_filter(cat.filter)
@@ -174,43 +218,101 @@ function xmb.refresh_items()
             end
             table.sort(browser.files, function(a, b) return a.name:lower() < b.name:lower() end)
         elseif xmb.view_type == "album_tracks" then
+            table.insert(browser.files,
+                { name = "Shuffle Play", type = "shuffle_play", icon = "shuffle", tracks = xmb.view_data.tracks })
             for _, path in ipairs(xmb.view_data.tracks) do
                 local info = indexing.data.music.files[path]
                 table.insert(browser.files, { name = info.title or "Unknown", path = path, type = "file" })
             end
         elseif xmb.view_type == "artist_tracks" then
+            table.insert(browser.files,
+                { name = "Shuffle Play", type = "shuffle_play", icon = "shuffle", tracks = xmb.view_data.tracks })
             for _, path in ipairs(xmb.view_data.tracks) do
                 local info = indexing.data.music.files[path]
                 table.insert(browser.files, { name = info.title or "Unknown", path = path, type = "file" })
             end
         elseif xmb.view_type == "browser" then
             browser.scan()
+            -- Check if we have any music files in this folder
+            local has_music = false
+            for _, item in ipairs(browser.files) do
+                if item.type == "file" and is_music_file(item.path) then
+                    has_music = true
+                elseif item.type == "directory" then
+                    local count = count_media_in_dir(item.path, "music")
+                    item.description = count .. " tracks"
+                end
+            end
+            if has_music then
+                table.insert(browser.files, 1, { name = "Shuffle Play", type = "shuffle_play", icon = "shuffle" })
+            end
         end
     elseif cat.id == "video" then
         if xmb.view_type == "category_root" then
             table.insert(browser.files,
-                { name = "Watch History", type = "view_trigger", target_view = "video_history", icon = "history" })
+                {
+                    name = "Resume Watching",
+                    type = "view_trigger",
+                    target_view = "video_resume",
+                    icon = "history",
+                    description = "Pick up where you left off"
+                })
             table.insert(browser.files,
-                { name = "Video Files", type = "directory_trigger", path = cat.path, icon = "folder_video" })
+                {
+                    name = "Video Files",
+                    type = "directory_trigger",
+                    path = cat.path,
+                    icon = "folder_video",
+                    description = #indexing.data.videos .. " videos"
+                })
             browser.base_dir = cat.path
             browser.current_dir = cat.path
             browser.set_filter(cat.filter)
-        elseif xmb.view_type == "video_history" then
-            for _, path in ipairs(history.data) do
-                table.insert(browser.files, { name = utils.get_filename(path), path = path, type = "file" })
+        elseif xmb.view_type == "video_resume" then
+            local resume_list = video_manager.get_resume_list()
+            for _, item in ipairs(resume_list) do
+                table.insert(browser.files, { name = item.name, path = item.path, type = "file" })
             end
         elseif xmb.view_type == "browser" then
             browser.scan()
+            -- Add Play All and Shuffle Play if there are video files
+            local has_videos = false
+            for _, item in ipairs(browser.files) do
+                if item.type == "file" then
+                    has_videos = true
+                elseif item.type == "directory" then
+                    local count = count_media_in_dir(item.path, "video")
+                    item.description = count .. " videos"
+                end
+            end
+            if has_videos then
+                table.insert(browser.files, 1, { name = "Play All", type = "video_play_all", icon = "play" })
+                table.insert(browser.files, 2, { name = "Shuffle Play", type = "video_shuffle_play", icon = "shuffle" })
+            end
         end
     elseif cat.id == "photo" then
         if xmb.view_type == "category_root" then
+            local photo_count = 0
+            for _ in pairs(indexing.data.photos) do photo_count = photo_count + 1 end
             table.insert(browser.files,
-                { name = "Photo Files", type = "directory_trigger", path = cat.path, icon = "folder_image" })
+                {
+                    name = "Photo Files",
+                    type = "directory_trigger",
+                    path = cat.path,
+                    icon = "folder_image",
+                    description = photo_count .. " photos"
+                })
             browser.base_dir = cat.path
             browser.current_dir = cat.path
             browser.set_filter(cat.filter)
         elseif xmb.view_type == "browser" then
             browser.scan()
+            for _, item in ipairs(browser.files) do
+                if item.type == "directory" then
+                    local count = count_media_in_dir(item.path, "photo")
+                    item.description = count .. " photos"
+                end
+            end
         end
     elseif cat.id == "settings" then
         browser.files = settings.get_browser_items()
@@ -501,15 +603,35 @@ function xmb.draw()
             end
 
             if is_focused then
-                ui.draw_glow_icon(icon, -36, y + 14, 48, theme.text, final_alpha, theme.text, thumb)
+                if item.description then
+                    ui.draw_glow_icon(icon, -36, y + 24, 48, theme.text, final_alpha, theme.text, thumb)
+                else
+                    ui.draw_glow_icon(icon, -36, y + 14, 48, theme.text, final_alpha, theme.text, thumb)
+                end
             else
                 ui.draw_icon(icon, -36, y + 14, 48, theme.text, final_alpha, thumb)
+            end
+
+            -- Draw watched overlay
+            if item.type == "file" and cat_id == "video" and video_manager.is_watched(item.path) then
+                ui.draw_icon(assets.images.eye, -52, y, 36, { 1, 1, 1 }, 1)
             end
 
             -- Draw text
             if is_focused then
                 ui.draw_marquee(xmb.item_marquee, item.name, 0, y, assets.fonts.main,
                     { theme.text[1], theme.text[2], theme.text[3], final_alpha }, list_x + xmb.list_slide_x, screen_y)
+
+                if item.description then
+                    local desc_y = y + 35
+                    local line_w = screen_w * 0.7
+                    love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha * 0.3)
+                    love.graphics.line(0, desc_y, line_w, desc_y)
+
+                    love.graphics.setFont(assets.fonts.xs)
+                    love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha * 0.8)
+                    love.graphics.print(item.description, 0, desc_y + 5)
+                end
             else
                 love.graphics.setFont(assets.fonts.small)
                 love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha)
@@ -558,17 +680,24 @@ function xmb.keypressed(key, player, music, viewer)
             if selected.type == "directory" then
                 table.insert(xmb.nav_stack, xmb.current_item_idx)
                 browser.current_dir = selected.path
-                browser.scan()
-                xmb.current_item_idx = 1
+                xmb.refresh_items()
+                if browser.files[1] and browser.files[1].type == "shuffle_play" and #browser.files > 1 then
+                    xmb.current_item_idx = 2
+                elseif browser.files[1] and browser.files[1].type == "video_play_all" and #browser.files > 2 then
+                    xmb.current_item_idx = 3
+                else
+                    xmb.current_item_idx = 1
+                end
                 prep_files()
-                xmb.target_item_scroll_y = 0
-                xmb.item_scroll_y = 0
+                xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
+                xmb.item_scroll_y = xmb.target_item_scroll_y
                 xmb.list_slide_x = 120
                 xmb.list_slide_alpha = 0
             elseif selected.type == "file" then
                 local cat_id = categories[xmb.current_category_idx].id
                 if cat_id == "video" then
-                    player.play(selected.path)
+                    local is_resume_view = (xmb.view_type == "video_resume")
+                    player.play_video(selected.path, is_resume_view)
                 elseif cat_id == "music" and music then
                     music.play(selected.path)
                 elseif cat_id == "photo" and viewer then
@@ -630,10 +759,17 @@ function xmb.keypressed(key, player, music, viewer)
                 browser.current_dir = selected.path
                 xmb.view_type = "browser"
                 xmb.refresh_items()
-                xmb.current_item_idx = 1
+
+                if browser.files[1] and browser.files[1].type == "shuffle_play" and #browser.files > 1 then
+                    xmb.current_item_idx = 2
+                elseif browser.files[1] and browser.files[1].type == "video_play_all" and #browser.files > 2 then
+                    xmb.current_item_idx = 3
+                else
+                    xmb.current_item_idx = 1
+                end
                 prep_files()
-                xmb.target_item_scroll_y = 0
-                xmb.item_scroll_y = 0
+                xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
+                xmb.item_scroll_y = xmb.target_item_scroll_y
                 xmb.list_slide_x = 120
                 xmb.list_slide_alpha = 0
             elseif selected.type == "album" or selected.type == "artist" then
@@ -641,17 +777,72 @@ function xmb.keypressed(key, player, music, viewer)
                 xmb.view_type = (selected.type == "album") and "album_tracks" or "artist_tracks"
                 xmb.view_data = selected.data
                 xmb.refresh_items()
-                xmb.current_item_idx = 1
+                if browser.files[1] and browser.files[1].type == "shuffle_play" and #browser.files > 1 then
+                    xmb.current_item_idx = 2
+                else
+                    xmb.current_item_idx = 1
+                end
                 prep_files()
-                xmb.target_item_scroll_y = 0
-                xmb.item_scroll_y = 0
+                xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
+                xmb.item_scroll_y = xmb.target_item_scroll_y
                 xmb.list_slide_x = 120
                 xmb.list_slide_alpha = 0
+            elseif selected.type == "shuffle_play" then
+                local playlist = {}
+                if selected.tracks then
+                    -- From indexing data
+                    for _, path in ipairs(selected.tracks) do
+                        local info = indexing.data.music.files[path]
+                        table.insert(playlist, { name = info.title or utils.get_filename(path), path = path })
+                    end
+                else
+                    -- From current browser files
+                    for _, item in ipairs(browser.files) do
+                        if item.type == "file" and is_music_file(item.path) then
+                            table.insert(playlist, { name = item.name, path = item.path })
+                        end
+                    end
+                end
+
+                if #playlist > 0 then
+                    utils.shuffle(playlist)
+                    music.play(playlist[1].path, playlist)
+                end
+            elseif selected.type == "video_play_all" then
+                local playlist = {}
+                for _, item in ipairs(browser.files) do
+                    if item.type == "file" then
+                        table.insert(playlist, item.path)
+                    end
+                end
+                if #playlist > 0 then
+                    player.play_video(playlist)
+                end
+            elseif selected.type == "video_shuffle_play" then
+                local playlist = {}
+                for _, item in ipairs(browser.files) do
+                    if item.type == "file" then
+                        table.insert(playlist, item.path)
+                    end
+                end
+                if #playlist > 0 then
+                    utils.shuffle(playlist)
+                    player.play_video(playlist)
+                end
             end
         end
     elseif key == "backspace" or key == "b" then
         if xmb.in_submenu() then
             xmb.go_back()
+        end
+    elseif key == "x" then
+        local selected = browser.files[xmb.current_item_idx]
+        local cat_id = categories[xmb.current_category_idx].id
+        if selected and selected.type == "file" and cat_id == "video" then
+            video_manager.toggle_watched(selected.path)
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
         end
     end
 end

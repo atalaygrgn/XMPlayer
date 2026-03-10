@@ -12,13 +12,20 @@ theme.current_mode = "Light" -- Track current mode
 
 -- Color palettes
 theme.accents = {
-    Blue = { 0.2, 0.5, 0.8 },
-    Red = { 0.8, 0.2, 0.2 },
-    Green = { 0.2, 0.7, 0.3 },
-    Teal = { 0.2, 0.6, 0.6 },
-    Purple = { 0.6, 0.3, 0.8 },
-    Yellow = { 0.9, 0.8, 0.1 },
-    Orange = { 0.9, 0.5, 0.1 }
+    ["Electric Blue"] = { 0.0, 0.6, 1.0 },
+    ["Apple Green"] = { 0.5, 0.9, 0.1 },
+    ["Undersea"] = { 0.0, 0.4, 0.5 },
+    ["Volcanic"] = { 0.9, 0.3, 0.1 },
+    ["Dark Red"] = { 0.6, 0.0, 0.0 },
+    ["Dark Purple"] = { 0.4, 0.1, 0.6 },
+    ["Moss Green"] = { 0.4, 0.5, 0.2 },
+    ["Golden"] = { 1.0, 0.8, 0.2 },
+    ["Midnight Blue"] = { 0.1, 0.2, 0.4 },
+    ["Morning Blue"] = { 0.6, 0.8, 0.9 },
+    ["Lime Green"] = { 0.8, 1.0, 0.0 },
+    ["Ice Cold"] = { 0.7, 0.9, 1.0 },
+    ["Gray Dark"] = { 0.3, 0.3, 0.3 },
+    ["Gray Light"] = { 0.7, 0.7, 0.7 }
 }
 
 theme.modes = {
@@ -49,7 +56,7 @@ theme.colors = {
 function theme.apply(mode, color_name)
     theme.current_mode = mode
     local m = theme.modes[mode] or theme.modes.Light
-    local c = theme.accents[color_name] or theme.accents.Blue
+    local c = theme.accents[color_name] or theme.accents["Electric Blue"]
 
     -- Calculate a background tint that is much more vivid in Light mode
     local bg_tinted

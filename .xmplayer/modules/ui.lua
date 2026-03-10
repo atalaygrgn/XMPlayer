@@ -1,5 +1,6 @@
 local theme = require("theme")
 local assets = require("assets")
+local utils = require("utils")
 local ui = {}
 
 ui.active_toasts = {}
@@ -292,7 +293,7 @@ function ui.show_volume_toast(volume)
     -- Check if volume toast already exists
     for _, t in ipairs(ui.active_toasts) do
         if t.type == "volume" then
-            t.volume = volume
+            t.target_level = volume
             t.timer = 1.5 -- Show for 1.5 seconds when changed
             return
         end
@@ -300,7 +301,8 @@ function ui.show_volume_toast(volume)
 
     local toast = {
         type = "volume",
-        volume = volume,
+        target_level = volume,
+        display_level = volume, -- Start at current for first showing
         position = "top_center",
         timer = 1.5,
         fade_time = 0.3,
@@ -313,7 +315,7 @@ function ui.show_brightness_toast(brightness)
     -- Check if brightness toast already exists
     for _, t in ipairs(ui.active_toasts) do
         if t.type == "brightness" then
-            t.brightness = brightness
+            t.target_level = brightness
             t.timer = 1.5
             return
         end
@@ -321,7 +323,8 @@ function ui.show_brightness_toast(brightness)
 
     local toast = {
         type = "brightness",
-        brightness = brightness,
+        target_level = brightness,
+        display_level = brightness, -- Start at current for first showing
         position = "top_center",
         timer = 1.5,
         fade_time = 0.3,
@@ -334,6 +337,11 @@ function ui.update_toasts(dt)
     for i = #ui.active_toasts, 1, -1 do
         local t = ui.active_toasts[i]
         t.timer = t.timer - dt
+
+        -- Lerp level for volume/brightness
+        if t.display_level and t.target_level then
+            t.display_level = utils.lerp(t.display_level, t.target_level, dt * 10)
+        end
 
         -- Handle alpha for fade in/out
         if t.timer > 2.7 then
@@ -378,18 +386,18 @@ function ui.draw_toasts()
 
             -- Icon on left
             local icon_img
-            local level = 0
+            local level = t.display_level or 0
+            local max_level = (t.type == "brightness") and 255 or 100
+
             if t.type == "volume" then
-                level = t.volume
-                if t.volume == 0 then
+                if t.target_level == 0 then
                     icon_img = assets.get_image("volume_mute")
-                elseif t.volume < 50 then
+                elseif t.target_level < 50 then
                     icon_img = assets.get_image("volume_down")
                 else
                     icon_img = assets.get_image("volume_up")
                 end
             else
-                level = t.brightness
                 icon_img = assets.get_image("brightness")
             end
 
@@ -397,31 +405,15 @@ function ui.draw_toasts()
                 ui.draw_icon(icon_img, x + padding + icon_size / 2, y + box_h / 2, icon_size, { 1, 1, 1 }, t.alpha)
             end
 
-            -- Bars
-            local bar_area_x = x + padding + icon_size + 15
-            local bar_area_w = box_w - (padding * 2 + icon_size + 15)
-            local num_bars = 20
-            local bar_spacing = 3
-            local bar_w = (bar_area_w - (num_bars - 1) * bar_spacing) / num_bars
-            local bar_h = 14
+            -- Progress Bar
+            local bar_x = x + padding + icon_size + 15
+            local bar_w = box_w - (padding * 2 + icon_size + 15)
+            local bar_h = 8
+            local bar_y = y + (box_h - bar_h) / 2
 
-            -- Scaling
-            local max_level = (t.type == "brightness") and 255 or 100
-
-            for i = 1, num_bars do
-                local bx = bar_area_x + (i - 1) * (bar_w + bar_spacing)
-                local by = y + (box_h - bar_h) / 2
-
-                -- Check filling based on appropriate scale
-                local threshold = (i / num_bars) * max_level
-                if level >= threshold then
-                    love.graphics.setColor(1, 1, 1, 0.9 * t.alpha)
-                else
-                    love.graphics.setColor(1, 1, 1, 0.2 * t.alpha)
-                end
-
-                love.graphics.rectangle("fill", bx, by, bar_w, bar_h, 1, 1)
-            end
+            local progress = math.max(0, math.min(1, level / max_level))
+            ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress, { 1, 1, 1, 0.9 * t.alpha },
+                { 1, 1, 1, 0.2 * t.alpha })
         else
             local tw = font:getWidth(t.text or "")
             local th = font:getHeight()

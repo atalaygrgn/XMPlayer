@@ -9,6 +9,10 @@ local screen_w, screen_h
 local speed = 1.0
 local target_speed = 1.0
 local gradient_mesh
+local custom_bg_enabled = false
+local custom_bg_image = nil
+local wallpaper_effect = 1 -- 1: No Filter, 2: Blur, 3: Theme Color
+local blur_shader = nil
 
 function background.init()
     screen_w, screen_h = love.graphics.getDimensions()
@@ -32,6 +36,21 @@ function background.init()
         { 0,        screen_h, 0, 0, 1, 1, 1, 1 },
     }
     gradient_mesh = love.graphics.newMesh(vertices, "fan", "static")
+
+    -- Initialize blur shader
+    blur_shader = love.graphics.newShader [[
+        extern vec2 canvasSize;
+        extern float radius;
+        vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+            vec2 blur = radius / canvasSize;
+            vec4 sum = Texel(texture, texture_coords) * 0.4;
+            sum += Texel(texture, texture_coords + vec2(blur.x, 0.0)) * 0.15;
+            sum += Texel(texture, texture_coords - vec2(blur.x, 0.0)) * 0.15;
+            sum += Texel(texture, texture_coords + vec2(0.0, blur.y)) * 0.15;
+            sum += Texel(texture, texture_coords - vec2(0.0, blur.y)) * 0.15;
+            return sum * color;
+        }
+    ]]
 end
 
 function background.update(dt, is_paused)
@@ -142,6 +161,21 @@ local function draw_psp_waves()
     end
 end
 
+function background.set_custom_bg(enabled)
+    custom_bg_enabled = enabled
+    if custom_bg_enabled and not custom_bg_image then
+        local path = "assets/background/bg.jpg"
+        if love.filesystem.getInfo(path) then
+            custom_bg_image = love.graphics.newImage(path)
+            custom_bg_image:setFilter("linear", "linear")
+        end
+    end
+end
+
+function background.set_wallpaper_effect(effect_index)
+    wallpaper_effect = effect_index
+end
+
 function background.draw(music)
     -- Update gradient colors based on theme
     if gradient_mesh then
@@ -167,8 +201,36 @@ function background.draw(music)
         love.graphics.draw(gradient_mesh)
     end
 
-    -- Draw PSP waves only if music player is NOT active
-    if not (music and music.active) then
+    -- Draw custom background if enabled
+    if custom_bg_enabled and custom_bg_image then
+        local sw, sh = custom_bg_image:getDimensions()
+        local scale = math.max(screen_w / sw, screen_h / sh)
+
+        if wallpaper_effect == 2 and blur_shader then -- Blur
+            love.graphics.setShader(blur_shader)
+            blur_shader:send("canvasSize", { screen_w, screen_h })
+            blur_shader:send("radius", 5.0)
+            love.graphics.setColor(1, 1, 1, 1)
+        elseif wallpaper_effect == 3 then -- Theme Color
+            local bg = theme.colors.background
+            if theme.current_mode == "Light" then
+                -- Tint with theme color, keep it bright
+                love.graphics.setColor(bg[1] + 0.4, bg[2] + 0.4, bg[3] + 0.4, 1)
+            else
+                -- Dark mode: Tint with the theme color but don't darken heavily
+                -- We use a brighter multiplier and a floor to prevent it from becoming pitch black
+                love.graphics.setColor(bg[1] * 3.0, bg[2] * 3.0, bg[3] * 3.0, 1)
+            end
+        else
+            love.graphics.setColor(1, 1, 1, 1)
+        end
+
+        love.graphics.draw(custom_bg_image, screen_w / 2, screen_h / 2, 0, scale, scale, sw / 2, sh / 2)
+        love.graphics.setShader()
+    end
+
+    -- Draw PSP waves only if music player is NOT active and custom background is NOT enabled
+    if not (music and music.active) and not custom_bg_enabled then
         draw_psp_waves()
     end
 

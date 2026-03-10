@@ -65,7 +65,7 @@ settings.options = {
         name = "Theme Color",
         type = "choice",
         group = "theme_settings",
-        choices = { "Blue", "Red", "Green", "Teal", "Purple", "Yellow", "Orange" },
+        choices = { "Dark Red", "Volcanic", "Golden", "Lime Green", "Apple Green", "Moss Green", "Undersea", "Electric Blue", "Midnight Blue", "Dark Purple", "Ice Cold", "Morning Blue", "Gray Light", "Gray Dark" },
         value = 1
     },
     {
@@ -75,6 +75,22 @@ settings.options = {
         group = "theme_settings",
         choices = { "Show", "Hide" },
         value = 2
+    },
+    {
+        id = "custom_bg",
+        name = "Wallpaper",
+        type = "choice",
+        group = "theme_settings",
+        choices = { "On", "Off" },
+        value = 2
+    },
+    {
+        id = "wallpaper_effect",
+        name = "Wallpaper Effects",
+        type = "choice",
+        group = "theme_settings",
+        choices = { "No Filter", "Blur", "Theme Color" },
+        value = 1
     },
     {
         id = "photo_dir",
@@ -197,7 +213,9 @@ end
 function settings.apply()
     local opt_theme = settings.get_option("theme")
     local opt_color = settings.get_option("theme_color")
-    theme.apply(opt_theme.choices[opt_theme.value], opt_color.choices[opt_color.value])
+    if opt_theme and opt_color then
+        theme.apply(opt_theme.choices[opt_theme.value], opt_color.choices[opt_color.value])
+    end
 
     -- Update categories paths
     local opt_photo = settings.get_option("photo_dir")
@@ -215,15 +233,35 @@ function settings.apply()
 
     -- Update keytone
     local opt_keytone = settings.get_option("keytone")
-    settings.keytone_enabled = (opt_keytone.value == 1)
+    if opt_keytone then
+        settings.keytone_enabled = (opt_keytone.value == 1)
+    end
 
     -- Update volume & brightness control visibility
     local opt_vol_bright = settings.get_option("vol_bright_control")
-    settings.vol_bright_enabled = (opt_vol_bright.value == 1)
+    if opt_vol_bright then
+        settings.vol_bright_enabled = (opt_vol_bright.value == 1)
+    end
 
     -- Update particles visibility
     local opt_particles = settings.get_option("particles")
-    settings.show_particles = (opt_particles.value == 1)
+    if opt_particles then
+        settings.show_particles = (opt_particles.value == 1)
+    end
+
+    -- Update custom background
+    local opt_custom_bg = settings.get_option("custom_bg")
+    if opt_custom_bg then
+        local background = require("background")
+        background.set_custom_bg(opt_custom_bg.value == 1)
+    end
+
+    -- Update wallpaper effect
+    local opt_wallpaper_effect = settings.get_option("wallpaper_effect")
+    if opt_wallpaper_effect then
+        local background = require("background")
+        background.set_wallpaper_effect(opt_wallpaper_effect.value)
+    end
 end
 
 function settings.get_browser_items()
@@ -319,7 +357,7 @@ function settings.draw_popup(setting_idx)
     if not opt or opt.type ~= "choice" or settings.alpha <= 0 then return end
 
     local screen_w, screen_h = love.graphics.getDimensions()
-    local panel_w = screen_w * 0.25
+    local panel_w = screen_w * 0.35
     local item_h = 50
     local alpha = settings.alpha
     local x = screen_w - (panel_w * alpha)

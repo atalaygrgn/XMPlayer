@@ -1,5 +1,9 @@
 local utils = {}
 
+function utils.trim(s)
+    return (s:gsub("^%s*(.-)%s*$", "%1"))
+end
+
 function utils.split(str, sep)
     local result = {}
     for part in str:gmatch("([^" .. sep .. "]+)") do
@@ -197,6 +201,13 @@ function utils.get_brightness()
         return tonumber(content:match("(%d+)"))
     end
     return nil
+end
+
+function utils.shuffle(t)
+    for i = #t, 2, -1 do
+        local j = math.random(i)
+        t[i], t[j] = t[j], t[i]
+    end
 end
 
 return utils

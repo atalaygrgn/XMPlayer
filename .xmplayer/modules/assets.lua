@@ -33,6 +33,8 @@ function assets.load(categories)
     assets.images.theme = love.graphics.newImage("assets/icons/theme.png")
     assets.images.history = love.graphics.newImage("assets/icons/history.png")
     assets.images.quit = love.graphics.newImage("assets/icons/quit.png")
+    assets.images.shuffle = love.graphics.newImage("assets/icons/shuffle.png")
+    assets.images.eye = love.graphics.newImage("assets/icons/eye.png")
 
     -- Load volume icons
     assets.images.volume_up = love.graphics.newImage("assets/icons/volume-up.png")

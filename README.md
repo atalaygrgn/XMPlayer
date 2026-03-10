@@ -14,22 +14,32 @@
 
 - **XMB Interface:** A responsive XrossMediaBar UI we all know and love.
 - **Responsive UI**: UI is responsive to different screen sizes, resolutions, and aspect ratios.
-- **Music Player:** A dedicated audio player interface with album art, track info, and playback controls. Most audio formats, **including FLAC**, are supported.
-![XMPlayer Music Player](assets/readme/player.png)
-- **Video Player:** Integrated **MPV** support for high-performance video playback.
-- **Photo Viewer:** Browse and view your photo collection.
-- **Customizable Themes:** Fluid particle animations and customizable themes to your liking.
 - **Content Indexing:** Content indexing allows handling large media libraries without slowing down the UI.
 - **System Integration:** Live battery percentage and clock display in the status bar.
+> ### Video Player
+> Integrated **MPV** support for high-performance video playback.
+> ![XMPlayer Video Player](assets/readme/resume.png)
+> A highly requested feature: resume playback from where you left off!
 
-> This project's aim is to utilize XMB's ease of use for media content and many people's familiarity in the retro gaming community. This project does not aim to fully replicate or provide 1:1 functionalities with the original XMB interface of Sony devices. This project is a reimagination and adaptation, not a hard copy.
+> ### Music Player
+>A dedicated audio player interface with album art, track info, and playback controls. Most audio formats, **including FLAC**, are supported.
+> ![XMPlayer Music Player](assets/readme/player.png)
+
+> ### Photo Viewer
+> Browse and view your photo collection.
+
+> ### Customizable Themes
+> Fluid particle animations and customizable color themes to your liking. You can set a wallpaper too!
+> ![XMPlayer Theme](assets/readme/theme.png)
+
+This project's aim is to utilize XMB's ease of use for media content and many people's familiarity in the retro gaming community. This project does not aim to fully replicate or provide 1:1 functionalities with the original XMB interface of Sony devices. This project is a reimagination and adaptation, not a hard copy.
 
 ---
 
 ## Installation
 
 ### Prerequisites
-- A handheld device running **muOS**. At least 512 MB of RAM is recommended for a smooth experience.
+- A handheld device running **muOS**. At least 1 GB of RAM is recommended for a smooth experience.
 - Your music, videos, and photos organized into dedicated folders on your SD card. Both single and dual SD card setups are supported.
 
 ### Steps
@@ -42,6 +52,8 @@
 > - For dual SD card setups, `/mnt/mmc` refers to the 1st SD card, and `/mnt/sdcard` refers to the 2nd.
 5. XMPlayer will index your media library for you. After that, XMPlayer is ready to use.
 
+![XMPlayer on Device](assets/readme/console.png)
+
 ---
 
 ## Controls
@@ -52,14 +64,14 @@
 | **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s | - |
 | **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset Zoom & Fit to Screen |
 | **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |
-| **X** | Context Menu | - | Toggle Mute | Zoom In |
-| **Y** | - | Toggle Repeat | Show OSD | (Hold Y + D-Pad) Pan |
+| **X** | Context Menu | Toggle Repeat | Toggle Mute | Zoom In |
+| **Y** | - | Select Visualizer [WIP] | Show OSD | (Hold Y + D-Pad) Pan |
 | **L1** | - | - | Previous Video | - |
 | **L2** | - | - | Toggle Subtitles | - |
 | **R1** | - | - | Next Video | - |
 | **R2** | - | - | Next Subtitle | - |
 | **Start** | - | - | Play / Pause | - |
-| **Select** | - | - | Return to XMB | Return to XMB |
+| **Select** | - | Background Play [WIP] | Return to XMB | Return to XMB |
 
 ---
 
@@ -68,9 +80,12 @@
 You can personalize XMPlayer via **Settings** > **Theme Settings**:
 
 - **Theme:** Toggle between `Light` and `Dark` modes.
-- **Theme Color:** Choose from `Blue`, `Red`, `Green`, `Teal`, `Purple`, `Yellow`, `Orange`.
+- **Theme Color:** Choose from the colors of RetroArch's color presets for its XMB interface.
+- **Wallpaper:** Select an image from your photos as a wallpaper!
+- **Wallpaper Effect:** Choose from `No Filter`, `Blur`, and `Theme Color`.
 
-![XMPlayer Theme](assets/readme/albums.png)
+> ![XMPlayer Theme](assets/readme/wallpaper.png)
+> i just wanna be part of your symphony 🐬
 
 More customization options are on the way!
 
@@ -79,13 +94,14 @@ More customization options are on the way!
 ## Roadmap
 
 ### v0.1 (Current)
-- [x] Watch history.
 - [ ] Mark/unmark videos as watched.
-- [ ] Play videos from where you left off.
+- [x] Play videos from where you left off.
+- [x] Shuffle play: music (folder, album, artist)
+- [x] Play all & Shuffle play: videos (folder)
 - [ ] Extended music playback controls. (repeat, hold, sleep, etc.)
-- [ ] Shuffle play (folder, album, artist)
 - [ ] Auto display sleep.
 - [ ] Continue playback while display turned off (+ lid closed for clamshells)
+- [x] Wallpaper and customization.
 
 ### v0.2 (In Progress)
 - [ ] Add support for other firmwares (Knulli, ROCKNIX, ArkOS, etc.)
@@ -96,7 +112,7 @@ More customization options are on the way!
 
 ### Planned for Later Versions
 - [ ] External display support.
-- [ ] Custom themes (wallpapers, icon sets)
+- [ ] Custom icon sets.
 - [ ] VGM file support (through MPV)
 - [ ] Add support for other media formats?
 

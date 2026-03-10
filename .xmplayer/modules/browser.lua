@@ -1,4 +1,5 @@
 local utils = require("utils")
+local indexing = require("indexing")
 local browser = {}
 
 browser.base_dir = "/mnt/sdcard"
@@ -7,11 +8,7 @@ browser.files = {}
 browser.selected_index = 1
 browser.filter = nil
 
-local extensions = {
-    video = {".mp4", ".mkv", ".avi", ".mov", ".wmv"},
-    music = {".mp3", ".wav", ".flac", ".ogg", ".m4a"},
-    photo = {".jpg", ".jpeg", ".png", ".gif", ".bmp"},
-}
+local extensions = indexing.compatible_extensions
 
 function browser.set_filter(type)
     browser.filter = extensions[type]
@@ -20,12 +17,12 @@ end
 function browser.scan(path)
     path = path or browser.current_dir
     browser.files = {}
-    
+
     -- Using os.execute/io.popen for muOS compatibility as love.filesystem is restricted
     local command = "find \"" .. path .. "\" -maxdepth 1 -not -path '*/.*' 2>/dev/null"
     local handle = io.popen(command)
     if not handle then return end
-    
+
     local output = handle:read("*a")
     handle:close()
 
@@ -38,7 +35,7 @@ function browser.scan(path)
             -- Check if it's a directory
             local is_dir = os.execute("test -d \"" .. line .. "\"") == 0
             if is_dir then
-                table.insert(dirs, {name = filename, path = line, type = "directory"})
+                table.insert(dirs, { name = filename, path = line, type = "directory" })
             else
                 local match = false
                 if browser.filter then
@@ -54,9 +51,9 @@ function browser.scan(path)
                 else
                     match = true -- No filter means show everything
                 end
-                
+
                 if match then
-                    table.insert(files, {name = filename, path = line, type = "file"})
+                    table.insert(files, { name = filename, path = line, type = "file" })
                 end
             end
         end
@@ -69,7 +66,7 @@ function browser.scan(path)
     for _, v in ipairs(files) do table.insert(browser.files, v) end
 
     if #browser.files == 0 then
-        table.insert(browser.files, {name = "Empty Folder", path = "", type = "info"})
+        table.insert(browser.files, { name = "Empty Folder", path = "", type = "info" })
     end
 end
 

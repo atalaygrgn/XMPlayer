@@ -28,6 +28,7 @@ local ui_timer = 0
 local UI_CHECK_INTERVAL = 0.1 -- Update every 0.1 seconds
 
 function love.load()
+    math.randomseed(os.time())
     -- Load assets
     assets.load(categories)
 

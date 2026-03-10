@@ -8,12 +8,18 @@ indexing.file_path = storage_path .. "/index.cfg"
 indexing.thumb_dir = storage_path .. "/thumbnails"
 indexing.data = {
     music = {
-        albums = {}, -- {name = "Album Name", artist = "Artist Name", tracks = {path, ...}}
+        albums = {},  -- {name = "Album Name", artist = "Artist Name", tracks = {path, ...}}
         artists = {}, -- {name = "Artist Name", albums = {name, ...}, tracks = {path, ...}}
-        files = {} -- {path = {title, artist, album, ...}}
+        files = {}    -- {path = {title, artist, album, ...}}
     },
-    photos = {}, -- {path = {thumb_path, ...}}
-    videos = {} -- {path, ...}
+    photos = {},      -- {path = {thumb_path, ...}}
+    videos = {}       -- {path, ...}
+}
+
+indexing.compatible_extensions = {
+    music = { ".mp3", ".wav", ".flac", ".ogg", ".m4a" },
+    photo = { ".jpg", ".jpeg", ".png", ".gif", ".bmp" },
+    video = { ".mp4", ".mkv", ".avi", ".mov", ".wmv" }
 }
 
 indexing.is_scanning = false
@@ -75,7 +81,7 @@ function indexing.generate_thumbnail(image_path)
             end
         end
     end
-    
+
     if not ok or not img_data then return nil end
 
     local w, h = img_data:getDimensions()
@@ -95,15 +101,15 @@ function indexing.generate_thumbnail(image_path)
         love.graphics.setCanvas()
         thumb_data = canvas:newImageData()
         temp_img:release()
-        
+
         local safe_name = image_path:gsub("[^%w]", "_")
         local thumb_path = indexing.thumb_dir .. "/" .. safe_name .. ".png"
-        
+
         -- Create thumb dir if not exists
         if os.execute("test -d \"" .. indexing.thumb_dir .. "\"") ~= 0 then
             os.execute("mkdir -p \"" .. indexing.thumb_dir .. "\"")
         end
-        
+
         local file_data = thumb_data:encode("png")
         local f = io.open(thumb_path, "wb")
         if f then
@@ -138,10 +144,10 @@ end
 
 function indexing.scan(photo_dir, music_dir, video_dir)
     indexing.is_scanning = true
-    
-    local music_exts = {".mp3", ".wav", ".flac", ".ogg", ".m4a"}
-    local photo_exts = {".jpg", ".jpeg", ".png", ".gif", ".bmp"}
-    local video_exts = {".mp4", ".mkv", ".avi", ".mov", ".wmv"}
+
+    local music_exts = indexing.compatible_extensions.music
+    local photo_exts = indexing.compatible_extensions.photo
+    local video_exts = indexing.compatible_extensions.video
 
     -- Reset data but keep existing photo thumbnails if any
     local old_photos = indexing.data.photos
@@ -162,16 +168,16 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     coroutine.yield()
     local music_files = get_files_recursive(music_dir, music_exts)
     coroutine.yield()
-    
+
     for i, path in ipairs(music_files) do
         indexing.scan_progress = string.format("Indexing Music (%d/%d)", i, #music_files)
         if i % 5 == 0 then coroutine.yield() end -- Yield every 5 files to speed up but keep UI responsive
-        
+
         local tags = metadata.get_tags(path)
         local title = tags.title or utils.get_track_name(path)
         local artist_str = tags.artist or "Unknown Artist"
         local album = tags.album or "Unknown Album"
-        
+
         indexing.data.music.files[path] = {
             title = title,
             artist = artist_str,
@@ -185,14 +191,17 @@ function indexing.scan(photo_dir, music_dir, video_dir)
         for _, a in ipairs(artists) do
             -- Group by Artist
             if not indexing.data.music.artists[a] then
-                indexing.data.music.artists[a] = {name = a, albums = {}, tracks = {}}
+                indexing.data.music.artists[a] = { name = a, albums = {}, tracks = {} }
             end
             table.insert(indexing.data.music.artists[a].tracks, path)
 
             -- Add to artist's album list if not already there
             local found = false
             for _, al in ipairs(indexing.data.music.artists[a].albums) do
-                if al == album then found = true break end
+                if al == album then
+                    found = true
+                    break
+                end
             end
             if not found then
                 table.insert(indexing.data.music.artists[a].albums, album)
@@ -202,7 +211,7 @@ function indexing.scan(photo_dir, music_dir, video_dir)
         -- Group by Album (Global) - Use full artist_str to keep it unique per album-artist combo
         local album_key = artist_str .. " - " .. album
         if not indexing.data.music.albums[album_key] then
-            indexing.data.music.albums[album_key] = {name = album, artist = artist_str, tracks = {}}
+            indexing.data.music.albums[album_key] = { name = album, artist = artist_str, tracks = {} }
         end
         table.insert(indexing.data.music.albums[album_key].tracks, path)
     end
@@ -211,13 +220,13 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     indexing.scan_progress = "Scanning Photos..."
     coroutine.yield(indexing.scan_progress)
     local photo_files = get_files_recursive(photo_dir, photo_exts)
-    
+
     local new_photos = {}
     for i, path in ipairs(photo_files) do
         indexing.scan_progress = string.format("Indexing Photos (%d/%d)", i, #photo_files)
         if i % 10 == 0 then coroutine.yield(indexing.scan_progress) end
-        
-        local photo_info = indexing.data.photos[path] or {thumb_path = nil}
+
+        local photo_info = indexing.data.photos[path] or { thumb_path = nil }
         if not photo_info.thumb_path then
             photo_info.thumb_path = indexing.generate_thumbnail(path)
         end
