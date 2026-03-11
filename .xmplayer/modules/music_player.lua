@@ -17,6 +17,10 @@ music.source = nil        -- love.audio Source object
 music.elapsed = 0         -- Elapsed time in seconds
 music.duration = 0        -- Total duration in seconds
 music.cover_art = nil     -- love.graphics Image for album art
+music.repeat_one = false
+music.auto_sleep_minutes = 0
+music.auto_sleep_remaining = nil
+music.visualizer_mode = "wave" -- off, wave, bars
 
 -- Metadata tags
 music.tags = {}
@@ -135,6 +139,11 @@ function music.play(filepath, custom_playlist)
 
     music.active = true
     music.fade_alpha = 0
+    if music.auto_sleep_minutes > 0 then
+        music.auto_sleep_remaining = music.auto_sleep_minutes * 60
+    else
+        music.auto_sleep_remaining = nil
+    end
     music.load_track(track_info)
 end
 
@@ -187,6 +196,29 @@ function music.close()
     music.active = false
     music.current_track = nil
     music.playlist = {}
+    music.auto_sleep_remaining = nil
+end
+
+function music.set_repeat_one(enabled)
+    music.repeat_one = (enabled == true)
+end
+
+function music.set_auto_sleep_minutes(minutes)
+    local mins = tonumber(minutes) or 0
+    mins = math.max(0, math.min(30, math.floor(mins)))
+    music.auto_sleep_minutes = mins
+
+    if mins > 0 and music.active then
+        music.auto_sleep_remaining = mins * 60
+    else
+        music.auto_sleep_remaining = nil
+    end
+end
+
+function music.set_visualizer_mode(mode)
+    if mode == "off" or mode == "wave" or mode == "bars" then
+        music.visualizer_mode = mode
+    end
 end
 
 function music.update(dt)
@@ -197,17 +229,31 @@ function music.update(dt)
         music.fade_alpha = math.min(1, music.fade_alpha + dt * 4)
     end
 
+    if music.auto_sleep_remaining then
+        music.auto_sleep_remaining = music.auto_sleep_remaining - dt
+        if music.auto_sleep_remaining <= 0 then
+            music.auto_sleep_remaining = nil
+            ui.show_toast("Auto Sleep: returning to XMB", "music", "bottom_right")
+            music.close()
+            return
+        end
+    end
+
     -- Update playback
     if music.source and music.playing and not music.paused then
         music.elapsed = music.source:tell()
         if not music.source:isPlaying() then
-            music.next_track()
+            if music.repeat_one and music.playlist[music.current_index] then
+                music.load_track(music.playlist[music.current_index])
+            else
+                music.next_track()
+            end
         end
     end
 
     -- Update marquees
     if music.current_track then
-        local info_w = love.graphics.getWidth() * 0.6
+        local info_w = love.graphics.getWidth() * 0.65
         music.marquees.title.max_width = info_w
         music.marquees.artist.max_width = info_w
         music.marquees.album.max_width = info_w

@@ -101,9 +101,9 @@ More customization options are on the way!
 - [x] Play videos from where you left off.
 - [x] Shuffle play: music (folder, album, artist)
 - [x] Play all & Shuffle play: videos (folder)
-- [ ] Extended music playback controls. (repeat, hold, sleep, etc.)
-- [ ] Auto display sleep.
-- [ ] Continue playback while display turned off (+ lid closed for clamshells)
+- [x] Extended music playback controls. (repeat, hold, sleep, etc.)
+- [x] Auto display sleep.
+- [x] Continue playback while display turned off (+ lid closed for clamshells)
 - [x] Wallpaper and customization.
 
 ### v0.2 (In Progress)

@@ -43,6 +43,15 @@ local REPEAT_INTERVAL = 0.08
 -- Thumbnail cache
 xmb.thumbs = {} -- {path = LoveImage}
 
+xmb.context_menu = {
+    active = false,
+    alpha = 0,
+    selected_idx = 1,
+    title = "",
+    items = {},
+    target_path = nil
+}
+
 -- Helper to count media files in a directory (recursive)
 local function count_media_in_dir(dir, media_type)
     if not dir or dir == "" then return 0 end
@@ -102,6 +111,52 @@ local function is_music_file(path)
     return false
 end
 
+local function is_photo_file(path)
+    local ext = utils.get_extension(path)
+    if not ext then return false end
+    for _, e in ipairs(indexing.compatible_extensions.photo) do
+        if ext == e then return true end
+    end
+    return false
+end
+
+local function close_context_menu()
+    xmb.context_menu.active = false
+    xmb.context_menu.items = {}
+    xmb.context_menu.selected_idx = 1
+    xmb.context_menu.title = ""
+    xmb.context_menu.target_path = nil
+end
+
+local function open_photo_context_menu(path)
+    if not path then return end
+    xmb.context_menu.active = true
+    xmb.context_menu.selected_idx = 1
+    xmb.context_menu.title = "Photo Options"
+    xmb.context_menu.items = {
+        { id = "set_wallpaper", label = "Set as Wallpaper" }
+    }
+    xmb.context_menu.target_path = path
+end
+
+local function apply_context_action(action_id)
+    if action_id == "set_wallpaper" and xmb.context_menu.target_path then
+        local path = xmb.context_menu.target_path
+        local opt_path = settings.get_option("custom_bg_path")
+        local opt_enabled = settings.get_option("custom_bg")
+        if opt_path then
+            opt_path.value = path
+        end
+        if opt_enabled then
+            opt_enabled.value = 1
+        end
+        settings.apply()
+        settings.save()
+
+        ui.show_toast("Wallpaper set", "photo", "bottom_right")
+    end
+end
+
 function xmb.in_submenu()
     local cat = categories[xmb.current_category_idx]
     if cat.id == "settings" then
@@ -120,6 +175,14 @@ end
 
 -- Go back one level in the current submenu
 function xmb.go_back()
+    if xmb.context_menu.active then
+        close_context_menu()
+        if settings.keytone_enabled then
+            assets.play_sfx("nav")
+        end
+        return
+    end
+
     -- Restore previous item index from stack
     local prev_idx = 1
     if #xmb.nav_stack > 0 then
@@ -340,6 +403,8 @@ function xmb.refresh_items()
 end
 
 function xmb.refresh_browser(slide_dir)
+    close_context_menu()
+
     local cat = categories[xmb.current_category_idx]
     if cat.id == "music" or cat.id == "video" or cat.id == "photo" then
         xmb.view_type = "category_root"
@@ -440,6 +505,12 @@ function xmb.navigate(dir)
 end
 
 function xmb.update(dt)
+    if xmb.context_menu.active then
+        xmb.context_menu.alpha = math.min(1, xmb.context_menu.alpha + dt * 10)
+    else
+        xmb.context_menu.alpha = math.max(0, xmb.context_menu.alpha - dt * 10)
+    end
+
     -- Smooth scroll
     xmb.category_scroll_x = utils.lerp(xmb.category_scroll_x, xmb.target_category_scroll_x, dt * 10)
     xmb.item_scroll_y = utils.lerp(xmb.item_scroll_y, xmb.target_item_scroll_y, dt * 10)
@@ -524,6 +595,35 @@ function xmb.keypressed(key, player, music, viewer)
         return
     end
 
+    if xmb.context_menu.active then
+        if key == "up" then
+            xmb.context_menu.selected_idx = math.max(1, xmb.context_menu.selected_idx - 1)
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+        elseif key == "down" then
+            xmb.context_menu.selected_idx = math.min(#xmb.context_menu.items, xmb.context_menu.selected_idx + 1)
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+        elseif key == "return" or key == "enter" or key == "a" or key == "space" then
+            local selected_action = xmb.context_menu.items[xmb.context_menu.selected_idx]
+            if selected_action then
+                apply_context_action(selected_action.id)
+            end
+            close_context_menu()
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+        elseif key == "backspace" or key == "b" or key == "escape" or key == "x" then
+            close_context_menu()
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+        end
+        return
+    end
+
     if key == "up" or key == "down" or key == "left" or key == "right" then
         xmb.navigate(key)
     elseif key == "return" or key == "enter" or key == "a" then
@@ -565,6 +665,21 @@ function xmb.keypressed(key, player, music, viewer)
                         history.clear()
                         ui.show_toast("Watch history cleared", "history", "bottom_right")
                         -- Refresh browser items to show (maybe nothing changed visually but action happened)
+                        refresh_settings_items(false)
+                    elseif opt.id == "restore_default_wallpaper" then
+                        local opt_custom_bg = settings.get_option("custom_bg")
+                        local opt_custom_bg_path = settings.get_option("custom_bg_path")
+
+                        if opt_custom_bg then
+                            opt_custom_bg.value = 1
+                        end
+                        if opt_custom_bg_path then
+                            opt_custom_bg_path.value = "assets/background/bg.jpg"
+                        end
+
+                        settings.apply()
+                        settings.save()
+                        ui.show_toast("Default wallpaper restored", "theme", "bottom_right")
                         refresh_settings_items(false)
                     elseif opt.id == "test_toast_top" then
                         ui.show_toast("Dev: Top Center Toast", "info", "top_center")
@@ -688,7 +803,12 @@ function xmb.keypressed(key, player, music, viewer)
     elseif key == "x" then
         local selected = browser.files[xmb.current_item_idx]
         local cat_id = categories[xmb.current_category_idx].id
-        if selected and selected.type == "file" and cat_id == "video" then
+        if selected and selected.type == "file" and cat_id == "photo" and is_photo_file(selected.path) then
+            open_photo_context_menu(selected.path)
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+        elseif selected and selected.type == "file" and cat_id == "video" then
             video_manager.toggle_watched(selected.path)
             if settings.keytone_enabled then
                 assets.play_sfx("nav")

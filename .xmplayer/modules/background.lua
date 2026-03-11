@@ -11,8 +11,25 @@ local target_speed = 1.0
 local gradient_mesh
 local custom_bg_enabled = false
 local custom_bg_image = nil
-local wallpaper_effect = 1 -- 1: No Filter, 2: Blur, 3: Theme Color
+local custom_bg_path = nil
+local wallpaper_blur_enabled = true
+local wallpaper_tint_enabled = true
+local wallpaper_brightness = 1 -- 1: No Change, 2: Brighter, 3: Darker
 local blur_shader = nil
+
+local function load_wallpaper_image(path)
+    local utils = require("utils")
+    local resolved_path = path or "assets/background/bg.jpg"
+    local img = utils.load_image(resolved_path)
+    if not img and resolved_path ~= "assets/background/bg.jpg" then
+        -- Fallback to bundled wallpaper if selected image is unavailable.
+        img = utils.load_image("assets/background/bg.jpg")
+    end
+    if img then
+        img:setFilter("linear", "linear")
+    end
+    return img
+end
 
 function background.init()
     screen_w, screen_h = love.graphics.getDimensions()
@@ -24,7 +41,7 @@ function background.init()
             y = math.random() * screen_h,
             size = math.random(1, 3),
             speed = 10 + math.random() * 20,
-            alpha = 0.1 + math.random() * 0.4
+            alpha = 0.4 + math.random() * 0.4
         })
     end
 
@@ -56,12 +73,16 @@ end
 function background.update(dt, is_paused)
     target_speed = is_paused and 0.15 or 1.0
     -- Smoothly transition speed
-    speed = utils.lerp(speed, target_speed, dt * 2)
+    local speed_lerp_t = math.min(1, dt * 2)
+    speed = utils.lerp(speed, target_speed, speed_lerp_t)
 
     -- Update particles
     if settings.show_particles then
+        -- Returning from external players can produce a very large dt.
+        -- Clamp integration time so particles do not all wrap to the left at once.
+        local particle_dt = math.min(dt, 1 / 30)
         for _, p in ipairs(particles) do
-            p.x = p.x + p.speed * dt * speed * 0.5
+            p.x = p.x + p.speed * particle_dt * speed * 0.5
             if p.x > screen_w then
                 p.x = -10
                 p.y = math.random() * screen_h
@@ -123,6 +144,50 @@ local function draw_waveform(music)
     end
 end
 
+local function draw_bars_visualizer(music)
+    if not music or not music.playing or not music.sound_data or not music.source then return end
+
+    local w, h = screen_w, screen_h
+    local bars = 42
+    local gap = 4
+    local bottom_y = h
+    local max_h = h * 0.28
+    local total_width = w
+    local bar_w = (total_width - (bars - 1) * gap) / bars
+    local start_x = (w - total_width) * 0.5
+
+    local current_sample = math.max(0, music.source:tell("samples"))
+    local total_samples = music.sound_data:getSampleCount()
+    local paused_alpha = music.paused and 0.35 or 1.0
+
+    for i = 0, bars - 1 do
+        local progress = i / math.max(1, (bars - 1))
+        local window_size = 480
+        local window_start = current_sample + math.floor(progress * 8192)
+        local energy = 0
+
+        for j = 0, window_size - 1, 24 do
+            local idx = math.min(total_samples - 1, window_start + j)
+            local sample = music.sound_data:getSample(idx)
+            energy = energy + sample * sample
+        end
+
+        local rms = math.sqrt(energy / (window_size / 24))
+        local strength = math.min(1.0, rms * 5.2)
+        local bar_h = 8 + (strength * max_h)
+
+        local x = start_x + i * (bar_w + gap)
+        local y = bottom_y - bar_h
+        local alpha = (0.25 + strength * 0.85) * paused_alpha
+
+        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], alpha * 0.95)
+        love.graphics.rectangle("fill", x, y, bar_w, bar_h, 2, 2)
+
+        love.graphics.setColor(1, 1, 1, alpha * 0.12)
+        love.graphics.rectangle("fill", x, y, bar_w, math.max(2, bar_h * 0.16), 2, 2)
+    end
+end
+
 local function draw_psp_waves()
     local w, h = screen_w, screen_h
     local time = love.timer.getTime()
@@ -163,17 +228,43 @@ end
 
 function background.set_custom_bg(enabled)
     custom_bg_enabled = enabled
-    if custom_bg_enabled and not custom_bg_image then
-        local path = "assets/background/bg.jpg"
-        if love.filesystem.getInfo(path) then
-            custom_bg_image = love.graphics.newImage(path)
-            custom_bg_image:setFilter("linear", "linear")
-        end
+    if custom_bg_enabled then
+        custom_bg_image = load_wallpaper_image(custom_bg_path)
+    else
+        custom_bg_image = nil
     end
 end
 
-function background.set_wallpaper_effect(effect_index)
-    wallpaper_effect = effect_index
+function background.set_custom_bg_path(path)
+    if type(path) == "string" and path ~= "" then
+        custom_bg_path = path
+    else
+        custom_bg_path = nil
+    end
+
+    if custom_bg_enabled then
+        custom_bg_image = load_wallpaper_image(custom_bg_path)
+    end
+end
+
+function background.set_wallpaper_blur(enabled)
+    wallpaper_blur_enabled = (enabled == true)
+end
+
+function background.set_wallpaper_tint(enabled)
+    wallpaper_tint_enabled = (enabled == true)
+end
+
+function background.set_wallpaper_brightness(mode_index)
+    if type(mode_index) ~= "number" then
+        wallpaper_brightness = 1
+        return
+    end
+    wallpaper_brightness = math.max(1, math.min(3, math.floor(mode_index)))
+end
+
+function background.has_custom_wallpaper()
+    return custom_bg_enabled and custom_bg_image ~= nil
 end
 
 function background.draw(music)
@@ -206,24 +297,29 @@ function background.draw(music)
         local sw, sh = custom_bg_image:getDimensions()
         local scale = math.max(screen_w / sw, screen_h / sh)
 
-        if wallpaper_effect == 2 and blur_shader then -- Blur
+        local r, g, b = 1, 1, 1
+        if wallpaper_tint_enabled then
+            local bg = theme.colors.background
+            if theme.current_mode == "Light" then
+                r, g, b = bg[1] + 0.4, bg[2] + 0.4, bg[3] + 0.4
+            else
+                r, g, b = bg[1] * 3.0, bg[2] * 3.0, bg[3] * 3.0
+            end
+        end
+
+        if wallpaper_brightness == 2 then
+            r, g, b = r * 1.5, g * 1.5, b * 1.5
+        elseif wallpaper_brightness == 3 then
+            r, g, b = r * 0.5, g * 0.5, b * 0.5
+        end
+
+        if wallpaper_blur_enabled and blur_shader then
             love.graphics.setShader(blur_shader)
             blur_shader:send("canvasSize", { screen_w, screen_h })
             blur_shader:send("radius", 5.0)
-            love.graphics.setColor(1, 1, 1, 1)
-        elseif wallpaper_effect == 3 then -- Theme Color
-            local bg = theme.colors.background
-            if theme.current_mode == "Light" then
-                -- Tint with theme color, keep it bright
-                love.graphics.setColor(bg[1] + 0.4, bg[2] + 0.4, bg[3] + 0.4, 1)
-            else
-                -- Dark mode: Tint with the theme color but don't darken heavily
-                -- We use a brighter multiplier and a floor to prevent it from becoming pitch black
-                love.graphics.setColor(bg[1] * 3.0, bg[2] * 3.0, bg[3] * 3.0, 1)
-            end
-        else
-            love.graphics.setColor(1, 1, 1, 1)
         end
+
+        love.graphics.setColor(r, g, b, 1)
 
         love.graphics.draw(custom_bg_image, screen_w / 2, screen_h / 2, 0, scale, scale, sw / 2, sh / 2)
         love.graphics.setShader()
@@ -234,9 +330,13 @@ function background.draw(music)
         draw_psp_waves()
     end
 
-    -- Draw reactive waveform if music is playing
+    -- Draw music visualizer based on selected mode
     if music and music.playing then
-        draw_waveform(music)
+        if music.visualizer_mode == "wave" then
+            draw_waveform(music)
+        elseif music.visualizer_mode == "bars" then
+            draw_bars_visualizer(music)
+        end
     end
 
     -- Draw particles

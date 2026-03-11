@@ -31,7 +31,7 @@ function image_view.draw()
         love.graphics.setFont(assets.fonts.xs)
 
         local info_str = string.format("[%d/%d] %s", viewer.current_index, #viewer.playlist, item.name)
-        love.graphics.printf(info_str, 20, h - 35, w - 40, "right")
+        love.graphics.printf(info_str, 20, h - 35, w - 40, "left")
     end
 end
 
@@ -40,7 +40,7 @@ local zoom_speed = 1.2
 function image_view.keypressed(key)
     if not viewer.active then return false end
 
-    if key == "escape" then
+    if key == "space" then
         viewer.close()
         return true
     end

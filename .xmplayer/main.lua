@@ -17,6 +17,7 @@ local system = require("system")
 
 
 local scan_co = nil
+local was_music_active = false
 
 -- Battery status caching
 local battery_percentage = nil
@@ -89,12 +90,24 @@ function love.update(dt)
     -- Update music player if active, otherwise update XMB
     local is_paused = false
     if music.active then
+        if not was_music_active then
+            music_view.on_music_opened()
+        end
         music.update(dt)
+        if music.active then
+            music_view.update(dt)
+        end
         is_paused = music.paused
     elseif image_viewer.active then
+        if was_music_active then
+            music_view.on_music_closed()
+        end
         image_viewer.update(dt)
         is_paused = true
     elseif indexing.is_scanning then
+        if was_music_active then
+            music_view.on_music_closed()
+        end
         if scan_co then
             local ok, err = coroutine.resume(scan_co)
             if not ok then
@@ -112,8 +125,13 @@ function love.update(dt)
         end
         return
     else
+        if was_music_active then
+            music_view.on_music_closed()
+        end
         xmb.update(dt)
     end
+
+    was_music_active = music.active
 
     -- Update battery status
     battery_timer = battery_timer + dt
@@ -194,7 +212,9 @@ function love.draw()
     end
 
     -- Draw toasts on top of everything
-    ui.draw_toasts()
+    if not (music.active and music_view.is_display_sleeping()) then
+        ui.draw_toasts()
+    end
 end
 
 function love.keypressed(key)

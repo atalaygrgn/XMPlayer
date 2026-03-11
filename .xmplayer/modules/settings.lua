@@ -4,6 +4,7 @@ local categories = require("categories")
 local settings = {}
 
 settings.keytone_enabled = true
+settings.display_sleep_seconds = 0
 local storage_path = love.filesystem.getSource()
 settings.file_path = storage_path .. "/settings.cfg"
 
@@ -51,7 +52,7 @@ settings.options = {
         type = "choice",
         group = "theme_settings",
         choices = { "Light", "Dark" },
-        value = 2
+        value = 1
     },
     {
         id = "theme_color",
@@ -59,7 +60,7 @@ settings.options = {
         type = "choice",
         group = "theme_settings",
         choices = { "Dark Red", "Volcanic", "Golden", "Lime Green", "Apple Green", "Moss Green", "Undersea", "Electric Blue", "Midnight Blue", "Dark Purple", "Ice Cold", "Morning Blue", "Gray Light", "Gray Dark" },
-        value = 1
+        value = 8
     },
     {
         id = "particles",
@@ -67,7 +68,7 @@ settings.options = {
         type = "choice",
         group = "theme_settings",
         choices = { "Show", "Hide" },
-        value = 2
+        value = 1
     },
     {
         id = "custom_bg",
@@ -78,11 +79,34 @@ settings.options = {
         value = 2
     },
     {
-        id = "wallpaper_effect",
-        name = "Wallpaper Effects",
+        id = "custom_bg_path",
+        name = "Wallpaper Path",
+        type = "path",
+        group = "internal",
+        value = ""
+    },
+    {
+        id = "blur_wallpaper",
+        name = "Blur Wallpaper",
         type = "choice",
         group = "theme_settings",
-        choices = { "No Filter", "Blur", "Theme Color" },
+        choices = { "No", "Yes" },
+        value = 1
+    },
+    {
+        id = "tint_wallpaper",
+        name = "Tint Wallpaper to Theme Color",
+        type = "choice",
+        group = "theme_settings",
+        choices = { "No", "Yes" },
+        value = 1
+    },
+    {
+        id = "wallpaper_brightness",
+        name = "Wallpaper Brightness",
+        type = "choice",
+        group = "theme_settings",
+        choices = { "No Change", "Brighter", "Darker" },
         value = 1
     },
     {
@@ -108,7 +132,7 @@ settings.options = {
     },
     {
         id = "keytone",
-        name = "Keytone",
+        name = "Key Tone",
         type = "choice",
         group = "general",
         choices = { "On", "Off" },
@@ -123,8 +147,22 @@ settings.options = {
         value = 1
     },
     {
+        id = "display_sleep",
+        name = "Auto Display Sleep (Music)",
+        type = "choice",
+        group = "general",
+        choices = { "Off", "15s", "30s", "1m", "2m", "5m" },
+        value = 1
+    },
+    {
         id = "clear_history",
         name = "Clear Watch History",
+        type = "action",
+        group = "general",
+    },
+    {
+        id = "restore_default_wallpaper",
+        name = "Restore Default Wallpaper",
         type = "action",
         group = "general",
     },
@@ -236,6 +274,14 @@ function settings.apply()
         settings.vol_bright_enabled = (opt_vol_bright.value == 1)
     end
 
+    local opt_display_sleep = settings.get_option("display_sleep")
+    if opt_display_sleep then
+        local display_sleep_choices = { 0, 15, 30, 60, 120, 300 }
+        settings.display_sleep_seconds = display_sleep_choices[opt_display_sleep.value] or 0
+    else
+        settings.display_sleep_seconds = 0
+    end
+
     -- Update particles visibility
     local opt_particles = settings.get_option("particles")
     if opt_particles then
@@ -244,16 +290,29 @@ function settings.apply()
 
     -- Update custom background
     local opt_custom_bg = settings.get_option("custom_bg")
+    local opt_custom_bg_path = settings.get_option("custom_bg_path")
     if opt_custom_bg then
         local background = require("background")
+        background.set_custom_bg_path(opt_custom_bg_path and opt_custom_bg_path.value or nil)
         background.set_custom_bg(opt_custom_bg.value == 1)
     end
 
-    -- Update wallpaper effect
-    local opt_wallpaper_effect = settings.get_option("wallpaper_effect")
-    if opt_wallpaper_effect then
-        local background = require("background")
-        background.set_wallpaper_effect(opt_wallpaper_effect.value)
+    -- Update wallpaper effects
+    local background = require("background")
+
+    local opt_blur_wallpaper = settings.get_option("blur_wallpaper")
+    if opt_blur_wallpaper then
+        background.set_wallpaper_blur(opt_blur_wallpaper.value == 2)
+    end
+
+    local opt_tint_wallpaper = settings.get_option("tint_wallpaper")
+    if opt_tint_wallpaper then
+        background.set_wallpaper_tint(opt_tint_wallpaper.value == 2)
+    end
+
+    local opt_wallpaper_brightness = settings.get_option("wallpaper_brightness")
+    if opt_wallpaper_brightness then
+        background.set_wallpaper_brightness(opt_wallpaper_brightness.value)
     end
 end
 

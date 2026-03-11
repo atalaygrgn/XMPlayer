@@ -177,6 +177,49 @@ function xmb_draw.draw()
             settings_view.draw_popup(selected.setting_idx)
         end
     end
+
+    -- ─── Context Menu Popup ───
+    local menu = xmb.context_menu
+    if menu and (menu.active or menu.alpha > 0) then
+        local alpha = menu.alpha
+        local panel_w = 300
+        local panel_h = 140 + (#menu.items * 50)
+        local panel_x = screen_w - panel_w - 40
+        local panel_y = screen_h * 0.22
+
+        love.graphics.setColor(0.05, 0.05, 0.08, 0.94 * alpha)
+        love.graphics.rectangle("fill", panel_x, panel_y, panel_w, panel_h, 16, 16)
+
+        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.35 * alpha)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", panel_x, panel_y, panel_w, panel_h, 16, 16)
+
+        love.graphics.setFont(assets.fonts.main)
+        ui.draw_glow_text(menu.title or "Options", panel_x + 24, panel_y + 20, assets.fonts.main,
+            { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
+
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.22 * alpha)
+        love.graphics.rectangle("fill", panel_x + 22, panel_y + 64, panel_w - 44, 1)
+
+        for i, option in ipairs(menu.items) do
+            local row_y = panel_y + 82 + (i - 1) * 50
+            local focused = (i == menu.selected_idx)
+
+            if focused then
+                love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.28 * alpha)
+                love.graphics.rectangle("fill", panel_x + 18, row_y - 6, panel_w - 36, 40, 10, 10)
+            end
+
+            love.graphics.setFont(assets.fonts.small)
+            if focused then
+                ui.draw_glow_text(option.label, panel_x + 32, row_y, assets.fonts.small,
+                    { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
+            else
+                love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.75 * alpha)
+                love.graphics.print(option.label, panel_x + 32, row_y)
+            end
+        end
+    end
 end
 
 return xmb_draw
