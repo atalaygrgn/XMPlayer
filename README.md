@@ -4,9 +4,9 @@
 
 **XMPlayer** is an all-in-one, XMB-inspired media suite designed specifically for handheld gaming devices running **muOS** (support for other firmwares are planned). It provides a clean, easy-to-use interface for managing and enjoying your music, videos, and photos.
 
-**Disclaimer:** XMPlayer is developed for educational purposes and is not affiliated with Sony or the XrossMediaBar brand.
-
 > XMPlayer is a **media suite application** for Linux handhelds running muOS (and other firmwares, WIP). It is **NOT** a custom firmware or an emulation frontend. The main focus is on media content **other than games**.
+
+**Disclaimer:** XMPlayer is developed for educational purposes and is not affiliated with Sony or the XrossMediaBar brand.
 
 ---
 
@@ -16,23 +16,26 @@
 - **Responsive UI**: UI is responsive to different screen sizes, resolutions, and aspect ratios.
 - **Content Indexing:** Content indexing allows handling large media libraries without slowing down the UI.
 - **System Integration:** Live battery percentage and clock display in the status bar.
-> ### Video Player
-> Integrated **MPV** support for high-performance video playback.
-> ![XMPlayer Video Player](assets/readme/resume.png)
-> A highly requested feature: resume playback from where you left off!
+### Video Player
+Integrated **MPV** support for high-performance video playback.<br>
 
-> ### Music Player
->A dedicated audio player interface with album art, track info, and playback controls. Most audio formats, **including FLAC**, are supported.
-> ![XMPlayer Music Player](assets/readme/player.png)
+![XMPlayer Video Player](assets/readme/resume.png)<br>
+A highly requested feature: resume playback from where you left off!
 
-> ### Photo Viewer
-> Browse and view your photo collection.
+### Music Player
+A dedicated audio player interface with album art, track info, and playback controls. Most audio formats, **including FLAC**, are supported.<br>
 
-> ### Customizable Themes
-> Fluid particle animations and customizable color themes to your liking. You can set a wallpaper too!
-> ![XMPlayer Theme](assets/readme/theme.png)
+![XMPlayer Music Player](assets/readme/player.png)
 
-This project's aim is to utilize XMB's ease of use for media content and many people's familiarity in the retro gaming community. This project does not aim to fully replicate or provide 1:1 functionalities with the original XMB interface of Sony devices. This project is a reimagination and adaptation, not a hard copy.
+### Photo Viewer
+Browse and view your photo collection.
+
+### Customizable Themes
+Fluid particle animations and customizable color themes to your liking. You can set a wallpaper too!<br>
+
+![XMPlayer Theme](assets/readme/theme.png)
+
+> This project's aim is to utilize XMB's ease of use for media content and many people's familiarity in the retro gaming community. This project does not aim to fully replicate or provide 1:1 functionalities with the original XMB interface of Sony devices. This project is a reimagination and adaptation, not a hard copy.
 
 ---
 
@@ -84,7 +87,7 @@ You can personalize XMPlayer via **Settings** > **Theme Settings**:
 - **Wallpaper:** Select an image from your photos as a wallpaper!
 - **Wallpaper Effect:** Choose from `No Filter`, `Blur`, and `Theme Color`.
 
-> ![XMPlayer Theme](assets/readme/wallpaper.png)
+> ![XMPlayer Theme](assets/readme/wallpaper.png) <br>
 > i just wanna be part of your symphony 🐬
 
 More customization options are on the way!

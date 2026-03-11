@@ -95,7 +95,7 @@ local function draw_waveform(music)
     -- Draw multiple wave layers
     for layer = 1, 3 do
         local points = {}
-        local opacity = (layer == 1) and 0.4 or (layer == 2) and 0.2 or 0.1
+        local opacity = (layer == 1) and 0.8 or (layer == 2) and 0.4 or 0.2
         local layer_speed = (layer == 1) and 1.0 or (layer == 2) and 0.7 or 0.4
         local layer_freq = (layer == 1) and 1.0 or (layer == 2) and 0.6 or 0.3
 

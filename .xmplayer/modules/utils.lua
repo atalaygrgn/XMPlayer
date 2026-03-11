@@ -155,54 +155,6 @@ function utils.load_image(path)
     return nil
 end
 
-function utils.get_battery_percentage()
-    local path = "/sys/class/power_supply/axp2202-battery/capacity"
-    local f = io.open(path, "r")
-    if not f then return nil end
-    local content = f:read("*a")
-    f:close()
-    if content then
-        return tonumber(content:match("(%d+)"))
-    end
-    return nil
-end
-
-function utils.is_charging()
-    local path = "/sys/class/power_supply/axp2202-usb/online"
-    local f = io.open(path, "r")
-    if not f then return false end
-    local content = f:read("*a")
-    f:close()
-    if content then
-        return (tonumber(content:match("(%d+)")) or 0) == 1
-    end
-    return false
-end
-
-function utils.get_volume()
-    local path = "/opt/muos/config/settings/general/volume"
-    local f = io.open(path, "r")
-    if not f then return nil end
-    local content = f:read("*a")
-    f:close()
-    if content then
-        return tonumber(content:match("(%d+)"))
-    end
-    return nil
-end
-
-function utils.get_brightness()
-    local path = "/opt/muos/config/settings/general/brightness"
-    local f = io.open(path, "r")
-    if not f then return nil end
-    local content = f:read("*a")
-    f:close()
-    if content then
-        return tonumber(content:match("(%d+)"))
-    end
-    return nil
-end
-
 function utils.shuffle(t)
     for i = #t, 2, -1 do
         local j = math.random(i)

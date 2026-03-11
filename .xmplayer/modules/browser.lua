@@ -70,4 +70,14 @@ function browser.scan(path)
     end
 end
 
+function browser.set_state(base_dir, current_dir, filter)
+    browser.base_dir = base_dir
+    browser.current_dir = current_dir
+    browser.set_filter(filter)
+end
+
+function browser.set_files(list)
+    browser.files = list
+end
+
 return browser

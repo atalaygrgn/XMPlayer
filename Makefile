@@ -15,8 +15,8 @@ build:
 	@echo "Copying .xmplayer directory..."
 	@cp -R .xmplayer $(DIST_DIR)/
 	
-	@echo "Copying glyph folder (from glpyh)..."
-	@cp -R glpyh $(DIST_DIR)/glyph
+	@echo "Copying glyph folder..."
+	@cp -R glyph $(DIST_DIR)/glyph
 	
 	@echo "Copying launch scripts and configs..."
 	@cp mux_launch.sh $(DIST_DIR)/

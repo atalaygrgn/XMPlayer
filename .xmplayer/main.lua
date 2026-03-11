@@ -3,14 +3,17 @@ local theme = require("theme")
 local player = require("player")
 local categories = require("categories")
 local xmb = require("xmb")
+local xmb_draw = require("xmb_draw")
 local music = require("music_player")
+local music_view = require("music_view")
 local background = require("background")
 local image_viewer = require("image_viewer")
+local image_view = require("image_view")
 local settings = require("settings")
 local assets = require("assets")
 local indexing = require("indexing")
 local ui = require("ui")
-local utils = require("utils")
+local system = require("system")
 
 
 local scan_co = nil
@@ -35,6 +38,7 @@ function love.load()
     -- Init subsystems
     background.init()
     music.init()
+    music_view.init()
     image_viewer.init()
 
     -- Load and Apply settings
@@ -58,10 +62,10 @@ function love.load()
     end
 
     -- Initial battery check
-    battery_percentage = utils.get_battery_percentage()
-    is_charging = utils.is_charging()
-    last_volume = utils.get_volume()
-    last_brightness = utils.get_brightness()
+    battery_percentage = system.get_battery_percentage()
+    is_charging = system.is_charging()
+    last_volume = system.get_volume()
+    last_brightness = system.get_brightness()
 
     -- Screen setup
     love.graphics.setBackgroundColor(theme.colors.background)
@@ -115,8 +119,8 @@ function love.update(dt)
     battery_timer = battery_timer + dt
     if battery_timer >= BATTERY_UPDATE_INTERVAL then
         battery_timer = 0
-        battery_percentage = utils.get_battery_percentage()
-        is_charging = utils.is_charging()
+        battery_percentage = system.get_battery_percentage()
+        is_charging = system.is_charging()
     end
 
     -- Update volume & brightness status
@@ -125,14 +129,14 @@ function love.update(dt)
         ui_timer = 0
 
         -- Volume
-        local current_volume = utils.get_volume()
+        local current_volume = system.get_volume()
         if settings.vol_bright_enabled and last_volume ~= nil and current_volume ~= nil and current_volume ~= last_volume then
             ui.show_volume_toast(current_volume)
         end
         last_volume = current_volume
 
         -- Brightness
-        local current_brightness = utils.get_brightness()
+        local current_brightness = system.get_brightness()
         if settings.vol_bright_enabled and last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= last_brightness then
             ui.show_brightness_toast(current_brightness)
         end
@@ -153,13 +157,13 @@ function love.draw()
     background.draw(music)
 
     if music.active then
-        music.draw()
+        music_view.draw()
     elseif image_viewer.active then
-        image_viewer.draw()
+        image_view.draw()
     elseif indexing.is_scanning then
         ui.draw_indexing_popup(indexing.scan_progress)
     else
-        xmb.draw()
+        xmb_draw.draw()
 
         -- Clock and info
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
@@ -195,12 +199,12 @@ end
 
 function love.keypressed(key)
     if music.active then
-        music.keypressed(key)
+        music_view.keypressed(key)
         return
     end
 
     if image_viewer.active then
-        image_viewer.keypressed(key)
+        image_view.keypressed(key)
         return
     end
 

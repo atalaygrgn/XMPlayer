@@ -2,11 +2,13 @@ local metadata = require("metadata")
 local utils = require("utils")
 
 local indexing = {}
+local INDEX_VERSION = 2
 
 local storage_path = love.filesystem.getSource()
 indexing.file_path = storage_path .. "/index.cfg"
 indexing.thumb_dir = storage_path .. "/thumbnails"
 indexing.data = {
+    version = INDEX_VERSION,
     music = {
         albums = {},  -- {name = "Album Name", artist = "Artist Name", tracks = {path, ...}}
         artists = {}, -- {name = "Artist Name", albums = {name, ...}, tracks = {path, ...}}
@@ -24,6 +26,66 @@ indexing.compatible_extensions = {
 
 indexing.is_scanning = false
 indexing.scan_progress = ""
+
+local function normalize_key(value)
+    return utils.trim((value or ""):lower())
+end
+
+local function parse_track_index(value)
+    if type(value) == "number" then return value end
+    if type(value) ~= "string" then return nil end
+
+    local number = value:match("^(%d+)") or value:match("(%d+)")
+    return number and tonumber(number) or nil
+end
+
+local function split_artists(artist_str)
+    local artists = {}
+    local seen = {}
+
+    for _, artist in ipairs(utils.split(artist_str or "", ",")) do
+        local trimmed = utils.trim(artist)
+        if trimmed ~= "" and not seen[trimmed] then
+            seen[trimmed] = true
+            table.insert(artists, trimmed)
+        end
+    end
+
+    if #artists == 0 then
+        artists[1] = "Unknown Artist"
+    end
+
+    return artists
+end
+
+local function compare_track_paths(path_a, path_b)
+    local info_a = indexing.data.music.files[path_a] or {}
+    local info_b = indexing.data.music.files[path_b] or {}
+
+    local disc_a = info_a.disc_number or 1
+    local disc_b = info_b.disc_number or 1
+    if disc_a ~= disc_b then return disc_a < disc_b end
+
+    local track_a = info_a.track_number or math.huge
+    local track_b = info_b.track_number or math.huge
+    if track_a ~= track_b then return track_a < track_b end
+
+    local title_a = (info_a.title or utils.get_track_name(path_a) or ""):lower()
+    local title_b = (info_b.title or utils.get_track_name(path_b) or ""):lower()
+    if title_a ~= title_b then return title_a < title_b end
+
+    return path_a:lower() < path_b:lower()
+end
+
+local function add_artist_album(artist_entry, album)
+    for _, existing_album in ipairs(artist_entry.albums) do
+        if existing_album == album then
+            return
+        end
+    end
+
+    table.insert(artist_entry.albums, album)
+end
 
 function indexing.save()
     local function serialize(o, indent)
@@ -59,6 +121,9 @@ function indexing.load()
         if chunk then
             local ok, data = pcall(chunk)
             if ok and type(data) == "table" then
+                if data.version ~= INDEX_VERSION then
+                    return false
+                end
                 indexing.data = data
                 return true
             end
@@ -152,6 +217,7 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     -- Reset data but keep existing photo thumbnails if any
     local old_photos = indexing.data.photos
     indexing.data = {
+        version = INDEX_VERSION,
         music = { albums = {}, artists = {}, files = {} },
         photos = old_photos or {},
         videos = {}
@@ -177,43 +243,53 @@ function indexing.scan(photo_dir, music_dir, video_dir)
         local title = tags.title or utils.get_track_name(path)
         local artist_str = tags.artist or "Unknown Artist"
         local album = tags.album or "Unknown Album"
+        local album_artist = utils.trim(tags.album_artist or "")
+        local artists = split_artists(artist_str)
+        local primary_artist = artists[1]
+        local track_number = parse_track_index(tags.track_number)
+        local disc_number = parse_track_index(tags.disc_number)
 
         indexing.data.music.files[path] = {
             title = title,
             artist = artist_str,
-            album = album
+            album = album,
+            album_artist = album_artist ~= "" and album_artist or nil,
+            track_number = track_number,
+            disc_number = disc_number
         }
 
-        -- Split artists by comma
-        local artists = utils.split(artist_str, ",")
-        if #artists == 0 then table.insert(artists, "Unknown Artist") end
-
         for _, a in ipairs(artists) do
-            -- Group by Artist
             if not indexing.data.music.artists[a] then
                 indexing.data.music.artists[a] = { name = a, albums = {}, tracks = {} }
             end
             table.insert(indexing.data.music.artists[a].tracks, path)
-
-            -- Add to artist's album list if not already there
-            local found = false
-            for _, al in ipairs(indexing.data.music.artists[a].albums) do
-                if al == album then
-                    found = true
-                    break
-                end
-            end
-            if not found then
-                table.insert(indexing.data.music.artists[a].albums, album)
-            end
+            add_artist_album(indexing.data.music.artists[a], album)
         end
 
-        -- Group by Album (Global) - Use full artist_str to keep it unique per album-artist combo
-        local album_key = artist_str .. " - " .. album
+        local album_group_key = album_artist ~= "" and album_artist or utils.get_dirname(path)
+        if album_group_key == "" then
+            album_group_key = primary_artist or artist_str
+        end
+
+        local album_display_artist = album_artist ~= "" and album_artist or primary_artist or artist_str
+        local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
         if not indexing.data.music.albums[album_key] then
-            indexing.data.music.albums[album_key] = { name = album, artist = artist_str, tracks = {} }
+            indexing.data.music.albums[album_key] = { name = album, artist = album_display_artist, tracks = {} }
+        elseif album_artist ~= "" then
+            indexing.data.music.albums[album_key].artist = album_artist
         end
         table.insert(indexing.data.music.albums[album_key].tracks, path)
+    end
+
+    for _, album_entry in pairs(indexing.data.music.albums) do
+        table.sort(album_entry.tracks, compare_track_paths)
+    end
+
+    for _, artist_entry in pairs(indexing.data.music.artists) do
+        table.sort(artist_entry.tracks, compare_track_paths)
+        table.sort(artist_entry.albums, function(a, b)
+            return a:lower() < b:lower()
+        end)
     end
 
     -- 3. Scan Photos
