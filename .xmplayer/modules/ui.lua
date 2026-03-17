@@ -128,29 +128,38 @@ function ui.draw_progress_bar(x, y, w, h, progress, color, bg_color)
 end
 
 -- Icon helper
-function ui.draw_indexing_popup(progress_text)
+function ui.draw_indexing_popup(progress_text, final_message)
     local screen_w, screen_h = love.graphics.getDimensions()
-    local w, h = 400, 150
-    local x, y = (screen_w - w) / 2, (screen_h - h) / 2
+    local accent = theme.accent
+    local t = love.timer.getTime()
 
-    -- Blurred background (dim)
-    love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", 0, 0, screen_w, screen_h)
+    -- Centered product title
+    local title_font = assets.fonts.large
+    love.graphics.setFont(title_font)
+    ui.draw_glow_text("XMPlayer", 0, screen_h * 0.5 - title_font:getHeight() * 0.5, title_font,
+        { 1, 1, 1, 1 }, accent, screen_w, "center")
 
-    -- Popup box
-    love.graphics.setColor(0.1, 0.1, 0.15, 0.95)
-    love.graphics.rectangle("fill", x, y, w, h, 10)
-    love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.8)
-    love.graphics.rectangle("line", x, y, w, h, 10)
-
-    -- Text
-    love.graphics.setFont(assets.fonts.main)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.printf("Indexing Media Files...", x, y + 40, w, "center")
-
+    -- Bottom-left version tag
     love.graphics.setFont(assets.fonts.small)
-    love.graphics.setColor(1, 1, 1, 0.7)
-    love.graphics.printf(progress_text or "Scanning...", x, y + 80, w, "center")
+    love.graphics.setColor(1, 1, 1, 0.75)
+    love.graphics.print("v0.1 Beta", 20, screen_h - 36)
+
+    -- Bottom-right indexing status with subtle pulse
+    local status = progress_text or "Scanning media..."
+    local status_text
+    if final_message then
+        status_text = status
+    else
+        local dots = string.rep(".", (math.floor(t * 2) % 3) + 1)
+        status_text = "Indexing" .. dots .. "  " .. status
+    end
+
+    local status_font = assets.fonts.xs or assets.fonts.small
+    love.graphics.setFont(status_font)
+    local sw = status_font:getWidth(status_text)
+    local pulse = 0.62 + (math.sin(t * 3.0) + 1) * 0.14
+    love.graphics.setColor(accent[1], accent[2], accent[3], pulse)
+    love.graphics.print(status_text, screen_w - sw - 20, screen_h - 36)
 end
 
 function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail)

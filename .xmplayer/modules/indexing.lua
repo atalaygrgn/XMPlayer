@@ -26,6 +26,7 @@ indexing.compatible_extensions = {
 
 indexing.is_scanning = false
 indexing.scan_progress = ""
+indexing.scan_result_message = nil
 
 local function normalize_key(value)
     return utils.trim((value or ""):lower())
@@ -85,6 +86,115 @@ local function add_artist_album(artist_entry, album)
     end
 
     table.insert(artist_entry.albums, album)
+end
+
+local function file_exists(path)
+    local f = io.open(path, "rb")
+    if f then
+        f:close()
+        return true
+    end
+    return false
+end
+
+local function sort_music_collections()
+    for _, album_entry in pairs(indexing.data.music.albums) do
+        table.sort(album_entry.tracks, compare_track_paths)
+    end
+
+    for _, artist_entry in pairs(indexing.data.music.artists) do
+        table.sort(artist_entry.tracks, compare_track_paths)
+        table.sort(artist_entry.albums, function(a, b)
+            return a:lower() < b:lower()
+        end)
+    end
+end
+
+local function add_music_file(path)
+    if indexing.data.music.files[path] then
+        return false
+    end
+
+    local tags = metadata.get_tags(path)
+    local title = tags.title or utils.get_track_name(path)
+    local artist_str = tags.artist or "Unknown Artist"
+    local album = tags.album or "Unknown Album"
+    local album_artist = utils.trim(tags.album_artist or "")
+    local artists = split_artists(artist_str)
+    local primary_artist = artists[1]
+    local track_number = parse_track_index(tags.track_number)
+    local disc_number = parse_track_index(tags.disc_number)
+
+    indexing.data.music.files[path] = {
+        title = title,
+        artist = artist_str,
+        album = album,
+        album_artist = album_artist ~= "" and album_artist or nil,
+        track_number = track_number,
+        disc_number = disc_number
+    }
+
+    for _, a in ipairs(artists) do
+        if not indexing.data.music.artists[a] then
+            indexing.data.music.artists[a] = { name = a, albums = {}, tracks = {} }
+        end
+        table.insert(indexing.data.music.artists[a].tracks, path)
+        add_artist_album(indexing.data.music.artists[a], album)
+    end
+
+    local album_group_key = album_artist ~= "" and album_artist or utils.get_dirname(path)
+    if album_group_key == "" then
+        album_group_key = primary_artist or artist_str
+    end
+
+    local album_display_artist = album_artist ~= "" and album_artist or primary_artist or artist_str
+    local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
+    if not indexing.data.music.albums[album_key] then
+        indexing.data.music.albums[album_key] = { name = album, artist = album_display_artist, tracks = {} }
+    elseif album_artist ~= "" then
+        indexing.data.music.albums[album_key].artist = album_artist
+    end
+    table.insert(indexing.data.music.albums[album_key].tracks, path)
+
+    return true
+end
+
+local function rebuild_music_collections_from_files()
+    local old_files = indexing.data.music.files or {}
+    indexing.data.music.albums = {}
+    indexing.data.music.artists = {}
+
+    for path, info in pairs(old_files) do
+        local artist_str = info.artist or "Unknown Artist"
+        local album = info.album or "Unknown Album"
+        local album_artist = utils.trim(info.album_artist or "")
+        local artists = split_artists(artist_str)
+        local primary_artist = artists[1]
+
+        for _, a in ipairs(artists) do
+            if not indexing.data.music.artists[a] then
+                indexing.data.music.artists[a] = { name = a, albums = {}, tracks = {} }
+            end
+            table.insert(indexing.data.music.artists[a].tracks, path)
+            add_artist_album(indexing.data.music.artists[a], album)
+        end
+
+        local album_group_key = album_artist ~= "" and album_artist or utils.get_dirname(path)
+        if album_group_key == "" then
+            album_group_key = primary_artist or artist_str
+        end
+
+        local album_display_artist = album_artist ~= "" and album_artist or primary_artist or artist_str
+        local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
+        if not indexing.data.music.albums[album_key] then
+            indexing.data.music.albums[album_key] = { name = album, artist = album_display_artist, tracks = {} }
+        elseif album_artist ~= "" then
+            indexing.data.music.albums[album_key].artist = album_artist
+        end
+        table.insert(indexing.data.music.albums[album_key].tracks, path)
+    end
+
+    sort_music_collections()
 end
 
 function indexing.save()
@@ -209,6 +319,7 @@ end
 
 function indexing.scan(photo_dir, music_dir, video_dir)
     indexing.is_scanning = true
+    indexing.scan_result_message = nil
 
     local music_exts = indexing.compatible_extensions.music
     local photo_exts = indexing.compatible_extensions.photo
@@ -238,59 +349,10 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     for i, path in ipairs(music_files) do
         indexing.scan_progress = string.format("Indexing Music (%d/%d)", i, #music_files)
         if i % 5 == 0 then coroutine.yield() end -- Yield every 5 files to speed up but keep UI responsive
-
-        local tags = metadata.get_tags(path)
-        local title = tags.title or utils.get_track_name(path)
-        local artist_str = tags.artist or "Unknown Artist"
-        local album = tags.album or "Unknown Album"
-        local album_artist = utils.trim(tags.album_artist or "")
-        local artists = split_artists(artist_str)
-        local primary_artist = artists[1]
-        local track_number = parse_track_index(tags.track_number)
-        local disc_number = parse_track_index(tags.disc_number)
-
-        indexing.data.music.files[path] = {
-            title = title,
-            artist = artist_str,
-            album = album,
-            album_artist = album_artist ~= "" and album_artist or nil,
-            track_number = track_number,
-            disc_number = disc_number
-        }
-
-        for _, a in ipairs(artists) do
-            if not indexing.data.music.artists[a] then
-                indexing.data.music.artists[a] = { name = a, albums = {}, tracks = {} }
-            end
-            table.insert(indexing.data.music.artists[a].tracks, path)
-            add_artist_album(indexing.data.music.artists[a], album)
-        end
-
-        local album_group_key = album_artist ~= "" and album_artist or utils.get_dirname(path)
-        if album_group_key == "" then
-            album_group_key = primary_artist or artist_str
-        end
-
-        local album_display_artist = album_artist ~= "" and album_artist or primary_artist or artist_str
-        local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
-        if not indexing.data.music.albums[album_key] then
-            indexing.data.music.albums[album_key] = { name = album, artist = album_display_artist, tracks = {} }
-        elseif album_artist ~= "" then
-            indexing.data.music.albums[album_key].artist = album_artist
-        end
-        table.insert(indexing.data.music.albums[album_key].tracks, path)
+        add_music_file(path)
     end
 
-    for _, album_entry in pairs(indexing.data.music.albums) do
-        table.sort(album_entry.tracks, compare_track_paths)
-    end
-
-    for _, artist_entry in pairs(indexing.data.music.artists) do
-        table.sort(artist_entry.tracks, compare_track_paths)
-        table.sort(artist_entry.albums, function(a, b)
-            return a:lower() < b:lower()
-        end)
-    end
+    sort_music_collections()
 
     -- 3. Scan Photos
     indexing.scan_progress = "Scanning Photos..."
@@ -311,6 +373,119 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     indexing.data.photos = new_photos
 
     indexing.save()
+    indexing.is_scanning = false
+    indexing.scan_progress = "Done"
+    indexing.scan_result_message = "Indexing completed"
+end
+
+function indexing.scan_for_new_media(photo_dir, music_dir, video_dir)
+    indexing.is_scanning = true
+    indexing.scan_result_message = nil
+
+    local music_exts = indexing.compatible_extensions.music
+    local photo_exts = indexing.compatible_extensions.photo
+    local video_exts = indexing.compatible_extensions.video
+
+    local new_count = 0
+    local removed_count = 0
+
+    indexing.data.music = indexing.data.music or { albums = {}, artists = {}, files = {} }
+    indexing.data.music.albums = indexing.data.music.albums or {}
+    indexing.data.music.artists = indexing.data.music.artists or {}
+    indexing.data.music.files = indexing.data.music.files or {}
+    indexing.data.photos = indexing.data.photos or {}
+    indexing.data.videos = indexing.data.videos or {}
+
+    indexing.scan_progress = "Pruning removed videos..."
+    coroutine.yield(indexing.scan_progress)
+    local kept_videos = {}
+    for _, path in ipairs(indexing.data.videos) do
+        if file_exists(path) then
+            table.insert(kept_videos, path)
+        else
+            removed_count = removed_count + 1
+        end
+    end
+    indexing.data.videos = kept_videos
+
+    indexing.scan_progress = "Pruning removed music..."
+    coroutine.yield(indexing.scan_progress)
+    local kept_music_files = {}
+    for path, info in pairs(indexing.data.music.files) do
+        if file_exists(path) then
+            kept_music_files[path] = info
+        else
+            removed_count = removed_count + 1
+        end
+    end
+    indexing.data.music.files = kept_music_files
+    rebuild_music_collections_from_files()
+
+    indexing.scan_progress = "Pruning removed photos..."
+    coroutine.yield(indexing.scan_progress)
+    local kept_photos = {}
+    for path, photo_info in pairs(indexing.data.photos) do
+        if file_exists(path) then
+            kept_photos[path] = photo_info
+        else
+            removed_count = removed_count + 1
+        end
+    end
+    indexing.data.photos = kept_photos
+
+    indexing.scan_progress = "Checking for new videos..."
+    coroutine.yield(indexing.scan_progress)
+    local video_files = get_files_recursive(video_dir, video_exts)
+    local existing_videos = {}
+    for _, path in ipairs(indexing.data.videos or {}) do
+        existing_videos[path] = true
+    end
+    for _, path in ipairs(video_files) do
+        if not existing_videos[path] then
+            table.insert(indexing.data.videos, path)
+            existing_videos[path] = true
+            new_count = new_count + 1
+        end
+    end
+
+    indexing.scan_progress = "Checking for new music..."
+    coroutine.yield(indexing.scan_progress)
+    local music_files = get_files_recursive(music_dir, music_exts)
+    local music_added = 0
+    for i, path in ipairs(music_files) do
+        if i % 10 == 0 then
+            indexing.scan_progress = string.format("Checking Music (%d/%d)", i, #music_files)
+            coroutine.yield(indexing.scan_progress)
+        end
+        if add_music_file(path) then
+            new_count = new_count + 1
+            music_added = music_added + 1
+        end
+    end
+
+    if music_added > 0 then
+        sort_music_collections()
+    end
+
+    indexing.scan_progress = "Checking for new photos..."
+    coroutine.yield(indexing.scan_progress)
+    local photo_files = get_files_recursive(photo_dir, photo_exts)
+    for i, path in ipairs(photo_files) do
+        if i % 10 == 0 then
+            indexing.scan_progress = string.format("Checking Photos (%d/%d)", i, #photo_files)
+            coroutine.yield(indexing.scan_progress)
+        end
+        if not indexing.data.photos[path] then
+            indexing.data.photos[path] = { thumb_path = indexing.generate_thumbnail(path) }
+            new_count = new_count + 1
+        end
+    end
+
+    if new_count > 0 or removed_count > 0 then
+        indexing.save()
+        indexing.scan_result_message = string.format("Index updated: +%d new, -%d removed", new_count, removed_count)
+    end
+
     indexing.is_scanning = false
     indexing.scan_progress = "Done"
 end

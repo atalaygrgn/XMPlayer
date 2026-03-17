@@ -61,6 +61,7 @@ function assets.load(categories)
     assets.fonts.time_elapsed = love.graphics.newFont(font_path, 28)
     assets.fonts.time_dur = love.graphics.newFont(font_path, 24)
     assets.fonts.xs = love.graphics.newFont(font_path, 18)
+    assets.fonts.large = love.graphics.newFont(font_path, 48)
 
     -- Load SFX
     assets.sfx.nav = love.audio.newSource("assets/sfx/keytone.wav", "static")

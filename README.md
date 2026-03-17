@@ -67,14 +67,14 @@ Fluid particle animations and customizable color themes to your liking. You can 
 | **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s | - |
 | **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset Zoom & Fit to Screen |
 | **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |
-| **X** | Context Menu | Toggle Repeat | Toggle Mute | Zoom In |
-| **Y** | - | Select Visualizer [WIP] | Show OSD | (Hold Y + D-Pad) Pan |
+| **X** | Context Menu | Playback Options | Toggle Mute | Zoom In |
+| **Y** | - | (Y + D-Pad Right) Un/Lock Controls | Show OSD | (Hold Y + D-Pad) Pan |
 | **L1** | - | - | Previous Video | - |
 | **L2** | - | - | Toggle Subtitles | - |
 | **R1** | - | - | Next Video | - |
 | **R2** | - | - | Next Subtitle | - |
 | **Start** | - | - | Play / Pause | - |
-| **Select** | - | Background Play [WIP] | Return to XMB | Return to XMB |
+| **Select** | - | - | Return to XMB | Return to XMB |
 
 ---
 
@@ -85,7 +85,7 @@ You can personalize XMPlayer via **Settings** > **Theme Settings**:
 - **Theme:** Toggle between `Light` and `Dark` modes.
 - **Theme Color:** Choose from the colors of RetroArch's color presets for its XMB interface.
 - **Wallpaper:** Select an image from your photos as a wallpaper!
-- **Wallpaper Effect:** Choose from `No Filter`, `Blur`, and `Theme Color`.
+- **Wallpaper Effects:** Add blur, tint, brightness effects to better match your style.
 
 > ![XMPlayer Theme](assets/readme/wallpaper.png) <br>
 > i just wanna be part of your symphony 🐬

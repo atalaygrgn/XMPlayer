@@ -151,7 +151,7 @@ settings.options = {
         name = "Auto Display Sleep (Music)",
         type = "choice",
         group = "general",
-        choices = { "Off", "15s", "30s", "1m", "2m", "5m" },
+        choices = { "Off", "5s", "10s", "15s", "30s", "1m", "3m" },
         value = 1
     },
     {
@@ -276,7 +276,7 @@ function settings.apply()
 
     local opt_display_sleep = settings.get_option("display_sleep")
     if opt_display_sleep then
-        local display_sleep_choices = { 0, 15, 30, 60, 120, 300 }
+        local display_sleep_choices = { 0, 5, 10, 15, 30, 60, 180 }
         settings.display_sleep_seconds = display_sleep_choices[opt_display_sleep.value] or 0
     else
         settings.display_sleep_seconds = 0

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# HELP: XMPlayer - XMB Style Media Player
+# HELP: XMPlayer - XMB-Inspired Media Suite
 # ICON: xmplayer
 # GRID: XMPlayer
 

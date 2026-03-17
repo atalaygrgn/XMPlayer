@@ -22,9 +22,21 @@ music_view.context_menu = {
     selected_idx = 1,
     items = {
         "repeat_one",
+        "display_sleep",
         "auto_sleep",
         "visualizer"
     }
+}
+
+local hold_wake_blocked_keys = {
+    pageup = true,
+    pagedown = true,
+    l = true,
+    e = true,
+    l1 = true,
+    l2 = true,
+    r1 = true,
+    r2 = true,
 }
 
 local function repeat_label()
@@ -36,6 +48,14 @@ local function auto_sleep_label()
         return "Off"
     end
     return string.format("%dm", music.auto_sleep_minutes)
+end
+
+local function display_sleep_label()
+    local opt = settings.get_option("display_sleep")
+    if not opt or not opt.choices or not opt.choices[opt.value] then
+        return "Off"
+    end
+    return opt.choices[opt.value]
 end
 
 local function visualizer_label()
@@ -51,6 +71,16 @@ local function cycle_current_option(direction)
     local selected = music_view.context_menu.items[music_view.context_menu.selected_idx]
     if selected == "repeat_one" then
         music.set_repeat_one(not music.repeat_one)
+    elseif selected == "display_sleep" then
+        local opt = settings.get_option("display_sleep")
+        if opt and opt.choices and #opt.choices > 0 then
+            local next_value = opt.value + direction
+            if next_value > #opt.choices then next_value = 1 end
+            if next_value < 1 then next_value = #opt.choices end
+            opt.value = next_value
+            settings.apply()
+            settings.save()
+        end
     elseif selected == "auto_sleep" then
         local next_value = music.auto_sleep_minutes + direction
         if next_value > 30 then next_value = 0 end
@@ -277,6 +307,9 @@ function music_view.draw()
             if item_id == "repeat_one" then
                 label = "Repeat One"
                 value = repeat_label()
+            elseif item_id == "display_sleep" then
+                label = "Display Sleep"
+                value = display_sleep_label()
             elseif item_id == "auto_sleep" then
                 label = "Auto Sleep"
                 value = auto_sleep_label()
@@ -314,11 +347,14 @@ function music_view.keypressed(key)
     if not music.active then return false end
 
     local was_sleeping = music_view.display_sleeping
+    local should_ignore_wake = music_view.buttons_locked and hold_wake_blocked_keys[key]
 
     local lock_combo_pressed = (key == "y" and love.keyboard.isDown("right"))
         or (key == "right" and love.keyboard.isDown("y"))
 
-    music_view.register_user_input()
+    if not should_ignore_wake then
+        music_view.register_user_input()
+    end
 
     if lock_combo_pressed then
         music_view.buttons_locked = not music_view.buttons_locked

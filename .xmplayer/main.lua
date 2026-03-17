@@ -18,6 +18,9 @@ local system = require("system")
 
 local scan_co = nil
 local was_music_active = false
+local launch_status_message = nil
+local launch_status_timer = 0
+local LAUNCH_STATUS_DURATION = 3
 
 -- Battery status caching
 local battery_percentage = nil
@@ -46,20 +49,23 @@ function love.load()
     settings.load()
 
     -- Initial scan / Indexing
-    indexing.load()
+    local has_existing_index = indexing.load()
+
+    local photo_dir = settings.get_option("photo_dir").value
+    local music_dir = settings.get_option("music_dir").value
+    local video_dir = settings.get_option("video_dir").value
 
     -- Trigger indexing if no data or requested
-    if not next(indexing.data.music.files) or not next(indexing.data.photos) then
-        local photo_dir = settings.get_option("photo_dir").value
-        local music_dir = settings.get_option("music_dir").value
-        local video_dir = settings.get_option("video_dir").value
-
+    if not has_existing_index or not next(indexing.data.music.files) or not next(indexing.data.photos) then
         scan_co = coroutine.create(function()
             indexing.scan(photo_dir, music_dir, video_dir)
         end)
         indexing.is_scanning = true
     else
-        xmb.refresh_browser()
+        scan_co = coroutine.create(function()
+            indexing.scan_for_new_media(photo_dir, music_dir, video_dir)
+        end)
+        indexing.is_scanning = true
     end
 
     -- Initial battery check
@@ -115,13 +121,24 @@ function love.update(dt)
                 indexing.is_scanning = false
                 scan_co = nil
                 xmb.refresh_browser()
-                ui.show_toast("Indexing error, see log.txt for details", "info", "top_center")
+                launch_status_message = "Indexing Error"
+                launch_status_timer = LAUNCH_STATUS_DURATION
             elseif coroutine.status(scan_co) == "dead" then
                 indexing.is_scanning = false
                 scan_co = nil
                 xmb.refresh_browser()
-                ui.show_toast("Indexing completed", "info", "top_center")
+                launch_status_message = "Indexing Complete"
+                launch_status_timer = LAUNCH_STATUS_DURATION
             end
+        end
+        return
+    elseif launch_status_timer > 0 then
+        if was_music_active then
+            music_view.on_music_closed()
+        end
+        launch_status_timer = math.max(0, launch_status_timer - dt)
+        if launch_status_timer == 0 then
+            launch_status_message = nil
         end
         return
     else
@@ -178,8 +195,8 @@ function love.draw()
         music_view.draw()
     elseif image_viewer.active then
         image_view.draw()
-    elseif indexing.is_scanning then
-        ui.draw_indexing_popup(indexing.scan_progress)
+    elseif indexing.is_scanning or launch_status_timer > 0 then
+        ui.draw_indexing_popup(launch_status_message or indexing.scan_progress, launch_status_timer > 0)
     else
         xmb_draw.draw()
 
