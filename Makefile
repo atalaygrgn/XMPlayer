@@ -30,11 +30,17 @@ build:
 	
 	@echo "Build successful! Output located at $(DIST_DIR)"
 
+
 package: build
 	@echo "Creating $(PACKAGE_FILE)..."
 	@$(POWERSHELL) "if (Test-Path '$(PACKAGE_FILE)') { Remove-Item -Path '$(PACKAGE_FILE)' -Force }"
-	@$(POWERSHELL) "if (-not (Get-Command tar -ErrorAction SilentlyContinue)) { throw 'tar.exe was not found in PATH.' }"
-	@$(POWERSHELL) "tar -cf '$(PACKAGE_FILE)' -C '$(BUILD_DIR)' '$(APP_NAME)'"
+	@$(POWERSHELL) "if (Test-Path '$(BUILD_DIR)/package_stage') { Remove-Item -Path '$(BUILD_DIR)/package_stage' -Recurse -Force }"
+	@$(POWERSHELL) "New-Item -ItemType Directory -Force -Path '$(BUILD_DIR)/package_stage' | Out-Null"
+	@$(POWERSHELL) "New-Item -ItemType Directory -Force -Path '$(BUILD_DIR)/package_stage/$(APP_NAME)' | Out-Null"
+	@$(POWERSHELL) "Copy-Item -Path '$(DIST_DIR)/*' -Destination '$(BUILD_DIR)/package_stage/$(APP_NAME)' -Recurse -Force"
+	@$(POWERSHELL) "$$zip = '$(BUILD_DIR)/$(APP_NAME).zip'; if (Test-Path $$zip) { Remove-Item -Path $$zip -Force }; Compress-Archive -Path '$(BUILD_DIR)/package_stage/*' -DestinationPath $$zip -Force"
+	@$(POWERSHELL) "Move-Item -Path '$(BUILD_DIR)/$(APP_NAME).zip' -Destination '$(PACKAGE_FILE)' -Force"
+	@$(POWERSHELL) "Remove-Item -Path '$(BUILD_DIR)/package_stage' -Recurse -Force"
 	@echo "Package ready: $(PACKAGE_FILE)"
 
 clean:
