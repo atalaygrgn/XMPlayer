@@ -373,17 +373,7 @@ function metadata.get_tags(filepath)
     local tags = {}
     local f = io.open(filepath, "rb")
     if f then
-        -- Read a limited prefix for most formats to keep memory usage low.
-        -- FLAC metadata (including vorbis comment blocks) should be at the start,
-        -- but some files may include large picture blocks that exceed the prefix.
-        -- When processing FLAC files, read the full file to avoid truncated blocks.
-        local ext = (require("utils").get_extension(filepath) or ""):lower()
-        local raw_data
-        if ext == ".flac" then
-            raw_data = f:read("*a")
-        else
-            raw_data = f:read(256 * 1024)
-        end
+        local raw_data = f:read(256 * 1024)
         f:close()
         if raw_data then
             if raw_data:sub(1, 4) == "fLaC" then
