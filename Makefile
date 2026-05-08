@@ -3,27 +3,40 @@
 BUILD_DIR = build
 APP_NAME = XMPlayer
 DIST_DIR = $(BUILD_DIR)/$(APP_NAME)
+PACKAGE_FILE = $(BUILD_DIR)/$(APP_NAME).muxapp
+POWERSHELL = powershell -NoProfile -Command
 
-.PHONY: all clean build
+.PHONY: all clean build package
 
-all: build
+all: package
 
 build:
+	@echo "Resetting dist directory..."
+	@$(POWERSHELL) "if (Test-Path '$(DIST_DIR)') { Remove-Item -Path '$(DIST_DIR)' -Recurse -Force }"
+
 	@echo "Creating build structure..."
-	@mkdir -p $(DIST_DIR)
+	@$(POWERSHELL) "New-Item -ItemType Directory -Force -Path '$(DIST_DIR)' | Out-Null"
 	
 	@echo "Copying .xmplayer directory..."
-	@cp -R .xmplayer $(DIST_DIR)/
+	@$(POWERSHELL) "Copy-Item -Path '.\.xmplayer' -Destination '$(DIST_DIR)\.xmplayer' -Recurse -Force"
 	
 	@echo "Copying glyph folder..."
-	@cp -R glyph $(DIST_DIR)/glyph
+	@$(POWERSHELL) "Copy-Item -Path '.\glyph' -Destination '$(DIST_DIR)\glyph' -Recurse -Force"
 	
 	@echo "Copying launch scripts and configs..."
-	@cp mux_launch.sh $(DIST_DIR)/
-	@cp mux_lang.ini $(DIST_DIR)/
+	@$(POWERSHELL) "Copy-Item -Path '.\mux_launch.sh' -Destination '$(DIST_DIR)\' -Force"
+	@$(POWERSHELL) "Copy-Item -Path '.\mux_lang.ini' -Destination '$(DIST_DIR)\' -Force"
+	@$(POWERSHELL) "$$_content = [System.IO.File]::ReadAllText('$(DIST_DIR)/mux_launch.sh'); $$_content = $$_content -replace \"`r`n\", \"`n\"; [System.IO.File]::WriteAllText('$(DIST_DIR)/mux_launch.sh', $$_content, (New-Object System.Text.UTF8Encoding($$false)))"
 	
 	@echo "Build successful! Output located at $(DIST_DIR)"
 
+package: build
+	@echo "Creating $(PACKAGE_FILE)..."
+	@$(POWERSHELL) "if (Test-Path '$(PACKAGE_FILE)') { Remove-Item -Path '$(PACKAGE_FILE)' -Force }"
+	@$(POWERSHELL) "if (-not (Get-Command tar -ErrorAction SilentlyContinue)) { throw 'tar.exe was not found in PATH.' }"
+	@$(POWERSHELL) "tar -cf '$(PACKAGE_FILE)' -C '$(BUILD_DIR)' '$(APP_NAME)'"
+	@echo "Package ready: $(PACKAGE_FILE)"
+
 clean:
 	@echo "Cleaning up build directory..."
-	@rm -rf $(BUILD_DIR)
+	@$(POWERSHELL) "Remove-Item -Path '$(BUILD_DIR)' -Recurse -Force -ErrorAction SilentlyContinue"

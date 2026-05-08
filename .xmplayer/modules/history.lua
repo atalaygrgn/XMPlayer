@@ -54,6 +54,28 @@ function history.clear()
     history.save()
 end
 
+function history.prune_missing(valid_paths)
+    valid_paths = valid_paths or {}
+
+    local kept = {}
+    local changed = false
+
+    for _, path in ipairs(history.data) do
+        if valid_paths[path] then
+            table.insert(kept, path)
+        else
+            changed = true
+        end
+    end
+
+    if changed then
+        history.data = kept
+        history.save()
+    end
+
+    return changed
+end
+
 -- Load on module load
 history.load()
 

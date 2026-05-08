@@ -177,6 +177,10 @@ function xmb_draw.draw()
             settings_view.draw_popup(selected.setting_idx)
         end
     end
+    -- Draw compact folder picker if active
+    if settings_view.picker_active or settings_view.picker_alpha > 0 then
+        settings_view.draw_folder_picker()
+    end
 
     -- ─── Context Menu Popup ───
     local menu = xmb.context_menu

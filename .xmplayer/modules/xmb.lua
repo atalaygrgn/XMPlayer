@@ -57,6 +57,41 @@ local function count_media_in_dir(dir, media_type)
     if not dir or dir == "" then return 0 end
     local exts = indexing.compatible_extensions[media_type]
     if not exts then return 0 end
+    -- Prefer counting from the indexing data when available (more portable
+    -- and avoids shell/find differences). Fall back to a `find`-based count
+    -- if the index is empty or unavailable.
+    if indexing and indexing.data then
+        -- Use indexed data when available for portability and speed
+        if media_type == "music" and indexing.data.music and next(indexing.data.music.files) then
+            local cnt = 0
+            for path, _ in pairs(indexing.data.music.files) do
+                if utils.is_subpath(dir, path) then
+                    cnt = cnt + 1
+                end
+            end
+            return cnt
+        end
+
+        if media_type == "photo" and indexing.data.photos and next(indexing.data.photos) then
+            local cnt = 0
+            for path, _ in pairs(indexing.data.photos) do
+                if utils.is_subpath(dir, path) then
+                    cnt = cnt + 1
+                end
+            end
+            return cnt
+        end
+
+        if media_type == "video" and indexing.data.videos and #indexing.data.videos > 0 then
+            local cnt = 0
+            for _, path in ipairs(indexing.data.videos) do
+                if utils.is_subpath(dir, path) then
+                    cnt = cnt + 1
+                end
+            end
+            return cnt
+        end
+    end
 
     local pattern_parts = {}
     for _, ext in ipairs(exts) do
@@ -65,7 +100,7 @@ local function count_media_in_dir(dir, media_type)
     end
     local pattern_str = table.concat(pattern_parts, " ")
 
-    local cmd = "find \"" .. dir .. "\" -type f \\( " .. pattern_str .. " \\) 2>/dev/null | wc -l"
+    local cmd = [[find "]] .. dir .. [[" -type f \( ]] .. pattern_str .. [[ \) 2>/dev/null | wc -l]]
     local handle = io.popen(cmd)
     local count = 0
     if handle then
@@ -76,32 +111,7 @@ local function count_media_in_dir(dir, media_type)
     return count
 end
 
-local function prep_files()
-    local screen_w = love.graphics.getWidth()
-    local cat_base_x = screen_w * 0.25
-    local max_w = screen_w - cat_base_x - 40
-    local font = assets.fonts.small
-
-    for _, item in ipairs(browser.files) do
-        item.name = utils.clean_utf8(item.name)
-        item.display_name = utils.truncate_text(item.name, font, max_w)
-    end
-end
-
-local function current_filter()
-    local cat = categories[xmb.current_category_idx]
-    return cat and cat.filter or nil
-end
-
-local function refresh_settings_items(keep_idx)
-    local old_idx = keep_idx and xmb.current_item_idx or nil
-    browser.set_files(settings.get_browser_items())
-    prep_files()
-    if old_idx then
-        xmb.current_item_idx = old_idx
-    end
-end
-
+-- Media type helpers (placed before use in prep_files)
 local function is_music_file(path)
     local ext = utils.get_extension(path)
     if not ext then return false end
@@ -120,6 +130,54 @@ local function is_photo_file(path)
     return false
 end
 
+local function is_video_file(path)
+    local ext = utils.get_extension(path)
+    if not ext then return false end
+    for _, e in ipairs(indexing.compatible_extensions.video) do
+        if ext == e then return true end
+    end
+    return false
+end
+
+local function prep_files()
+    local screen_w = love.graphics.getWidth()
+    local cat_base_x = screen_w * 0.25
+    local max_w = screen_w - cat_base_x - 40
+    local font = assets.fonts.small
+
+    for _, item in ipairs(browser.files) do
+        item.name = utils.clean_utf8(item.name)
+        item.display_name = utils.truncate_text(item.name, font, max_w)
+        -- Assign sensible icons for files if not already provided
+        if item.type == "file" and not item.icon then
+            if is_photo_file(item.path) then
+                item.icon = "photo"
+            elseif (is_video_file and is_video_file(item.path)) then
+                item.icon = "file_video"
+            elseif is_music_file(item.path) then
+                item.icon = "file_music"
+            else
+                item.icon = "file"
+            end
+        end
+    end
+end
+
+local function current_filter()
+    local cat = categories[xmb.current_category_idx]
+    return cat and cat.filter or nil
+end
+
+local function refresh_settings_items(keep_idx)
+    local old_idx = keep_idx and xmb.current_item_idx or nil
+    browser.set_files(settings.get_browser_items())
+    prep_files()
+    if old_idx then
+        xmb.current_item_idx = old_idx
+    end
+end
+
+
 local function close_context_menu()
     xmb.context_menu.active = false
     xmb.context_menu.items = {}
@@ -128,15 +186,29 @@ local function close_context_menu()
     xmb.context_menu.target_path = nil
 end
 
-local function open_photo_context_menu(path)
-    if not path then return end
+local function open_context_menu(title, items, path)
+    if not path or not items or #items == 0 then return end
     xmb.context_menu.active = true
     xmb.context_menu.selected_idx = 1
-    xmb.context_menu.title = "Photo Options"
-    xmb.context_menu.items = {
-        { id = "set_wallpaper", label = "Set as Wallpaper" }
-    }
+    xmb.context_menu.title = title
+    xmb.context_menu.items = items
     xmb.context_menu.target_path = path
+end
+
+local function open_photo_context_menu(path)
+    open_context_menu("Photo Options", {
+        { id = "set_wallpaper", label = "Set as Wallpaper" }
+    }, path)
+end
+
+local function open_video_context_menu(path)
+    local watched = video_manager.is_watched(path)
+    open_context_menu("Video Options", {
+        {
+            id = "toggle_watched",
+            label = watched and "Mark as Unwatched" or "Mark as Watched"
+        }
+    }, path)
 end
 
 local function apply_context_action(action_id)
@@ -153,7 +225,11 @@ local function apply_context_action(action_id)
         settings.apply()
         settings.save()
 
-        ui.show_toast("Wallpaper set", "photo", "bottom_right")
+        --ui.show_toast("Wallpaper set", "photo", "bottom_right")
+    elseif action_id == "toggle_watched" and xmb.context_menu.target_path then
+        local path = xmb.context_menu.target_path
+        local watched = video_manager.toggle_watched(path)
+        --ui.show_toast(watched and "Marked as watched" or "Marked as unwatched", "video", "bottom_right")
     end
 end
 
@@ -163,7 +239,7 @@ function xmb.in_submenu()
         return settings.in_submenu()
     end
 
-    if (cat.id == "music" or cat.id == "video" or cat.id == "photo") and xmb.view_type ~= "category_root" then
+    if (cat.id == "music" or cat.id == "video" or cat.id == "photo" or cat.id == "folder") and xmb.view_type ~= "category_root" then
         return true
     end
 
@@ -214,7 +290,7 @@ function xmb.go_back()
             local current = utils.normalize_path(browser.current_dir)
             local base = utils.normalize_path(browser.base_dir)
 
-            if (cat.id == "music" or cat.id == "video" or cat.id == "photo") and current == base then
+            if (cat.id == "music" or cat.id == "video" or cat.id == "photo" or cat.id == "folder") and current == base then
                 -- Return to categorical root
                 xmb.view_type = "category_root"
                 xmb.refresh_items()
@@ -256,6 +332,25 @@ end
 function xmb.refresh_items()
     local cat = categories[xmb.current_category_idx]
     browser.set_files({})
+
+    -- Helper: check if a directory contains any non-hidden entries
+    local function dir_has_entries(path)
+        if not path or path == "" then return false end
+        local cmd = "find \"" .. path .. "\" -maxdepth 1 -mindepth 1 -not -path '*/.*' 2>/dev/null"
+        local h = io.popen(cmd)
+        if not h then return false end
+        for _ in h:lines() do
+            h:close()
+            return true
+        end
+        h:close()
+        return false
+    end
+
+    if (cat.id == "music" or cat.id == "video" or cat.id == "photo") and (not cat.path or cat.path == "") then
+        browser.set_files({ { name = "Media directory not set. Please set directory from Settings.", type = "info_text" } })
+        return
+    end
 
     if cat.id == "music" then
         if xmb.view_type == "category_root" then
@@ -347,6 +442,7 @@ function xmb.refresh_items()
                     icon = "folder_video",
                     description = #indexing.data.videos .. " videos"
                 })
+
             browser.set_state(cat.path, cat.path, cat.filter)
         elseif xmb.view_type == "video_resume" then
             local resume_list = video_manager.get_resume_list()
@@ -394,8 +490,36 @@ function xmb.refresh_items()
         end
     elseif cat.id == "settings" then
         refresh_settings_items(false)
+    elseif cat.id == "folder" then
+        if xmb.view_type == "category_root" then
+            -- Files tab: show storage roots instead of raw filesystem root
+            table.insert(browser.files, {
+                name = "Primary Storage",
+                type = "directory_trigger",
+                path = "/mnt/mmc",
+                icon = "drive",
+                description = "/mnt/mmc"
+            })
+
+            if dir_has_entries("/mnt/sdcard") then
+                table.insert(browser.files, {
+                    name = "Secondary Storage",
+                    type = "directory_trigger",
+                    path = "/mnt/sdcard",
+                    icon = "sdcard",
+                    description = "/mnt/sdcard"
+                })
+            end
+        elseif xmb.view_type == "browser" then
+            -- In browser view for Files category: list selected storage contents
+            browser.scan()
+        end
     elseif cat.path then
-        browser.set_state(cat.path, cat.path, cat.filter)
+        local base_dir = cat.path or "/mnt/sdcard"
+        -- Preserve current browser state if already inside this category's base
+        if not browser.current_dir or not utils.is_subpath(base_dir, browser.current_dir) then
+            browser.set_state(base_dir, base_dir, cat.filter)
+        end
         if xmb.view_type == "browser" then
             browser.scan()
         end
@@ -406,7 +530,7 @@ function xmb.refresh_browser(slide_dir)
     close_context_menu()
 
     local cat = categories[xmb.current_category_idx]
-    if cat.id == "music" or cat.id == "video" or cat.id == "photo" then
+    if cat.id == "music" or cat.id == "video" or cat.id == "photo" or cat.id == "folder" then
         xmb.view_type = "category_root"
     else
         xmb.view_type = "browser"
@@ -415,10 +539,14 @@ function xmb.refresh_browser(slide_dir)
     xmb.view_data = nil
 
     -- Ensure browser state is clean for the new category
-    local base_dir = cat.path or "/mnt/sdcard"
-    browser.set_state(base_dir, base_dir, cat.filter)
-
-    xmb.refresh_items()
+    -- If media category has no configured path, show an instructional info item
+    if (cat.id == "music" or cat.id == "video" or cat.id == "photo") and (not cat.path or cat.path == "") then
+        browser.set_files({ { name = "Media directory not set. Please set directory from Settings.", type = "info_text" } })
+    else
+        local base_dir = cat.path or "/mnt/sdcard"
+        browser.set_state(base_dir, base_dir, cat.filter)
+        xmb.refresh_items()
+    end
 
     if cat.id == "settings" then
         xmb.current_item_idx = 2 -- General Settings, not quit
@@ -446,6 +574,22 @@ end
 function xmb.navigate(dir)
     local moved = false
     if settings_view.active then
+        if settings_view.picker_active then
+            local old_idx = settings_view.picker_selected_idx
+            if dir == "up" then
+                settings_view.picker_selected_idx = math.max(1, settings_view.picker_selected_idx - 1)
+                settings_view.ensure_picker_visible()
+            elseif dir == "down" then
+                settings_view.picker_selected_idx = math.min(#settings_view.picker_items, settings_view.picker_selected_idx + 1)
+                settings_view.ensure_picker_visible()
+            end
+            moved = (old_idx ~= settings_view.picker_selected_idx)
+            if moved and settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+            return moved
+        end
+
         local old_idx = settings_view.selected_option_idx
         if dir == "up" then
             settings_view.selected_option_idx = math.max(1, settings_view.selected_option_idx - 1)
@@ -453,7 +597,9 @@ function xmb.navigate(dir)
             local selected = browser.files[xmb.current_item_idx]
             if selected and selected.setting_idx then
                 local opt = settings.options[selected.setting_idx]
-                settings_view.selected_option_idx = math.min(#opt.choices, settings_view.selected_option_idx + 1)
+                if opt and opt.choices then
+                    settings_view.selected_option_idx = math.min(#opt.choices, settings_view.selected_option_idx + 1)
+                end
             end
         end
         moved = (old_idx ~= settings_view.selected_option_idx)
@@ -579,6 +725,102 @@ end
 
 function xmb.keypressed(key, player, music, viewer)
     if settings_view.active then
+        -- If folder picker is active, handle its navigation separately
+        if settings_view.picker_active then
+            if key == "up" then
+                settings_view.picker_selected_idx = math.max(1, settings_view.picker_selected_idx - 1)
+                settings_view.ensure_picker_visible()
+                if settings.keytone_enabled then assets.play_sfx("nav") end
+            elseif key == "down" then
+                settings_view.picker_selected_idx = math.min(#settings_view.picker_items, settings_view.picker_selected_idx + 1)
+                settings_view.ensure_picker_visible()
+                if settings.keytone_enabled then assets.play_sfx("nav") end
+            elseif key == "return" or key == "enter" or key == "a" or key == "space" then
+                local pick = settings_view.picker_items[settings_view.picker_selected_idx]
+                if pick then
+                    -- If user selected a directory, either drill into it or pick it
+                    -- If the chosen entry's path is a directory, open it (drill) by refreshing items
+                    local chosen_path = pick.path
+                    -- If user selected "..", just update current path and list
+                    if chosen_path then
+                        settings_view.picker_current_path = chosen_path
+                        -- Refresh items for new folder
+                        local parent = utils.get_dirname(settings_view.picker_current_path)
+                        -- Rebuild items
+                        settings_view.picker_items = {}
+                        if parent and parent ~= "" then
+                            table.insert(settings_view.picker_items, { name = "..", path = parent })
+                        end
+                        local dirs = (function()
+                            local items = {}
+                            local cmd = "find \"" .. settings_view.picker_current_path .. "\" -maxdepth 1 -mindepth 1 -not -path '*/.*' -type d 2>/dev/null"
+                            local h = io.popen(cmd)
+                            if h then
+                                local out = h:read("*a")
+                                h:close()
+                                for line in out:gmatch("[^\r\n]+") do
+                                    table.insert(items, { name = utils.get_filename(line), path = line })
+                                end
+                            end
+                            table.sort(items, function(a,b) return a.name:lower() < b.name:lower() end)
+                            return items
+                        end)()
+                        for _, d in ipairs(dirs) do table.insert(settings_view.picker_items, d) end
+                        settings_view.picker_selected_idx = 1
+                        settings_view.ensure_picker_visible()
+                        if settings.keytone_enabled then assets.play_sfx("nav") end
+                    end
+                end
+            elseif key == "x" then
+                -- Set the currently opened folder path as the value
+                local sidx = settings_view.picker_setting_idx
+                if sidx then
+                    local opt = settings.get_option(settings.options[sidx].id)
+                    if opt then
+                        opt.value = settings_view.picker_current_path
+                        settings.apply()
+                        settings.save()
+                        ui.show_toast("Media directory set", "folder", "bottom_right")
+                        refresh_settings_items(false)
+                    end
+                end
+                settings_view.close_folder_picker()
+            elseif key == "backspace" or key == "b" or key == "escape" then
+                -- Back to parent folder, or close if at root
+                local parent = utils.get_dirname(settings_view.picker_current_path)
+                if not parent or parent == "" then
+                    settings_view.close_folder_picker()
+                else
+                    settings_view.picker_current_path = parent
+                    -- Rebuild items
+                    settings_view.picker_items = {}
+                    local grand = utils.get_dirname(settings_view.picker_current_path)
+                    if grand and grand ~= "" then
+                        table.insert(settings_view.picker_items, { name = "..", path = grand })
+                    end
+                    local dirs = (function()
+                        local items = {}
+                        local cmd = "find \"" .. settings_view.picker_current_path .. "\" -maxdepth 1 -mindepth 1 -not -path '*/.*' -type d 2>/dev/null"
+                        local h = io.popen(cmd)
+                        if h then
+                            local out = h:read("*a")
+                            h:close()
+                            for line in out:gmatch("[^\r\n]+") do
+                                table.insert(items, { name = utils.get_filename(line), path = line })
+                            end
+                        end
+                        table.sort(items, function(a,b) return a.name:lower() < b.name:lower() end)
+                        return items
+                    end)()
+                    for _, d in ipairs(dirs) do table.insert(settings_view.picker_items, d) end
+                    settings_view.picker_selected_idx = 1
+                    settings_view.ensure_picker_visible()
+                    if settings.keytone_enabled then assets.play_sfx("nav") end
+                end
+            end
+            return
+        end
+
         if key == "up" or key == "down" then
             xmb.navigate(key)
         elseif key == "return" or key == "enter" or key == "a" or key == "space" then
@@ -654,12 +896,25 @@ function xmb.keypressed(key, player, music, viewer)
                     music.play(selected.path)
                 elseif cat_id == "photo" and viewer then
                     viewer.open(selected.path, browser.files)
+                elseif cat_id == "folder" then
+                    -- Files tab: open recognized media types directly
+                    if is_video_file(selected.path) then
+                        player.play_video(selected.path)
+                    elseif is_music_file(selected.path) and music then
+                        music.play(selected.path)
+                    elseif is_photo_file(selected.path) and viewer then
+                        viewer.open(selected.path, browser.files)
+                    end
                 end
             elseif selected.type == "setting" then
                 local opt = settings.options[selected.setting_idx]
                 if opt.type == "choice" then
                     settings_view.active = true
                     settings_view.selected_option_idx = opt.value
+                elseif opt.type == "path" then
+                    -- Open compact folder picker starting from filesystem root or current value
+                    local start_path = opt.value and opt.value ~= "" and opt.value or "/"
+                    settings_view.open_folder_picker(start_path, selected.setting_idx)
                 elseif opt.type == "action" then
                     if opt.id == "clear_history" then
                         history.clear()
@@ -681,6 +936,9 @@ function xmb.keypressed(key, player, music, viewer)
                         settings.save()
                         ui.show_toast("Default wallpaper restored", "theme", "bottom_right")
                         refresh_settings_items(false)
+                    elseif opt.id == "reindex_media" then
+                        settings.request_reindex_on_restart()
+                        love.event.quit("restart")
                     elseif opt.id == "test_toast_top" then
                         ui.show_toast("Dev: Top Center Toast", "info", "top_center")
                     elseif opt.id == "test_toast_bottom" then
@@ -720,23 +978,37 @@ function xmb.keypressed(key, player, music, viewer)
                 xmb.list_slide_x = 120
                 xmb.list_slide_alpha = 0
             elseif selected.type == "directory_trigger" then
-                table.insert(xmb.nav_stack, xmb.current_item_idx)
-                browser.set_state(browser.base_dir, selected.path, current_filter())
-                xmb.view_type = "browser"
-                xmb.refresh_items()
-
-                if browser.files[1] and browser.files[1].type == "shuffle_play" and #browser.files > 1 then
-                    xmb.current_item_idx = 2
-                elseif browser.files[1] and browser.files[1].type == "video_play_all" and #browser.files > 2 then
-                    xmb.current_item_idx = 3
+                -- If the directory for this category is not configured, prompt user to set it
+                if not selected.path or selected.path == "" then
+                    ui.show_toast("Media directory not set. Please set directory from Settings.", "folder", "top_center")
+                    if settings.keytone_enabled then
+                        assets.play_sfx("nav")
+                    end
                 else
-                    xmb.current_item_idx = 1
+                    table.insert(xmb.nav_stack, xmb.current_item_idx)
+                    local cat_id = categories[xmb.current_category_idx].id
+                    if cat_id == "folder" then
+                        -- For Files tab storage entries, set base_dir to the selected storage path
+                        browser.set_state(selected.path, selected.path, current_filter())
+                    else
+                        browser.set_state(browser.base_dir, selected.path, current_filter())
+                    end
+                    xmb.view_type = "browser"
+                    xmb.refresh_items()
+
+                    if browser.files[1] and browser.files[1].type == "shuffle_play" and #browser.files > 1 then
+                        xmb.current_item_idx = 2
+                    elseif browser.files[1] and browser.files[1].type == "video_play_all" and #browser.files > 2 then
+                        xmb.current_item_idx = 3
+                    else
+                        xmb.current_item_idx = 1
+                    end
+                    prep_files()
+                    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
+                    xmb.item_scroll_y = xmb.target_item_scroll_y
+                    xmb.list_slide_x = 120
+                    xmb.list_slide_alpha = 0
                 end
-                prep_files()
-                xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
-                xmb.item_scroll_y = xmb.target_item_scroll_y
-                xmb.list_slide_x = 120
-                xmb.list_slide_alpha = 0
             elseif selected.type == "album" or selected.type == "artist" then
                 table.insert(xmb.nav_stack, xmb.current_item_idx)
                 xmb.view_type = (selected.type == "album") and "album_tracks" or "artist_tracks"
@@ -803,13 +1075,13 @@ function xmb.keypressed(key, player, music, viewer)
     elseif key == "x" then
         local selected = browser.files[xmb.current_item_idx]
         local cat_id = categories[xmb.current_category_idx].id
-        if selected and selected.type == "file" and cat_id == "photo" and is_photo_file(selected.path) then
+        if selected and selected.type == "file" and (cat_id == "photo" or cat_id == "folder") and is_photo_file(selected.path) then
             open_photo_context_menu(selected.path)
             if settings.keytone_enabled then
                 assets.play_sfx("nav")
             end
-        elseif selected and selected.type == "file" and cat_id == "video" then
-            video_manager.toggle_watched(selected.path)
+        elseif selected and selected.type == "file" and (cat_id == "video" or cat_id == "folder") then
+            open_video_context_menu(selected.path)
             if settings.keytone_enabled then
                 assets.play_sfx("nav")
             end

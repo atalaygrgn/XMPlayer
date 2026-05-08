@@ -114,21 +114,28 @@ settings.options = {
         name = "Photo Directory",
         type = "path",
         group = "media_dirs",
-        value = "/mnt/sdcard/PICTURES"
+        value = ""
     },
     {
         id = "music_dir",
         name = "Music Directory",
         type = "path",
         group = "media_dirs",
-        value = "/mnt/sdcard/MUSIC"
+        value = ""
     },
     {
         id = "video_dir",
         name = "Video Directory",
         type = "path",
         group = "media_dirs",
-        value = "/mnt/sdcard/ROMS/Video"
+        value = ""
+    },
+    {
+        id = "reindex_media",
+        name = "Reindex Media and Restart App",
+        type = "action",
+        group = "media_dirs",
+        icon = "repeat",
     },
     {
         id = "keytone",
@@ -144,6 +151,13 @@ settings.options = {
         type = "choice",
         group = "general",
         choices = { "Show", "Hide" },
+    {
+        id = "force_reindex_once",
+        name = "Force Reindex Once",
+        type = "flag",
+        group = "internal",
+        value = 0
+    },
         value = 1
     },
     {
@@ -200,6 +214,24 @@ function settings.get_option(id)
         if opt.id == id then return opt end
     end
     return nil
+end
+
+function settings.request_reindex_on_restart()
+    local opt = settings.get_option("force_reindex_once")
+    if opt then
+        opt.value = 1
+        settings.save()
+    end
+end
+
+function settings.consume_reindex_request()
+    local opt = settings.get_option("force_reindex_once")
+    if opt and tonumber(opt.value) == 1 then
+        opt.value = 0
+        settings.save()
+        return true
+    end
+    return false
 end
 
 function settings.save()

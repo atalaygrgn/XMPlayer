@@ -39,15 +39,84 @@ function video_manager.is_watched(path)
     return video_manager.watched_data[path] == true
 end
 
-function video_manager.toggle_watched(path)
-    if video_manager.watched_data[path] then
-        video_manager.watched_data[path] = nil
+function video_manager.set_watched(path, watched)
+    if watched then
+        if not video_manager.watched_data[path] then
+            video_manager.watched_data[path] = true
+            -- Clear resume data if marking as watched
+            video_manager.clear_resume(path)
+        end
     else
-        video_manager.watched_data[path] = true
-        -- Clear resume data if marking as watched
-        video_manager.clear_resume(path)
+        video_manager.watched_data[path] = nil
     end
     video_manager.save_watched()
+    return video_manager.is_watched(path)
+end
+
+function video_manager.toggle_watched(path)
+    return video_manager.set_watched(path, not video_manager.is_watched(path))
+end
+
+local function read_resume_path(full_watch_path)
+    local f = io.open(full_watch_path, "r")
+    if not f then return nil end
+
+    local content = f:read("*a")
+    f:close()
+
+    if not content then return nil end
+
+    local path = content:match("# path: *([^\n\r]+)")
+    if not path then
+        path = content:match("#path: *([^\n\r]+)")
+    end
+    if not path then
+        path = content:match("# *(/[^\n\r]+)")
+    end
+
+    if path then
+        return utils.trim(path)
+    end
+
+    return nil
+end
+
+function video_manager.prune_stale_state(valid_paths)
+    valid_paths = valid_paths or {}
+
+    local changed = false
+
+    for path in pairs(video_manager.watched_data) do
+        if not valid_paths[path] then
+            video_manager.watched_data[path] = nil
+            changed = true
+        end
+    end
+
+    if changed then
+        video_manager.save_watched()
+    end
+
+    local dir = utils.normalize_path(video_manager.watch_later_dir)
+    os.execute("mkdir -p \"" .. dir .. "\"")
+
+    local handle = io.popen("ls -1 \"" .. dir .. "\" 2>/dev/null")
+    if handle then
+        for filename in handle:lines() do
+            filename = utils.trim(filename)
+            if filename ~= "" and filename ~= "." and filename ~= ".." then
+                local full_watch_path = dir .. "/" .. filename
+                local path = read_resume_path(full_watch_path)
+                if not path or not valid_paths[path] then
+                    os.remove(full_watch_path)
+                    changed = true
+                end
+            end
+        end
+        handle:close()
+    end
+
+    return changed
 end
 
 function video_manager.clear_resume(path)
@@ -62,14 +131,10 @@ function video_manager.clear_resume(path)
     if handle then
         for filename in handle:lines() do
             local full_path = video_manager.watch_later_dir .. "/" .. filename
-            local f = io.open(full_path, "r")
-            if f then
-                local first_line = f:read("*l")
-                f:close()
-                if first_line and first_line:find("# path: " .. path, 1, true) then
-                    os.remove(full_path)
-                    break
-                end
+            local resume_path = read_resume_path(full_path)
+            if resume_path and resume_path == path then
+                os.remove(full_path)
+                break
             end
         end
         handle:close()
@@ -89,37 +154,21 @@ function video_manager.get_resume_list()
             filename = utils.trim(filename)
             if filename ~= "" and filename ~= "." and filename ~= ".." then
                 local full_watch_path = dir .. "/" .. filename
-                local f = io.open(full_watch_path, "r")
-                if f then
-                    local content = f:read("*a")
-                    f:close()
+                local path = read_resume_path(full_watch_path)
 
-                    -- mpv hashes the filename but usually includes the path as a comment
-                    -- specifically when using --write-filename-in-watch-later-config=yes
-                    local path = content:match("# path: *([^\n\r]+)")
-                    if not path then
-                        path = content:match("#path: *([^\n\r]+)")
-                    end
-                    -- muOS style: # /path/to/file
-                    if not path then
-                        path = content:match("# *(/[^\n\r]+)")
-                    end
-
-                    if path then
-                        path = utils.trim(path)
-                        -- Check if video file actually exists
-                        local check = io.open(path, "r")
-                        if check then
-                            check:close()
-                            table.insert(list, { name = utils.get_filename(path), path = path })
-                        else
-                            -- Video missing, clean up the stale resume data
-                            print("VideoManager: Cleaning up stale resume for " .. path)
-                            os.remove(full_watch_path)
-                        end
+                if path then
+                    -- Check if video file actually exists
+                    local check = io.open(path, "r")
+                    if check then
+                        check:close()
+                        table.insert(list, { name = utils.get_filename(path), path = path })
                     else
-                        print("VideoManager: Could not find path comment in " .. filename)
+                        -- Video missing, clean up the stale resume data
+                        print("VideoManager: Cleaning up stale resume for " .. path)
+                        os.remove(full_watch_path)
                     end
+                else
+                    print("VideoManager: Could not find path comment in " .. filename)
                 end
             end
         end

@@ -10,28 +10,28 @@ local categories = {
         id = "photo", 
         name = "Photo", 
         icon = "assets/icons/photo.png", 
-        path = "/mnt/sdcard/PICTURES",
+        path = nil,
         filter = "photo"
     },
     { 
         id = "music", 
         name = "Music", 
         icon = "assets/icons/music.png", 
-        path = "/mnt/sdcard/MUSIC",
+        path = nil,
         filter = "music"
     },
     { 
         id = "video", 
         name = "Video", 
         icon = "assets/icons/video.png", 
-        path = "/mnt/sdcard/ROMS/Video",
+        path = nil,
         filter = "video"
     },
     { 
         id = "folder", 
         name = "Files", 
         icon = "assets/icons/folders.png", 
-        path = "/mnt/sdcard",
+        path = "/",
         filter = nil -- Show all
     },
 }

@@ -52,6 +52,10 @@ function utils.is_subpath(base, current)
     base = utils.normalize_path(base)
     current = utils.normalize_path(current)
     if base == current then return true end
+    -- If base is root, consider any absolute path a subpath
+    if base == "/" then
+        return current:sub(1,1) == "/"
+    end
     return current:sub(1, #base + 1) == base .. "/"
 end
 

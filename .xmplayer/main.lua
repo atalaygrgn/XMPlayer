@@ -12,6 +12,8 @@ local image_view = require("image_view")
 local settings = require("settings")
 local assets = require("assets")
 local indexing = require("indexing")
+local history = require("history")
+local video_manager = require("video_manager")
 local ui = require("ui")
 local system = require("system")
 
@@ -21,6 +23,30 @@ local was_music_active = false
 local launch_status_message = nil
 local launch_status_timer = 0
 local LAUNCH_STATUS_DURATION = 3
+
+local function build_valid_media_paths()
+    local valid_paths = {}
+
+    for path in pairs(indexing.data.music.files or {}) do
+        valid_paths[path] = true
+    end
+
+    for path in pairs(indexing.data.photos or {}) do
+        valid_paths[path] = true
+    end
+
+    for _, path in ipairs(indexing.data.videos or {}) do
+        valid_paths[path] = true
+    end
+
+    return valid_paths
+end
+
+local function cleanup_stale_media_state()
+    local valid_paths = build_valid_media_paths()
+    video_manager.prune_stale_state(valid_paths)
+    history.prune_missing(valid_paths)
+end
 
 -- Battery status caching
 local battery_percentage = nil
@@ -48,15 +74,21 @@ function love.load()
     -- Load and Apply settings
     settings.load()
 
+    -- One-shot restart request from settings: force full media reindex on this launch
+    local force_reindex = settings.consume_reindex_request()
+
     -- Initial scan / Indexing
-    local has_existing_index = indexing.load()
+    local has_existing_index = false
+    if not force_reindex then
+        has_existing_index = indexing.load()
+    end
 
     local photo_dir = settings.get_option("photo_dir").value
     local music_dir = settings.get_option("music_dir").value
     local video_dir = settings.get_option("video_dir").value
 
     -- Trigger indexing if no data or requested
-    if not has_existing_index or not next(indexing.data.music.files) or not next(indexing.data.photos) then
+    if force_reindex or not has_existing_index or not next(indexing.data.music.files) or not next(indexing.data.photos) then
         scan_co = coroutine.create(function()
             indexing.scan(photo_dir, music_dir, video_dir)
         end)
@@ -126,6 +158,7 @@ function love.update(dt)
             elseif coroutine.status(scan_co) == "dead" then
                 indexing.is_scanning = false
                 scan_co = nil
+                cleanup_stale_media_state()
                 xmb.refresh_browser()
                 launch_status_message = "Indexing Complete"
                 launch_status_timer = LAUNCH_STATUS_DURATION

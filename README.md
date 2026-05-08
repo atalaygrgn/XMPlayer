@@ -22,6 +22,8 @@ Integrated **MPV** support for high-performance video playback.<br>
 ![XMPlayer Video Player](assets/readme/resume.png)<br>
 A highly requested feature: resume playback from where you left off!
 
+Watched state can be managed from the video context menu, which is opened with `X` from the video browser.
+
 ### Music Player
 A dedicated audio player interface with album art, track info, and playback controls. Most audio formats, **including FLAC**, are supported.<br>
 
@@ -97,7 +99,7 @@ More customization options are on the way!
 ## Roadmap
 
 ### v0.1 (Current)
-- [ ] Mark/unmark videos as watched.
+- [x] Mark/unmark videos as watched.
 - [x] Play videos from where you left off.
 - [x] Shuffle play: music (folder, album, artist)
 - [x] Play all & Shuffle play: videos (folder)
