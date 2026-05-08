@@ -141,6 +141,25 @@ function video_manager.clear_resume(path)
     end
 end
 
+function video_manager.clear_history()
+    video_manager.watched_data = {}
+    video_manager.save_watched()
+
+    local dir = utils.normalize_path(video_manager.watch_later_dir)
+    os.execute("mkdir -p \"" .. dir .. "\"")
+
+    local handle = io.popen("ls -1 \"" .. dir .. "\" 2>/dev/null")
+    if handle then
+        for filename in handle:lines() do
+            filename = utils.trim(filename)
+            if filename ~= "" and filename ~= "." and filename ~= ".." then
+                os.remove(dir .. "/" .. filename)
+            end
+        end
+        handle:close()
+    end
+end
+
 function video_manager.get_resume_list()
     local list = {}
     local dir = utils.normalize_path(video_manager.watch_later_dir)

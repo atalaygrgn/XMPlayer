@@ -3,6 +3,8 @@ local utils = require("utils")
 
 local indexing = {}
 local INDEX_VERSION = 2
+local THUMB_VERSION = 2
+local ALBUM_THUMB_VERSION = 1
 
 local storage_path = love.filesystem.getSource()
 indexing.file_path = storage_path .. "/index.cfg"
@@ -10,7 +12,7 @@ indexing.thumb_dir = storage_path .. "/thumbnails"
 indexing.data = {
     version = INDEX_VERSION,
     music = {
-        albums = {},  -- {name = "Album Name", artist = "Artist Name", tracks = {path, ...}}
+        albums = {},  -- {name, artist, tracks, thumb_path, thumb_version}
         artists = {}, -- {name = "Artist Name", albums = {name, ...}, tracks = {path, ...}}
         files = {}    -- {path = {title, artist, album, ...}}
     },
@@ -95,6 +97,77 @@ local function file_exists(path)
         return true
     end
     return false
+end
+
+local function thumb_is_usable(photo_path, thumb_path)
+    if not thumb_path or thumb_path == "" then
+        return false
+    end
+    if thumb_path == photo_path then
+        return file_exists(photo_path)
+    end
+    return file_exists(thumb_path)
+end
+
+local function ensure_thumb_dir()
+    if os.execute("test -d \"" .. indexing.thumb_dir .. "\"") ~= 0 then
+        os.execute("mkdir -p \"" .. indexing.thumb_dir .. "\"")
+    end
+end
+
+local function write_thumbnail_image_data(img_data, cache_key, source_path, allow_source_fallback)
+    if not img_data then return nil end
+
+    local w, h = img_data:getDimensions()
+    if not w or not h or w <= 0 or h <= 0 then return nil end
+
+    local thumb_size = 120
+    local scale = thumb_size / math.max(w, h)
+    local tw, th = math.floor(w * scale), math.floor(h * scale)
+
+    if allow_source_fallback and scale >= 1 and source_path and source_path ~= "" then
+        return source_path
+    end
+
+    local out_data = img_data
+    if scale < 1 then
+        local canvas = love.graphics.newCanvas(tw, th)
+        local prev_canvas = love.graphics.getCanvas()
+        local prev_shader = love.graphics.getShader()
+        local cr, cg, cb, ca = love.graphics.getColor()
+        local blend_mode, blend_alpha_mode = love.graphics.getBlendMode()
+
+        love.graphics.setCanvas(canvas)
+        love.graphics.clear(0, 0, 0, 0)
+        love.graphics.setShader()
+        love.graphics.setBlendMode("alpha", "alphamultiply")
+        love.graphics.setColor(1, 1, 1, 1)
+        local temp_img = love.graphics.newImage(img_data)
+        love.graphics.draw(temp_img, 0, 0, 0, scale, scale)
+
+        love.graphics.setColor(cr, cg, cb, ca)
+        love.graphics.setBlendMode(blend_mode, blend_alpha_mode)
+        love.graphics.setShader(prev_shader)
+        love.graphics.setCanvas(prev_canvas)
+
+        out_data = canvas:newImageData()
+        temp_img:release()
+        canvas:release()
+    end
+
+    ensure_thumb_dir()
+    local safe_name = (cache_key or source_path or tostring(os.time())):gsub("[^%w]", "_")
+    local thumb_path = indexing.thumb_dir .. "/" .. safe_name .. ".png"
+
+    local png_data = out_data:encode("png")
+    local f = io.open(thumb_path, "wb")
+    if f then
+        f:write(png_data:getString())
+        f:close()
+        return thumb_path
+    end
+
+    return nil
 end
 
 local function sort_music_collections()
@@ -259,41 +332,50 @@ function indexing.generate_thumbnail(image_path)
 
     if not ok or not img_data then return nil end
 
-    local w, h = img_data:getDimensions()
-    local thumb_size = 120
-    local scale = thumb_size / math.max(w, h)
-    local tw, th = math.floor(w * scale), math.floor(h * scale)
+    return write_thumbnail_image_data(img_data, image_path, image_path, true)
+end
 
-    -- Optimization: Only resize if larger than thumb_size
-    if scale < 1 then
-        local thumb_data = love.image.newImageData(tw, th)
-        -- Linear interpolation is slow in Lua, but Love2D doesn't have a built-in resize ImageData in 11.x without Canvas
-        -- However, we can use a Canvas to scale and then get ImageData back
-        local canvas = love.graphics.newCanvas(tw, th)
-        love.graphics.setCanvas(canvas)
-        local temp_img = love.graphics.newImage(img_data)
-        love.graphics.draw(temp_img, 0, 0, 0, scale, scale)
-        love.graphics.setCanvas()
-        thumb_data = canvas:newImageData()
-        temp_img:release()
+function indexing.generate_thumbnail_from_bytes(image_bytes, cache_key)
+    if not image_bytes or image_bytes == "" then return nil end
 
-        local safe_name = image_path:gsub("[^%w]", "_")
-        local thumb_path = indexing.thumb_dir .. "/" .. safe_name .. ".png"
+    local file_data = love.filesystem.newFileData(image_bytes, (cache_key or "album_cover") .. ".bin")
+    local ok, img_data = pcall(love.image.newImageData, file_data)
+    if not ok or not img_data then return nil end
 
-        -- Create thumb dir if not exists
-        if os.execute("test -d \"" .. indexing.thumb_dir .. "\"") ~= 0 then
-            os.execute("mkdir -p \"" .. indexing.thumb_dir .. "\"")
-        end
+    return write_thumbnail_image_data(img_data, cache_key, nil, false)
+end
 
-        local file_data = thumb_data:encode("png")
-        local f = io.open(thumb_path, "wb")
-        if f then
-            f:write(file_data:getString())
-            f:close()
-        end
-        return thumb_path
+local function refresh_album_thumbnails()
+    local total = 0
+    for _ in pairs(indexing.data.music.albums or {}) do
+        total = total + 1
     end
-    return image_path
+
+    if total == 0 then return end
+
+    local idx = 0
+    for album_key, album in pairs(indexing.data.music.albums or {}) do
+        idx = idx + 1
+        if idx % 4 == 0 then
+            indexing.scan_progress = string.format("Album Thumbnails (%d/%d)", idx, total)
+            coroutine.yield(indexing.scan_progress)
+        end
+
+        local has_valid_thumb = album.thumb_path and album.thumb_path ~= "" and file_exists(album.thumb_path)
+        if album.thumb_version ~= ALBUM_THUMB_VERSION or not has_valid_thumb then
+            album.thumb_path = nil
+
+            local cover_track = album.tracks and album.tracks[1]
+            if cover_track then
+                local tags = metadata.get_tags(cover_track)
+                if tags and tags.cover_data then
+                    album.thumb_path = indexing.generate_thumbnail_from_bytes(tags.cover_data, "album_" .. album_key)
+                end
+            end
+
+            album.thumb_version = ALBUM_THUMB_VERSION
+        end
+    end
 end
 
 local function get_files_recursive(path, extensions)
@@ -354,6 +436,10 @@ function indexing.scan(photo_dir, music_dir, video_dir)
 
     sort_music_collections()
 
+    indexing.scan_progress = "Generating Album Thumbnails..."
+    coroutine.yield(indexing.scan_progress)
+    refresh_album_thumbnails()
+
     -- 3. Scan Photos
     indexing.scan_progress = "Scanning Photos..."
     coroutine.yield(indexing.scan_progress)
@@ -365,8 +451,9 @@ function indexing.scan(photo_dir, music_dir, video_dir)
         if i % 10 == 0 then coroutine.yield(indexing.scan_progress) end
 
         local photo_info = indexing.data.photos[path] or { thumb_path = nil }
-        if not photo_info.thumb_path then
+        if photo_info.thumb_version ~= THUMB_VERSION or not thumb_is_usable(path, photo_info.thumb_path) then
             photo_info.thumb_path = indexing.generate_thumbnail(path)
+            photo_info.thumb_version = THUMB_VERSION
         end
         new_photos[path] = photo_info
     end
@@ -467,6 +554,10 @@ function indexing.scan_for_new_media(photo_dir, music_dir, video_dir)
         sort_music_collections()
     end
 
+    indexing.scan_progress = "Refreshing Album Thumbnails..."
+    coroutine.yield(indexing.scan_progress)
+    refresh_album_thumbnails()
+
     indexing.scan_progress = "Checking for new photos..."
     coroutine.yield(indexing.scan_progress)
     local photo_files = get_files_recursive(photo_dir, photo_exts)
@@ -475,9 +566,16 @@ function indexing.scan_for_new_media(photo_dir, music_dir, video_dir)
             indexing.scan_progress = string.format("Checking Photos (%d/%d)", i, #photo_files)
             coroutine.yield(indexing.scan_progress)
         end
-        if not indexing.data.photos[path] then
-            indexing.data.photos[path] = { thumb_path = indexing.generate_thumbnail(path) }
+        local photo_info = indexing.data.photos[path]
+        if not photo_info then
+            indexing.data.photos[path] = {
+                thumb_path = indexing.generate_thumbnail(path),
+                thumb_version = THUMB_VERSION
+            }
             new_count = new_count + 1
+        elseif photo_info.thumb_version ~= THUMB_VERSION or not thumb_is_usable(path, photo_info.thumb_path) then
+            photo_info.thumb_path = indexing.generate_thumbnail(path)
+            photo_info.thumb_version = THUMB_VERSION
         end
     end
 

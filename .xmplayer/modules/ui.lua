@@ -165,16 +165,17 @@ end
 function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail)
     if not icon and not thumbnail then return end
 
-    -- Apply Gloss Shader
-    love.graphics.setShader(ui.gloss_shader)
-
     if thumbnail and type(thumbnail) ~= "string" then
         local iw = thumbnail:getWidth()
         local ih = thumbnail:getHeight()
         local scale = size / math.max(iw, ih)
+        -- Thumbnails should keep their original colors.
+        love.graphics.setShader()
         love.graphics.setColor(1, 1, 1, alpha or 1)
         love.graphics.draw(thumbnail, x, y, 0, scale, scale, iw / 2, ih / 2)
     elseif icon then
+        -- Apply Gloss Shader for monochrome/theme-tinted icons only.
+        love.graphics.setShader(ui.gloss_shader)
         local img_w = icon:getWidth()
         local img_h = icon:getHeight()
         local scale = size / math.max(img_w, img_h)
@@ -245,39 +246,40 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
     local img_h = img:getHeight()
     local base_scale = size / math.max(img_w, img_h)
 
-    -- Adaptive intensities
-    local shadow_alpha = theme.shadow_intensity * a
-    local glow_base = (theme.current_mode == "Dark") and (theme.glow_intensity * 1.2) or (theme.glow_intensity * 1.1)
-    -- Draw Smudged Shadow
-    for i = 1, 4 do
-        local offset = i + 1
-        local layer_alpha = shadow_alpha * (1.1 - i * 0.25)
-        love.graphics.setColor(0, 0, 0, layer_alpha)
-        love.graphics.draw(img, x + offset, y + offset, 0, base_scale, base_scale, img_w / 2, img_h / 2)
-    end
-
-    -- Draw glow layers
-    if glow_color then
-        local gc = glow_color or theme.accent
-        local time = love.timer.getTime()
-        local pulse = 0.8 + 0.2 * math.sin(time * 3) -- Pulse between 0.6 and 1.0
-
-        for i = 1, theme.glow_radius do
-            -- Create a smoother, non-linear alpha decay for a softer look
-            local layer_alpha = (glow_base * 0.8 / (i ^ 1.2)) * a * pulse
-            local scale = base_scale * (1.0 + (i * 0.05)) * (0.98 + pulse * 0.02) -- Adjusted scale pulse
-
-            love.graphics.setColor(gc[1], gc[2], gc[3], layer_alpha)
-            love.graphics.draw(img, x, y, 0, scale, scale, img_w / 2, img_h / 2)
-        end
-    end
-
-    -- Main image
-    love.graphics.setShader(ui.gloss_shader)
-
     if thumbnail then
+        -- Thumbnails should preserve source colors and avoid theme tinting.
+        love.graphics.setShader()
         love.graphics.setColor(1, 1, 1, a)
     else
+        -- Adaptive intensities
+        local shadow_alpha = theme.shadow_intensity * a
+        local glow_base = (theme.current_mode == "Dark") and (theme.glow_intensity * 1.2) or (theme.glow_intensity * 1.1)
+        -- Draw Smudged Shadow
+        for i = 1, 4 do
+            local offset = i + 1
+            local layer_alpha = shadow_alpha * (1.1 - i * 0.25)
+            love.graphics.setColor(0, 0, 0, layer_alpha)
+            love.graphics.draw(img, x + offset, y + offset, 0, base_scale, base_scale, img_w / 2, img_h / 2)
+        end
+
+        -- Draw glow layers
+        if glow_color then
+            local gc = glow_color or theme.accent
+            local time = love.timer.getTime()
+            local pulse = 0.8 + 0.2 * math.sin(time * 3) -- Pulse between 0.6 and 1.0
+
+            for i = 1, theme.glow_radius do
+                -- Create a smoother, non-linear alpha decay for a softer look
+                local layer_alpha = (glow_base * 0.8 / (i ^ 1.2)) * a * pulse
+                local scale = base_scale * (1.0 + (i * 0.05)) * (0.98 + pulse * 0.02) -- Adjusted scale pulse
+
+                love.graphics.setColor(gc[1], gc[2], gc[3], layer_alpha)
+                love.graphics.draw(img, x, y, 0, scale, scale, img_w / 2, img_h / 2)
+            end
+        end
+
+        -- Main image
+        love.graphics.setShader(ui.gloss_shader)
         love.graphics.setColor(color[1], color[2], color[3], a)
     end
     love.graphics.draw(img, x, y, 0, base_scale, base_scale, img_w / 2, img_h / 2)

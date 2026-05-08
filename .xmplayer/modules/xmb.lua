@@ -657,13 +657,13 @@ function xmb.update(dt)
         xmb.context_menu.alpha = math.max(0, xmb.context_menu.alpha - dt * 10)
     end
 
-    -- Smooth scroll
-    xmb.category_scroll_x = utils.lerp(xmb.category_scroll_x, xmb.target_category_scroll_x, dt * 10)
-    xmb.item_scroll_y = utils.lerp(xmb.item_scroll_y, xmb.target_item_scroll_y, dt * 10)
+    -- Smooth scroll (use exponential smoothing for consistent easing)
+    xmb.category_scroll_x = utils.smooth(xmb.category_scroll_x, xmb.target_category_scroll_x, dt, 10)
+    xmb.item_scroll_y = utils.smooth(xmb.item_scroll_y, xmb.target_item_scroll_y, dt, 10)
 
-    -- Slide transition animation
-    xmb.list_slide_x = utils.lerp(xmb.list_slide_x, 0, dt * 12)
-    xmb.list_slide_alpha = utils.lerp(xmb.list_slide_alpha, 1, dt * 10)
+    -- Slide transition animation (snappier horizontal slide)
+    xmb.list_slide_x = utils.smooth(xmb.list_slide_x, 0, dt, 14)
+    xmb.list_slide_alpha = utils.smooth(xmb.list_slide_alpha, 1, dt, 10)
     if math.abs(xmb.list_slide_x) < 0.5 then xmb.list_slide_x = 0 end
     if xmb.list_slide_alpha > 0.99 then xmb.list_slide_alpha = 1 end
 
@@ -918,6 +918,7 @@ function xmb.keypressed(key, player, music, viewer)
                 elseif opt.type == "action" then
                     if opt.id == "clear_history" then
                         history.clear()
+                        video_manager.clear_history()
                         ui.show_toast("Watch history cleared", "history", "bottom_right")
                         -- Refresh browser items to show (maybe nothing changed visually but action happened)
                         refresh_settings_items(false)

@@ -16,6 +16,14 @@ function utils.lerp(a, b, t)
     return a + (b - a) * t
 end
 
+-- Smooth exponential interpolation that's frame-rate independent.
+-- `speed` is roughly in 1/seconds; higher = snappier.
+function utils.smooth(a, b, dt, speed)
+    if a == b then return a end
+    local t = 1 - math.exp(-speed * (dt or 0))
+    return a + (b - a) * t
+end
+
 function utils.format_time(seconds)
     if not seconds or seconds < 0 then seconds = 0 end
     local mins = math.floor(seconds / 60)

@@ -19,7 +19,7 @@ function xmb_draw.draw()
     local screen_w, screen_h = love.graphics.getDimensions()
 
     -- ─── Horizontal Category Bar ───
-    local cat_base_x = screen_w * 0.2
+    local cat_base_x = screen_w * 0.25
     local cat_y      = screen_h * 0.25
 
     love.graphics.push()
@@ -92,12 +92,36 @@ function xmb_draw.draw()
             local icon  = assets.images.folder
             local thumb = nil
 
-            if item.icon and assets.images[item.icon] then
+            if item.type == "file" and (cat_id == "photo" or item.icon == "photo") then
+                icon = assets.images.photo
+                local info = indexing.data.photos[item.path]
+                local thumb_path = (info and info.thumb_path) or item.path
+                if thumb_path then
+                    if not xmb.thumbs[thumb_path] then
+                        xmb.thumbs[thumb_path] = utils.load_image(thumb_path)
+                    end
+                    thumb = xmb.thumbs[thumb_path]
+                end
+                if not thumb and item.path then
+                    if not xmb.thumbs[item.path] then
+                        xmb.thumbs[item.path] = utils.load_image(item.path)
+                    end
+                    thumb = xmb.thumbs[item.path]
+                end
+            elseif item.icon and assets.images[item.icon] then
                 icon = assets.images[item.icon]
             elseif item.type == "directory" then
                 icon = assets.images.folder
             elseif item.type == "album" then
                 icon = assets.images.album
+                local album = item.data
+                local thumb_path = album and album.thumb_path
+                if thumb_path and thumb_path ~= "" then
+                    if not xmb.thumbs[thumb_path] then
+                        xmb.thumbs[thumb_path] = utils.load_image(thumb_path)
+                    end
+                    thumb = xmb.thumbs[thumb_path]
+                end
             elseif item.type == "artist" then
                 icon = assets.images.artist
             elseif item.type == "file" then
@@ -108,15 +132,6 @@ function xmb_draw.draw()
                         icon = assets.images.track
                     else
                         icon = assets.images.file_music
-                    end
-                elseif cat_id == "photo" then
-                    icon = assets.images.photo
-                    local info = indexing.data.photos[item.path]
-                    if info and info.thumb_path then
-                        if not xmb.thumbs[info.thumb_path] then
-                            xmb.thumbs[info.thumb_path] = utils.load_image(info.thumb_path)
-                        end
-                        thumb = xmb.thumbs[info.thumb_path]
                     end
                 else
                     icon = assets.images.file
