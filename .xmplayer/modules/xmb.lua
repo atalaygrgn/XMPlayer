@@ -206,7 +206,7 @@ local function open_video_context_menu(path)
     open_context_menu("Video Options", {
         {
             id = "toggle_watched",
-            label = watched and "Mark as Unwatched" or "Mark as Watched"
+            label = watched and "Unmark as Watched" or "Mark as Watched"
         }
     }, path)
 end

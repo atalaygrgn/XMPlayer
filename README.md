@@ -22,8 +22,6 @@ Integrated **MPV** support for high-performance video playback.<br>
 ![XMPlayer Video Player](assets/readme/resume.png)<br>
 A highly requested feature: resume playback from where you left off!
 
-Watched state can be managed from the video context menu, which is opened with `X` from the video browser.
-
 ### Music Player
 A dedicated audio player interface with album art, track info, and playback controls. Most audio formats, **including FLAC**, are supported.<br>
 
@@ -31,6 +29,9 @@ A dedicated audio player interface with album art, track info, and playback cont
 
 ### Photo Viewer
 Browse and view your photo collection.
+
+### File Browser
+Browse your handheld's file system and access media files outside the main directories. Both single and dual SD card setups are supported.
 
 ### Customizable Themes
 Fluid particle animations and customizable color themes to your liking. You can set a wallpaper too!<br>
@@ -51,11 +52,11 @@ Fluid particle animations and customizable color themes to your liking. You can 
 1. Download the latest release and put in in the `ARCHIVES` folder on your SD card.
 2. Install the `XMPlayer.muxapp` file using Archive Manager.
 3. Go to Applications menu and launch XMPlayer.
-4. At launch, XMPlayer will ask you to set media directories. Use the file browser to select folders for each media type.
+4. At launch, XMPlayer will ask you to set media directories. Set all media directories you plan to use from **Settings** > **Media Directories**.
 > **Need help where to locate?** <br>
 > - For single SD card setups, the SD card contents are mounted to `/mnt/mmc`. <br>
 > - For dual SD card setups, `/mnt/mmc` refers to the 1st SD card, and `/mnt/sdcard` refers to the 2nd.
-5. XMPlayer will index your media library for you. After that, XMPlayer is ready to use.
+5. Under Media Directories, select **Reindex Media and Restart App**. XMPlayer will index your media library for you. After that, XMPlayer is ready to use.
 
 ![XMPlayer on Device](assets/readme/console.png)
 
@@ -118,7 +119,7 @@ More customization options are on the way!
 ### Planned for Later Versions
 - [ ] External display support.
 - [ ] Custom icon sets.
-- [ ] VGM file support (through MPV)
+- [ ] VGM file support (.spc, .nsf, ...)
 - [ ] Add support for other media formats?
 
 ---
@@ -137,5 +138,3 @@ XMPlayer is released under the **MIT License**.
 - **PlayStation**, **XrossMediaBar**, and **XMB** are trademarks of Sony Interactive Entertainment Inc.
 
 ---
-
-*Made with ❤️ for the retro gaming community.*
