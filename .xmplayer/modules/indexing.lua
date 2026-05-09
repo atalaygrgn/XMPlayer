@@ -170,6 +170,7 @@ end
 
 local function rebuild_music_collections_from_files()
     local old_files = indexing.data.music.files or {}
+    local old_albums = indexing.data.music.albums or {}
     indexing.data.music.albums = {}
     indexing.data.music.artists = {}
 
@@ -196,7 +197,14 @@ local function rebuild_music_collections_from_files()
         local album_display_artist = album_artist ~= "" and album_artist or primary_artist or artist_str
         local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
         if not indexing.data.music.albums[album_key] then
-            indexing.data.music.albums[album_key] = { name = album, artist = album_display_artist, tracks = {} }
+            local preserved_album = old_albums[album_key] or {}
+            indexing.data.music.albums[album_key] = {
+                name = album,
+                artist = album_display_artist,
+                tracks = {},
+                thumb_path = preserved_album.thumb_path,
+                thumb_version = preserved_album.thumb_version
+            }
         elseif album_artist ~= "" then
             indexing.data.music.albums[album_key].artist = album_artist
         end
@@ -368,19 +376,21 @@ end
 
 local function generate_album_thumbnails()
     for album_key, album in pairs(indexing.data.music.albums or {}) do
-        local cover_track = album.tracks and album.tracks[1]
-        if cover_track then
-            -- Get folder cover image (cover.jpg, folder.png, etc.) - no metadata parsing
-            local img_bytes, img_ext = metadata.find_folder_cover(cover_track)
-            if img_bytes then
-                local file_data = love.filesystem.newFileData(img_bytes, "album_" .. album_key .. ".bin")
-                local ok, img_data = pcall(love.image.newImageData, file_data)
-                if ok and img_data then
-                    album.thumb_path = generate_thumbnail_from_image_data(img_data, album_key)
+        if not (album.thumb_path and album.thumb_version == ALBUM_THUMB_VERSION and file_exists(album.thumb_path)) then
+            local cover_track = album.tracks and album.tracks[1]
+            if cover_track then
+                -- Get folder cover image (cover.jpg, folder.png, etc.) - no metadata parsing
+                local img_bytes, img_ext = metadata.find_folder_cover(cover_track)
+                if img_bytes then
+                    local file_data = love.filesystem.newFileData(img_bytes, "album_" .. album_key .. ".bin")
+                    local ok, img_data = pcall(love.image.newImageData, file_data)
+                    if ok and img_data then
+                        album.thumb_path = generate_thumbnail_from_image_data(img_data, album_key)
+                    end
                 end
             end
+            album.thumb_version = ALBUM_THUMB_VERSION
         end
-        album.thumb_version = ALBUM_THUMB_VERSION
     end
 end
 
@@ -560,6 +570,20 @@ function indexing.scan_for_new_media(photo_dir, music_dir, video_dir)
         indexing.scan_progress = "Updating Album Thumbnails..."
         coroutine.yield()
         generate_album_thumbnails()
+    else
+        local needs_album_thumbnail_refresh = false
+        for _, album in pairs(indexing.data.music.albums or {}) do
+            if not album.thumb_path or not file_exists(album.thumb_path) or album.thumb_version ~= ALBUM_THUMB_VERSION then
+                needs_album_thumbnail_refresh = true
+                break
+            end
+        end
+
+        if needs_album_thumbnail_refresh then
+            indexing.scan_progress = "Restoring Album Thumbnails..."
+            coroutine.yield()
+            generate_album_thumbnails()
+        end
     end
 
     indexing.scan_progress = "Checking for new photos..."
