@@ -66,6 +66,7 @@ function assets.load(categories)
 
     -- Load SFX
     assets.sfx.nav = love.audio.newSource("assets/sfx/keytone.wav", "static")
+    assets.sfx.startup = love.audio.newSource("assets/sfx/startup.wav", "static")
 end
 
 function assets.get_image(name)

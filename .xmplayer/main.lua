@@ -22,7 +22,7 @@ local scan_co = nil
 local was_music_active = false
 local launch_status_message = nil
 local launch_status_timer = 0
-local LAUNCH_STATUS_DURATION = 3
+local LAUNCH_STATUS_DURATION = 2.5
 
 local function build_valid_media_paths()
     local valid_paths = {}
@@ -162,6 +162,13 @@ function love.update(dt)
                 xmb.refresh_browser()
                 launch_status_message = "Indexing Complete"
                 launch_status_timer = LAUNCH_STATUS_DURATION
+                -- Startup sound 
+                local opt_startup = settings.get_option("startup_sound")
+                if (not opt_startup) or opt_startup.value == 1 then
+                    if assets and assets.play_sfx then
+                        assets.play_sfx("startup")
+                    end
+                end
             end
         end
         return

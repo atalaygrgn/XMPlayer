@@ -155,7 +155,12 @@ local function prep_files()
             elseif (is_video_file and is_video_file(item.path)) then
                 item.icon = "file_video"
             elseif is_music_file(item.path) then
-                item.icon = "file_music"
+                -- Use track icon when listing album/artist tracks, otherwise use file music icon
+                if xmb.view_type == "album_tracks" or xmb.view_type == "artist_tracks" then
+                    item.icon = "track"
+                else
+                    item.icon = "file_music"
+                end
             else
                 item.icon = "file"
             end
@@ -166,6 +171,15 @@ end
 local function current_filter()
     local cat = categories[xmb.current_category_idx]
     return cat and cat.filter or nil
+end
+
+local function first_media_item_index()
+    for i, item in ipairs(browser.files) do
+        if item.type == "directory" or item.type == "file" then
+            return i
+        end
+    end
+    return 1
 end
 
 local function refresh_settings_items(keep_idx)
@@ -462,8 +476,8 @@ function xmb.refresh_items()
                 end
             end
             if has_videos then
-                table.insert(browser.files, 1, { name = "Play All", type = "video_play_all", icon = "play" })
-                table.insert(browser.files, 2, { name = "Shuffle Play", type = "video_shuffle_play", icon = "shuffle" })
+                table.insert(browser.files, 1, { name = "Shuffle Play", type = "video_shuffle_play", icon = "shuffle" })
+                table.insert(browser.files, 2, { name = "Play All", type = "video_play_all", icon = "play" })
             end
         end
     elseif cat.id == "photo" then
@@ -875,13 +889,7 @@ function xmb.keypressed(key, player, music, viewer)
                 table.insert(xmb.nav_stack, xmb.current_item_idx)
                 browser.set_state(browser.base_dir, selected.path, current_filter())
                 xmb.refresh_items()
-                if browser.files[1] and browser.files[1].type == "shuffle_play" and #browser.files > 1 then
-                    xmb.current_item_idx = 2
-                elseif browser.files[1] and browser.files[1].type == "video_play_all" and #browser.files > 2 then
-                    xmb.current_item_idx = 3
-                else
-                    xmb.current_item_idx = 1
-                end
+                xmb.current_item_idx = first_media_item_index()
                 prep_files()
                 xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
                 xmb.item_scroll_y = xmb.target_item_scroll_y
@@ -997,13 +1005,7 @@ function xmb.keypressed(key, player, music, viewer)
                     xmb.view_type = "browser"
                     xmb.refresh_items()
 
-                    if browser.files[1] and browser.files[1].type == "shuffle_play" and #browser.files > 1 then
-                        xmb.current_item_idx = 2
-                    elseif browser.files[1] and browser.files[1].type == "video_play_all" and #browser.files > 2 then
-                        xmb.current_item_idx = 3
-                    else
-                        xmb.current_item_idx = 1
-                    end
+                    xmb.current_item_idx = first_media_item_index()
                     prep_files()
                     xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
                     xmb.item_scroll_y = xmb.target_item_scroll_y
@@ -1081,7 +1083,7 @@ function xmb.keypressed(key, player, music, viewer)
             if settings.keytone_enabled then
                 assets.play_sfx("nav")
             end
-        elseif selected and selected.type == "file" and (cat_id == "video" or cat_id == "folder") then
+        elseif selected and selected.type == "file" and (cat_id == "video" or cat_id == "folder") and is_video_file(selected.path) then
             open_video_context_menu(selected.path)
             if settings.keytone_enabled then
                 assets.play_sfx("nav")

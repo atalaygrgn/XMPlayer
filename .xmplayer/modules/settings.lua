@@ -146,6 +146,14 @@ settings.options = {
         value = 1
     },
     {
+        id = "startup_sound",
+        name = "Startup Sound",
+        type = "choice",
+        group = "general",
+        choices = { "On", "Off" },
+        value = 1
+    },
+    {
         id = "vol_bright_control",
         name = "Volume & Brightness Control",
         type = "choice",
