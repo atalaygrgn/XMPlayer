@@ -97,7 +97,10 @@ local function draw_waveform(music)
     local w, h = screen_w, screen_h
     local samples = 120 -- How many points in our waveform
     local amplitude = h * 0.15
-    local current_sample = music.source:tell("samples")
+    
+    -- Calculate current sample index from elapsed time (44100 Hz sample rate)
+    local SAMPLE_RATE = 44100
+    local current_sample = math.floor(music.elapsed * SAMPLE_RATE)
     local total_samples = music.sound_data:getSampleCount()
 
     -- Smooth the reactive amplitude based on a window of samples
@@ -145,7 +148,7 @@ local function draw_waveform(music)
 end
 
 local function draw_bars_visualizer(music)
-    if not music or not music.playing or not music.sound_data or not music.source then return end
+    if not music or not music.playing or not music.sound_data then return end
 
     local w, h = screen_w, screen_h
     local bars = 42
@@ -156,7 +159,9 @@ local function draw_bars_visualizer(music)
     local bar_w = (total_width - (bars - 1) * gap) / bars
     local start_x = (w - total_width) * 0.5
 
-    local current_sample = math.max(0, music.source:tell("samples"))
+    -- Calculate current sample index from elapsed time (44100 Hz sample rate)
+    local SAMPLE_RATE = 44100
+    local current_sample = math.max(0, math.floor(music.elapsed * SAMPLE_RATE))
     local total_samples = music.sound_data:getSampleCount()
     local paused_alpha = music.paused and 0.35 or 1.0
 

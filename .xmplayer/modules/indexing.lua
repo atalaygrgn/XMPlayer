@@ -21,7 +21,7 @@ indexing.data = {
 }
 
 indexing.compatible_extensions = {
-    music = { ".mp3", ".wav", ".flac", ".ogg", ".m4a" },
+    music = { ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".opus", ".wma"},
     photo = { ".jpg", ".jpeg", ".png", ".gif", ".bmp" },
     video = { ".mp4", ".mkv", ".avi", ".mov", ".wmv" }
 }
@@ -32,6 +32,26 @@ indexing.scan_result_message = nil
 
 local function normalize_key(value)
     return utils.trim((value or ""):lower())
+end
+
+local function normalize_label(value, fallback)
+    local text = utils.trim(value or "")
+    if text == "" then
+        return fallback
+    end
+    return text
+end
+
+local function get_album_display_artist(album_artist, artist_str, artists)
+    if album_artist ~= "" then
+        return album_artist
+    end
+
+    if #artists > 1 then
+        return "Various Artists"
+    end
+
+    return artists[1] or artist_str
 end
 
 local function parse_track_index(value)
@@ -125,9 +145,9 @@ local function add_music_file(path)
     end
 
     local tags = metadata.get_tags(path)
-    local title = tags.title or utils.get_track_name(path)
-    local artist_str = tags.artist or "Unknown Artist"
-    local album = tags.album or "Unknown Album"
+    local title = normalize_label(tags.title, utils.get_track_name(path))
+    local artist_str = normalize_label(tags.artist, "Unknown Artist")
+    local album = normalize_label(tags.album, "Unknown Album")
     local album_artist = utils.trim(tags.album_artist or "")
     local artists = split_artists(artist_str)
     local primary_artist = artists[1]
@@ -151,17 +171,15 @@ local function add_music_file(path)
         add_artist_album(indexing.data.music.artists[a], album)
     end
 
-    local album_group_key = album_artist ~= "" and album_artist or utils.get_dirname(path)
-    if album_group_key == "" then
-        album_group_key = primary_artist or artist_str
-    end
-
-    local album_display_artist = album_artist ~= "" and album_artist or primary_artist or artist_str
+    local album_group_key = album_artist ~= "" and album_artist or ""
+    local album_display_artist = get_album_display_artist(album_artist, artist_str, artists)
     local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
     if not indexing.data.music.albums[album_key] then
         indexing.data.music.albums[album_key] = { name = album, artist = album_display_artist, tracks = {} }
     elseif album_artist ~= "" then
         indexing.data.music.albums[album_key].artist = album_artist
+    elseif indexing.data.music.albums[album_key].artist == nil or indexing.data.music.albums[album_key].artist == "" then
+        indexing.data.music.albums[album_key].artist = album_display_artist
     end
     table.insert(indexing.data.music.albums[album_key].tracks, path)
 
@@ -175,8 +193,8 @@ local function rebuild_music_collections_from_files()
     indexing.data.music.artists = {}
 
     for path, info in pairs(old_files) do
-        local artist_str = info.artist or "Unknown Artist"
-        local album = info.album or "Unknown Album"
+        local artist_str = normalize_label(info.artist, "Unknown Artist")
+        local album = normalize_label(info.album, "Unknown Album")
         local album_artist = utils.trim(info.album_artist or "")
         local artists = split_artists(artist_str)
         local primary_artist = artists[1]
@@ -189,12 +207,8 @@ local function rebuild_music_collections_from_files()
             add_artist_album(indexing.data.music.artists[a], album)
         end
 
-        local album_group_key = album_artist ~= "" and album_artist or utils.get_dirname(path)
-        if album_group_key == "" then
-            album_group_key = primary_artist or artist_str
-        end
-
-        local album_display_artist = album_artist ~= "" and album_artist or primary_artist or artist_str
+        local album_group_key = album_artist ~= "" and album_artist or ""
+        local album_display_artist = get_album_display_artist(album_artist, artist_str, artists)
         local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
         if not indexing.data.music.albums[album_key] then
             local preserved_album = old_albums[album_key] or {}
@@ -207,6 +221,8 @@ local function rebuild_music_collections_from_files()
             }
         elseif album_artist ~= "" then
             indexing.data.music.albums[album_key].artist = album_artist
+        elseif indexing.data.music.albums[album_key].artist == nil or indexing.data.music.albums[album_key].artist == "" then
+            indexing.data.music.albums[album_key].artist = album_display_artist
         end
         table.insert(indexing.data.music.albums[album_key].tracks, path)
     end

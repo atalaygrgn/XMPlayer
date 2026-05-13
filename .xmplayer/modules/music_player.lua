@@ -1,8 +1,9 @@
-local browser   = require("browser")
-local assets    = require("assets")
-local metadata  = require("metadata")
-local ui        = require("ui")
-local utils     = require("utils")
+local browser      = require("browser")
+local assets       = require("assets")
+local metadata     = require("metadata")
+local ui           = require("ui")
+local utils        = require("utils")
+local ffmpeg_audio = require("ffmpeg_audio")
 
 local music = {}
 
@@ -13,7 +14,8 @@ music.paused = false
 music.current_track = nil -- {name, path}
 music.current_index = 0   -- Index in the playlist
 music.playlist = {}       -- List of tracks from current folder
-music.source = nil        -- love.audio Source object
+music.source = nil        -- FFmpeg audio backend (for compatibility)
+music.sound_data = nil    -- Compatibility wrapper for visualizers
 music.elapsed = 0         -- Elapsed time in seconds
 music.duration = 0        -- Total duration in seconds
 music.cover_art = nil     -- love.graphics Image for album art
@@ -31,6 +33,8 @@ music.fade_alpha = 0
 music.marquees   = {}  -- Populated by music_view.init()
 
 function music.init()
+    -- Initialize FFmpeg audio backend
+    ffmpeg_audio.init()
     -- marquees are initialised by music_view.init() after fonts are loaded
 end
 
@@ -81,37 +85,21 @@ function music.load_track(track_info)
         end
     end
 
-    -- Load audio
-    local file_handle = io.open(track_info.path, "rb")
-    if not file_handle then
-        music.playing = false
-        return false
-    end
-
-    local file_data_raw = file_handle:read("*a")
-    file_handle:close()
-
-    if not file_data_raw or #file_data_raw == 0 then
-        music.playing = false
-        return false
-    end
-
-    local ok, result = pcall(function()
-        local fd = love.filesystem.newFileData(file_data_raw, track_info.name)
-        music.sound_data = love.sound.newSoundData(fd)
-        return love.audio.newSource(music.sound_data)
-    end)
-
-    if ok and result then
-        music.source = result
-        music.duration = music.sound_data:getDuration()
-        music.source:play()
+    -- Load audio via FFmpeg backend
+    local ok = ffmpeg_audio.load(track_info.path)
+    if ok then
+        music.source = true  -- Placeholder for compatibility
+        music.sound_data = ffmpeg_audio.getSoundDataCompat()
+        music.duration = ffmpeg_audio.getDuration()
+        ffmpeg_audio.play()
         music.playing = true
         music.paused = false
         return true
     else
-        print("Failed to decode: " .. tostring(result))
+        print("Failed to load with FFmpeg: " .. track_info.path)
         music.playing = false
+        music.source = nil
+        music.sound_data = nil
         return false
     end
 end
@@ -148,11 +136,9 @@ function music.play(filepath, custom_playlist)
 end
 
 function music.stop()
-    if music.source then
-        music.source:stop()
-        music.source = nil
-        music.sound_data = nil
-    end
+    ffmpeg_audio.stop()
+    music.source = nil
+    music.sound_data = nil
     music.playing = false
     music.paused = false
     music.elapsed = 0
@@ -161,10 +147,10 @@ end
 function music.toggle_pause()
     if not music.source then return end
     if music.paused then
-        music.source:play()
+        ffmpeg_audio.play()
         music.paused = false
     else
-        music.source:pause()
+        ffmpeg_audio.pause()
         music.paused = true
     end
 end
@@ -224,6 +210,9 @@ end
 function music.update(dt)
     if not music.active then return end
 
+    -- Update FFmpeg audio backend
+    ffmpeg_audio.update()
+
     -- Fade in
     if music.fade_alpha < 1 then
         music.fade_alpha = math.min(1, music.fade_alpha + dt * 4)
@@ -239,17 +228,24 @@ function music.update(dt)
         end
     end
 
-    -- Update playback
-    if music.source and music.playing and not music.paused then
-        music.elapsed = music.source:tell()
-        if not music.source:isPlaying() then
-            if music.repeat_one and music.playlist[music.current_index] then
-                music.load_track(music.playlist[music.current_index])
-            else
-                music.next_track()
+    -- Update playback state
+        if music.playing and not music.paused then
+            music.elapsed = ffmpeg_audio.getElapsedTime()
+
+            -- Determine track end robustly: only advance when elapsed is at (or very near)
+            -- the known duration. This prevents auto-advancing while FFmpeg is buffering
+            -- or before playback actually begins (causing 'roulette' skipping).
+            local dur = music.duration or 0
+            local near_end = (dur > 0) and (music.elapsed >= math.max(0, dur - 0.5))
+
+            if near_end then
+                if music.repeat_one and music.playlist[music.current_index] then
+                    music.load_track(music.playlist[music.current_index])
+                else
+                    music.next_track()
+                end
             end
         end
-    end
 
     -- Update marquees
     if music.current_track then

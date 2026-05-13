@@ -446,7 +446,6 @@ function xmb.refresh_items()
                     type = "view_trigger",
                     target_view = "video_resume",
                     icon = "history",
-                    description = "Pick up where you left off"
                 })
             table.insert(browser.files,
                 {

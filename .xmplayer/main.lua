@@ -87,8 +87,9 @@ function love.load()
     local music_dir = settings.get_option("music_dir").value
     local video_dir = settings.get_option("video_dir").value
 
-    -- Trigger indexing if no data or requested
-    if force_reindex or not has_existing_index or not next(indexing.data.music.files) or not next(indexing.data.photos) then
+    -- Trigger a full scan only when we have no usable index or the user requested one.
+    -- Empty media categories are handled by the incremental scan path.
+    if force_reindex or not has_existing_index then
         scan_co = coroutine.create(function()
             indexing.scan(photo_dir, music_dir, video_dir)
         end)
