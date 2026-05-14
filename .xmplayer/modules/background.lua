@@ -96,7 +96,7 @@ local function draw_waveform(music)
 
     local w, h = screen_w, screen_h
     local samples = 120 -- How many points in our waveform
-    local amplitude = h * 0.15
+    local amplitude = h * 0.1
     
     -- Calculate current sample index from elapsed time (44100 Hz sample rate)
     local SAMPLE_RATE = 44100
@@ -154,7 +154,7 @@ local function draw_bars_visualizer(music)
     local bars = 42
     local gap = 4
     local bottom_y = h
-    local max_h = h * 0.28
+    local max_h = h * 0.2
     local total_width = w
     local bar_w = (total_width - (bars - 1) * gap) / bars
     local start_x = (w - total_width) * 0.5
@@ -178,7 +178,7 @@ local function draw_bars_visualizer(music)
         end
 
         local rms = math.sqrt(energy / (window_size / 24))
-        local strength = math.min(1.0, rms * 5.2)
+        local strength = math.min(1.0, rms * 2)
         local bar_h = 8 + (strength * max_h)
 
         local x = start_x + i * (bar_w + gap)

@@ -15,5 +15,5 @@ r1 = pagedown
 l2 = l
 r2 = e
 
-start = return
+start = z
 select = space
