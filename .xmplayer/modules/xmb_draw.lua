@@ -202,9 +202,9 @@ function xmb_draw.draw()
     if menu and (menu.active or menu.alpha > 0) then
         local alpha = menu.alpha
         local panel_w = 300
-        local panel_h = 140 + (#menu.items * 50)
-        local panel_x = screen_w - panel_w - 40
-        local panel_y = screen_h * 0.22
+        local panel_h = 80 + (#menu.items * 50)
+        local panel_x = screen_w - panel_w - 20
+        local panel_y = screen_h * 0.15
 
         love.graphics.setColor(0.05, 0.05, 0.08, 0.94 * alpha)
         love.graphics.rectangle("fill", panel_x, panel_y, panel_w, panel_h, 16, 16)

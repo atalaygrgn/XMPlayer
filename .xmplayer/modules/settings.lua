@@ -193,7 +193,7 @@ settings.options = {
         name = "Version",
         type = "info",
         group = "about",
-        value = "v0.1.1"
+        value = "v0.1.2"
     },
     {
         id = "website",
