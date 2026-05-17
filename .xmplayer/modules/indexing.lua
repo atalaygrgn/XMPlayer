@@ -22,7 +22,7 @@ indexing.data = {
 
 indexing.compatible_extensions = {
     music = { ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".opus", ".wma"},
-    photo = { ".jpg", ".jpeg", ".png", ".gif", ".bmp" },
+    photo = { ".jpg", ".jpeg", ".png", ".bmp" },
     video = { ".mp4", ".mkv", ".avi", ".mov", ".wmv" }
 }
 

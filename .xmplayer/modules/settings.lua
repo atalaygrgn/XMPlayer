@@ -5,6 +5,7 @@ local settings = {}
 
 settings.keytone_enabled = true
 settings.display_sleep_seconds = 0
+settings.track_info_background_mode = 1
 local storage_path = love.filesystem.getSource()
 settings.file_path = storage_path .. "/settings.cfg"
 
@@ -86,6 +87,14 @@ settings.options = {
         value = ""
     },
     {
+        id = "wallpaper_type",
+        name = "Wallpaper Type",
+        type = "choice",
+        group = "theme_settings",
+        choices = { "Static", "Scrolling", "Seamless" },
+        value = 1
+    },
+    {
         id = "blur_wallpaper",
         name = "Blur Wallpaper",
         type = "choice",
@@ -106,7 +115,15 @@ settings.options = {
         name = "Wallpaper Brightness",
         type = "choice",
         group = "theme_settings",
-        choices = { "No Change", "Brighter", "Darker" },
+        choices = { "No Change", "Darker", "Darkest", "Brighter", "Brightest" },
+        value = 1
+    },
+    {
+        id = "track_info_background",
+        name = "Track Info Background",
+        type = "choice",
+        group = "theme_settings",
+        choices = { "Hide", "Clear", "Opaque" },
         value = 1
     },
     {
@@ -159,14 +176,14 @@ settings.options = {
         type = "choice",
         group = "general",
         choices = { "Show", "Hide" },
+        value = 1
+    },
     {
         id = "force_reindex_once",
         name = "Force Reindex Once",
         type = "flag",
         group = "internal",
         value = 0
-    },
-        value = 1
     },
     {
         id = "display_sleep",
@@ -193,7 +210,7 @@ settings.options = {
         name = "Version",
         type = "info",
         group = "about",
-        value = "v0.1.2"
+        value = "v0.1.3"
     },
     {
         id = "website",
@@ -322,6 +339,13 @@ function settings.apply()
         settings.display_sleep_seconds = 0
     end
 
+    local opt_track_info_background = settings.get_option("track_info_background")
+    if opt_track_info_background then
+        settings.track_info_background_mode = math.max(1, math.min(3, math.floor(opt_track_info_background.value or 1)))
+    else
+        settings.track_info_background_mode = 1
+    end
+
     -- Update particles visibility
     local opt_particles = settings.get_option("particles")
     if opt_particles then
@@ -353,6 +377,12 @@ function settings.apply()
     local opt_wallpaper_brightness = settings.get_option("wallpaper_brightness")
     if opt_wallpaper_brightness then
         background.set_wallpaper_brightness(opt_wallpaper_brightness.value)
+    end
+
+    -- Update wallpaper type (Static, Scrolling, Seamless)
+    local opt_wallpaper_type = settings.get_option("wallpaper_type")
+    if opt_wallpaper_type then
+        background.set_wallpaper_type(opt_wallpaper_type.value)
     end
 end
 

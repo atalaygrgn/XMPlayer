@@ -76,7 +76,7 @@ Fluid particle animations and customizable color themes to your liking. You can 
 | **L2** | - | - | Toggle Subtitles | - |
 | **R1** | - | - | Next Video | - |
 | **R2** | - | - | Next Subtitle | - |
-| **Start** | - | - | Play / Pause | - |
+| **Start** | - | - | Change Aspect Ratio | - |
 | **Select** | - | - | Return to XMB | Return to XMB |
 
 ---

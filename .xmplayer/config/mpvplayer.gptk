@@ -15,5 +15,5 @@ l2 = v     # subtitle visibility
 r1 = ]     # next video
 r2 = j     # subtitle next
 
-start = p  # pause/play
+start = a  # change aspect ratio
 select = q # quit

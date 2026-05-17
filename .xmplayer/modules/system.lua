@@ -5,6 +5,7 @@
 
 local system = {}
 
+-- Path is same for muOS & Knulli
 function system.get_battery_percentage()
     local path = "/sys/class/power_supply/axp2202-battery/capacity"
     local f = io.open(path, "r")
@@ -17,6 +18,7 @@ function system.get_battery_percentage()
     return nil
 end
 
+-- Path is same for muOS & Knulli
 function system.is_charging()
     local path = "/sys/class/power_supply/axp2202-usb/online"
     local f = io.open(path, "r")

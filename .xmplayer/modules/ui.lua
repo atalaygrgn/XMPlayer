@@ -142,7 +142,7 @@ function ui.draw_indexing_popup(progress_text, final_message)
     -- Bottom-left version tag
     love.graphics.setFont(assets.fonts.small)
     love.graphics.setColor(1, 1, 1, 0.75)
-    love.graphics.print("v0.1.2 Beta", 20, screen_h - 36)
+    love.graphics.print("v0.1.3 Beta", 20, screen_h - 36)
 
     -- Bottom-right indexing status with subtle pulse
     local status = progress_text or "Scanning media..."

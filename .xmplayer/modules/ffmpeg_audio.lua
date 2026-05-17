@@ -251,7 +251,7 @@ function ffmpeg_audio.update()
                 bufferCount = queueableSource:getFreeBufferCount()
 
                 -- If this is the first playback and we have buffered at least 2 chunks, start playing
-                if isPlaying and hasStartedPlayback and not queueableSource:isPlaying() then
+                if isPlaying and not isPaused and hasStartedPlayback and not queueableSource:isPlaying() then
                     local shouldPlay = false
                     if bufferCount < 3 then
                         shouldPlay = true

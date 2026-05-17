@@ -76,7 +76,7 @@ setup_hall_override
 export WIDTH=$(GET_VAR device mux/width)
 export HEIGHT=$(GET_VAR device mux/height)
 export SDL_GAMECONTROLLERCONFIG_FILE="/usr/lib/gamecontrollerdb.txt"
-export LD_LIBRARY_PATH="$APP_DIR/libs:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$APP_DIR/libs:/mnt/mmc/MUOS/PortMaster:$LD_LIBRARY_PATH"
 
 # Ensure binaries are executable
 chmod +x "$APP_DIR/bin/love"

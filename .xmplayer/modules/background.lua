@@ -1,6 +1,8 @@
 local theme = require("theme")
 local utils = require("utils")
 local settings = require("settings")
+local xmb = require("xmb")
+local categories = require("categories")
 
 local background = {}
 
@@ -15,6 +17,7 @@ local custom_bg_path = nil
 local wallpaper_blur_enabled = true
 local wallpaper_tint_enabled = true
 local wallpaper_brightness = 1 -- 1: No Change, 2: Brighter, 3: Darker
+local wallpaper_type = 1 -- 1: Static, 2: Scrolling, 3: Seamless
 local blur_shader = nil
 
 local function load_wallpaper_image(path)
@@ -27,8 +30,20 @@ local function load_wallpaper_image(path)
     end
     if img then
         img:setFilter("linear", "linear")
+        -- allow repeating for seamless textures
+        if pcall(function() return img.setWrap end) then
+            pcall(function() img:setWrap("repeat", "repeat") end)
+        end
     end
     return img
+end
+
+function background.set_wallpaper_type(mode_index)
+    if type(mode_index) ~= "number" then
+        wallpaper_type = 1
+        return
+    end
+    wallpaper_type = math.max(1, math.min(3, math.floor(mode_index)))
 end
 
 function background.init()
@@ -265,7 +280,7 @@ function background.set_wallpaper_brightness(mode_index)
         wallpaper_brightness = 1
         return
     end
-    wallpaper_brightness = math.max(1, math.min(3, math.floor(mode_index)))
+    wallpaper_brightness = math.max(1, math.min(5, math.floor(mode_index)))
 end
 
 function background.has_custom_wallpaper()
@@ -313,9 +328,13 @@ function background.draw(music)
         end
 
         if wallpaper_brightness == 2 then
-            r, g, b = r * 1.5, g * 1.5, b * 1.5
+            r, g, b = r * 0.75, g * 0.75, b * 0.75
         elseif wallpaper_brightness == 3 then
             r, g, b = r * 0.5, g * 0.5, b * 0.5
+        elseif wallpaper_brightness == 4 then
+            r, g, b = r * 1.25, g * 1.25, b * 1.25
+        elseif wallpaper_brightness == 5 then
+            r, g, b = r * 1.5, g * 1.5, b * 1.5
         end
 
         if wallpaper_blur_enabled and blur_shader then
@@ -326,7 +345,43 @@ function background.draw(music)
 
         love.graphics.setColor(r, g, b, 1)
 
-        love.graphics.draw(custom_bg_image, screen_w / 2, screen_h / 2, 0, scale, scale, sw / 2, sh / 2)
+        local scaled_w = sw * scale
+        local scaled_h = sh * scale
+
+        if wallpaper_type == 1 then
+            -- Static: centered image (default)
+            love.graphics.draw(custom_bg_image, screen_w / 2, screen_h / 2, 0, scale, scale, sw / 2, sh / 2)
+
+        elseif wallpaper_type == 2 then
+            -- Scrolling: shift X based on category scroll position (limited to image bounds)
+            local step = (theme.icon_size + theme.icon_spacing)
+            local total_range = 0
+            if #categories and #categories > 1 then
+                total_range = -(#categories - 1) * step
+            end
+            local cat_scroll = xmb and xmb.category_scroll_x or 0
+            local normalized = 0.5
+            if total_range ~= 0 then
+                normalized = (cat_scroll - total_range) / (0 - total_range)
+            end
+            normalized = math.max(0, math.min(1, normalized))
+            local max_shift = math.max(0, scaled_w - screen_w)
+            local x_offset = (normalized - 0.5) * max_shift
+            love.graphics.draw(custom_bg_image, screen_w / 2 + x_offset, screen_h / 2, 0, scale, scale, sw / 2, sh / 2)
+
+        else
+            -- Seamless: tile horizontally and slowly translate texture
+            local t = love.timer.getTime()
+            local speed_px = -5 -- pixels per second at native scale
+            local offset = (t * speed_px) % scaled_w
+            local tiles = math.ceil(screen_w / scaled_w) + 2
+            local base_x = screen_w / 2 - offset
+            for k = -1, tiles do
+                local cx = base_x + k * scaled_w
+                love.graphics.draw(custom_bg_image, cx, screen_h / 2, 0, scale, scale, sw / 2, sh / 2)
+            end
+        end
+
         love.graphics.setShader()
     end
 

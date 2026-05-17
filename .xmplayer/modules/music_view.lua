@@ -7,7 +7,6 @@ local assets  = require("assets")
 local ui      = require("ui")
 local utils   = require("utils")
 local music   = require("music_player")
-local background = require("background")
 local settings = require("settings")
 
 local music_view = {}
@@ -174,16 +173,19 @@ function music_view.draw()
     local art_size   = math.min(w, h) * 0.3
     local art_x, art_y = w * 0.05, 60
 
-    if music.current_track and background.has_custom_wallpaper() then
+    if music.current_track and (settings.track_info_background_mode or 1) > 1 then
         local panel_x = w * 0.03
-        local panel_y = art_y - 14
+        local panel_y = art_y - 12
         local panel_w = w * 0.94
         local panel_h = art_size + 24
+        local panel_mode = settings.track_info_background_mode or 1
+        local panel_fill_alpha = (panel_mode == 3) and 0.95 or 0.42
+        local panel_border_alpha = (panel_mode == 3) and 0.16 or 0.08
 
-        love.graphics.setColor(0.04, 0.05, 0.07, 0.42 * alpha)
+        love.graphics.setColor(0.04, 0.05, 0.07, panel_fill_alpha * alpha)
         love.graphics.rectangle("fill", panel_x, panel_y, panel_w, panel_h, 14, 14)
 
-        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.08 * alpha)
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], panel_border_alpha * alpha)
         love.graphics.rectangle("line", panel_x, panel_y, panel_w, panel_h, 14, 14)
     end
 
@@ -210,7 +212,7 @@ function music_view.draw()
     -- Track Info
     if music.current_track then
         local info_x, info_y, info_w = w * 0.3, 60, w * 0.65
-        local extra_y = info_y + 120
+        local extra_y = info_y + 118
 
         -- Title
         local track_name = music.tags.title or utils.get_track_name(music.current_track.name)
@@ -262,20 +264,36 @@ function music_view.draw()
     end
 
     -- Progress Bar
-    local bar_w, bar_h = w * 0.4, 4
+    local bar_w, bar_h = w * 0.4, 6
     local bar_x, bar_y = w - bar_w - 30, h - 30
     local progress     = music.duration > 0 and (music.elapsed / music.duration) or 0
+    local track_info_background_mode = settings.track_info_background_mode or 1
+
+    if track_info_background_mode > 1 then
+        local panel_x = bar_x + bar_w - 152
+        local panel_y = bar_y - 46
+        local panel_w = 160
+        local panel_h = 40
+        local panel_fill_alpha = (track_info_background_mode == 3) and 0.95 or 0.42
+        local panel_border_alpha = (track_info_background_mode == 3) and 0.16 or 0.08
+
+        love.graphics.setColor(0.04, 0.05, 0.07, panel_fill_alpha * alpha)
+        love.graphics.rectangle("fill", panel_x, panel_y, panel_w, panel_h, 14, 14)
+
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], panel_border_alpha * alpha)
+        love.graphics.rectangle("line", panel_x, panel_y, panel_w, panel_h, 14, 14)
+    end
 
     love.graphics.setFont(assets.fonts.time_elapsed)
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.9 * alpha)
-    love.graphics.print(utils.format_time(music.elapsed), bar_x + bar_w - 140, bar_y - 34)
+    love.graphics.print(utils.format_time(music.elapsed), bar_x + bar_w - 140, bar_y - 40)
 
     love.graphics.setFont(assets.fonts.time_dur)
-    love.graphics.printf("/ " .. utils.format_time(music.duration), 0, bar_y - 30, bar_x + bar_w, "right")
+    love.graphics.printf("/ " .. utils.format_time(music.duration), 0, bar_y - 38, bar_x + bar_w, "right")
 
     ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress,
-        { 0.55, 0.65, 1.0, 0.9 * alpha },
-        { theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha })
+        { 0, 0.35, 0.65, 0.9 * alpha },
+        { 0.8, 0.8, 0.8, 0.75 })
 
     local menu = music_view.context_menu
     if menu.active then
@@ -287,7 +305,7 @@ function music_view.draw()
     if menu.alpha > 0 then
         local menu_w = 300
         local row_h = 44
-        local menu_h = (#menu.items * row_h) + 28
+        local menu_h = (#menu.items * row_h) + 20
         local menu_x = w - menu_w - 20
         local menu_y = bar_y - menu_h - 48
 
