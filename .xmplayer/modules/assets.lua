@@ -38,6 +38,8 @@ function assets.load(categories)
     assets.images.quit = love.graphics.newImage("assets/icons/quit.png")
     assets.images.shuffle = love.graphics.newImage("assets/icons/shuffle.png")
     assets.images.eye = love.graphics.newImage("assets/icons/eye.png")
+    assets.images.playlist_music = love.graphics.newImage("assets/icons/playlist-music.png")
+    assets.images.playlist_add = love.graphics.newImage("assets/icons/playlist-add.png")
 
     -- Load volume icons
     assets.images.volume_up = love.graphics.newImage("assets/icons/volume-up.png")

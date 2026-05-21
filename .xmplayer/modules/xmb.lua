@@ -9,11 +9,21 @@ local utils = require("utils")
 local indexing = require("indexing")
 local history = require("history")
 local video_manager = require("video_manager")
+local keyboard = require("onscreen_keyboard")
 
 local xmb = {}
 
 xmb.current_category_idx = 3 -- Default to Music
 xmb.current_item_idx = 1
+
+-- Playlist sidebar state (for "Add to playlist...")
+xmb.playlist_sidebar_active = false
+xmb.playlist_sidebar_alpha = 0
+xmb.playlist_sidebar_items = {}
+xmb.playlist_sidebar_selected_idx = 1
+xmb.playlist_sidebar_scroll_y = 0
+xmb.playlist_sidebar_target_scroll_y = 0
+xmb.playlist_sidebar_track_to_add = nil
 
 -- Animation state
 xmb.category_scroll_x = 0
@@ -31,7 +41,7 @@ xmb.list_slide_alpha = 1
 -- Navigation history stack (stores focused item index in sub-menus)
 -- Each entry: item_idx
 xmb.nav_stack = {}
-xmb.view_type = "browser" -- "category_root", "browser", "music_albums", "music_artists", "album_tracks", "artist_tracks"
+xmb.view_type = "browser" -- "category_root", "browser", "music_albums", "music_artists", "music_playlists", "album_tracks", "artist_tracks"
 xmb.view_data = nil
 
 -- Continuous Repeat State
@@ -168,6 +178,170 @@ local function prep_files()
     end
 end
 
+local PLAYLISTS_DIR = "playlists"
+
+local function shell_quote(path)
+    if not path then return "''" end
+    return "'" .. tostring(path):gsub("'", [['"'"']]) .. "'"
+end
+
+local function ensure_playlists_dir()
+    local path_sep = package.config:sub(1, 1)
+    if path_sep == "\\" then
+        os.execute("if not exist \"" .. PLAYLISTS_DIR .. "\" mkdir \"" .. PLAYLISTS_DIR .. "\" >nul 2>nul")
+    else
+        os.execute("mkdir -p " .. shell_quote(PLAYLISTS_DIR) .. " 2>/dev/null")
+    end
+end
+
+local function sanitize_playlist_name(name)
+    local original = utils.trim(name or "")
+    local cleaned = original
+    cleaned = cleaned:gsub("[%c]", "")
+    cleaned = cleaned:gsub("[/\\:%*%?\"<>|]", "_")
+    cleaned = utils.trim(cleaned)
+    if cleaned == "" then
+        return nil, nil
+    end
+    return cleaned, (cleaned ~= original)
+end
+
+local function playlist_path_for_name(name)
+    local final_name = name
+    if not final_name:lower():match("%.m3u8?$") then
+        final_name = final_name .. ".m3u"
+    end
+    return PLAYLISTS_DIR .. "/" .. final_name, final_name
+end
+
+local function list_playlists()
+    ensure_playlists_dir()
+
+    local results = {}
+    local cmd = "find " .. shell_quote(PLAYLISTS_DIR)
+        .. " -maxdepth 1 -mindepth 1 -type f \\( -iname '*.m3u' -o -iname '*.m3u8' \\) 2>/dev/null"
+    local handle = io.popen(cmd)
+    if handle then
+        for line in handle:lines() do
+            local path = utils.trim(line or "")
+            if path ~= "" then
+                local filename = utils.get_filename(path) or path
+                local display_name = filename:gsub("%.m3u8?$", "")
+                table.insert(results, {
+                    name = display_name,
+                    type = "playlist",
+                    icon = "playlist_music",
+                    path = path,
+                })
+            end
+        end
+        handle:close()
+    end
+
+    table.sort(results, function(a, b)
+        return a.name:lower() < b.name:lower()
+    end)
+
+    return results
+end
+
+local function create_playlist(name)
+    ensure_playlists_dir()
+
+    local safe_name, replaced_invalid = sanitize_playlist_name(name)
+    if not safe_name then
+        return nil, "invalid_name"
+    end
+
+    local full_path = playlist_path_for_name(safe_name)
+    local existing = io.open(full_path, "r")
+    if existing then
+        existing:close()
+        return nil, "exists"
+    end
+
+    local file, err = io.open(full_path, "w")
+    if not file then
+        return nil, err or "write_failed"
+    end
+    file:close()
+    return full_path, nil, replaced_invalid
+end
+
+local function rename_playlist(old_path, new_name)
+    ensure_playlists_dir()
+
+    if not old_path or old_path == "" then
+        return nil, "missing_path"
+    end
+
+    local safe_name, replaced_invalid = sanitize_playlist_name(new_name)
+    if not safe_name then
+        return nil, "invalid_name"
+    end
+
+    local new_path = playlist_path_for_name(safe_name)
+    if utils.normalize_path(old_path) == utils.normalize_path(new_path) then
+        return old_path, nil, replaced_invalid
+    end
+
+    local existing = io.open(new_path, "r")
+    if existing then
+        existing:close()
+        return nil, "exists"
+    end
+
+    local ok, err = os.rename(old_path, new_path)
+    if not ok then
+        return nil, err or "rename_failed"
+    end
+
+    return new_path, nil, replaced_invalid
+end
+
+local function remove_playlist(path)
+    if not path or path == "" then
+        return nil, "missing_path"
+    end
+
+    local ok, err = os.remove(path)
+    if not ok then
+        return nil, err or "remove_failed"
+    end
+
+    return true
+end
+
+local function parse_m3u_playlist(playlist_path)
+    local tracks = {}
+    local file = io.open(playlist_path, "r")
+    if not file then
+        return tracks
+    end
+
+    local playlist_dir = utils.get_dirname(playlist_path)
+    for line in file:lines() do
+        local entry = utils.trim(line or "")
+        if entry ~= "" and entry:sub(1, 1) ~= "#" then
+            entry = entry:gsub("\\", "/")
+            local resolved = entry
+            if resolved:sub(1, 1) ~= "/" and not resolved:match("^%a:/") then
+                resolved = playlist_dir .. "/" .. resolved
+            end
+
+            if is_music_file(resolved) then
+                table.insert(tracks, {
+                    name = utils.get_track_name(resolved),
+                    path = resolved,
+                })
+            end
+        end
+    end
+
+    file:close()
+    return tracks
+end
+
 local function current_filter()
     local cat = categories[xmb.current_category_idx]
     return cat and cat.filter or nil
@@ -182,6 +356,15 @@ local function first_media_item_index()
     return 1
 end
 
+local function first_playlist_track_index()
+    for i, item in ipairs(browser.files) do
+        if item.type == "file" then
+            return i
+        end
+    end
+    return 1
+end
+
 local function refresh_settings_items(keep_idx)
     local old_idx = keep_idx and xmb.current_item_idx or nil
     browser.set_files(settings.get_browser_items())
@@ -189,6 +372,25 @@ local function refresh_settings_items(keep_idx)
     if old_idx then
         xmb.current_item_idx = old_idx
     end
+end
+
+local function refresh_playlist_items(target_path, fallback_idx)
+    local idx = fallback_idx or 1
+    xmb.refresh_items()
+
+    if target_path then
+        for i, item in ipairs(browser.files) do
+            if item.path == target_path then
+                idx = i
+                break
+            end
+        end
+    end
+
+    xmb.current_item_idx = math.min(idx, math.max(1, #browser.files))
+    prep_files()
+    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
+    xmb.item_scroll_y = xmb.target_item_scroll_y
 end
 
 
@@ -225,6 +427,72 @@ local function open_video_context_menu(path)
     }, path)
 end
 
+local function open_playlist_context_menu(path)
+    open_context_menu("Playlist Options", {
+        { id = "rename_playlist", label = "Rename Playlist" },
+        { id = "remove_playlist", label = "Remove Playlist" },
+    }, path)
+end
+
+local function open_music_context_menu(path)
+    open_context_menu("Track Options", {
+        { id = "add_to_playlist", label = "Add to Playlist..." },
+    }, path)
+end
+
+local function open_playlist_sidebar(track_path)
+    xmb.playlist_sidebar_items = list_playlists()
+    if not xmb.playlist_sidebar_items or #xmb.playlist_sidebar_items == 0 then
+        ui.show_toast("No playlists created", "playlist_music", "top_center")
+        return false
+    end
+    xmb.playlist_sidebar_selected_idx = 1
+    xmb.playlist_sidebar_scroll_y = 0
+    xmb.playlist_sidebar_target_scroll_y = 0
+    xmb.playlist_sidebar_track_to_add = track_path
+    xmb.playlist_sidebar_active = true
+    return true
+end
+
+local function close_playlist_sidebar()
+    xmb.playlist_sidebar_active = false
+    xmb.playlist_sidebar_items = {}
+    xmb.playlist_sidebar_selected_idx = 1
+    xmb.playlist_sidebar_track_to_add = nil
+    xmb.playlist_sidebar_target_scroll_y = 0
+end
+
+local function ensure_playlist_sidebar_visible()
+    if not xmb.playlist_sidebar_items or #xmb.playlist_sidebar_items == 0 then
+        xmb.playlist_sidebar_target_scroll_y = 0
+        return
+    end
+    local screen_w, screen_h = love.graphics.getDimensions()
+    local panel_h = math.min(screen_h * 0.6, 420)
+    local list_h = panel_h - 140
+    local item_h = 36
+    local sel = xmb.playlist_sidebar_selected_idx or 1
+    local selected_y = (sel - 1) * item_h
+    local desired_top = selected_y - (list_h / 2 - item_h / 2)
+    local max_scroll = 0
+    local min_scroll = math.min(0, -(#xmb.playlist_sidebar_items * item_h) + list_h)
+    local target = -desired_top
+    if target > max_scroll then target = max_scroll end
+    if target < min_scroll then target = min_scroll end
+    xmb.playlist_sidebar_target_scroll_y = target
+end
+
+local function add_track_to_playlist(playlist_path, track_path)
+    if not playlist_path or not track_path then return nil, "missing" end
+    -- Normalize slashes in playlist entries
+    local entry = track_path:gsub("\\", "/")
+    local f, err = io.open(playlist_path, "a")
+    if not f then return nil, err end
+    f:write(entry .. "\n")
+    f:close()
+    return true
+end
+
 local function apply_context_action(action_id)
     if action_id == "set_wallpaper" and xmb.context_menu.target_path then
         local path = xmb.context_menu.target_path
@@ -244,6 +512,47 @@ local function apply_context_action(action_id)
         local path = xmb.context_menu.target_path
         local watched = video_manager.toggle_watched(path)
         --ui.show_toast(watched and "Marked as watched" or "Marked as unwatched", "video", "bottom_right")
+    elseif action_id == "rename_playlist" and xmb.context_menu.target_path then
+        local old_path = xmb.context_menu.target_path
+        local old_name = utils.get_filename(old_path) or old_path
+        old_name = old_name:gsub("%.m3u8?$", "")
+
+        keyboard.open({
+            title = "Rename Playlist",
+            value = old_name,
+            max_length = 50,
+            on_submit = function(name)
+                local new_path, err, replaced_invalid = rename_playlist(old_path, name)
+                if not new_path then
+                    if err == "invalid_name" then
+                        ui.show_toast("Enter a valid playlist name", "playlist_add", "top_center")
+                    elseif err == "exists" then
+                        ui.show_toast("Playlist already exists", "playlist_music", "top_center")
+                    else
+                        ui.show_toast("Could not rename playlist", "info", "top_center")
+                    end
+                    return
+                end
+
+                refresh_playlist_items(new_path, xmb.current_item_idx)
+                if replaced_invalid then
+                    ui.show_toast("Invalid filename characters", "info", "top_center")
+                end
+                ui.show_toast("Playlist renamed", "playlist_music", "bottom_right")
+            end,
+        })
+    elseif action_id == "remove_playlist" and xmb.context_menu.target_path then
+        local path = xmb.context_menu.target_path
+        local ok, err = remove_playlist(path)
+        if not ok then
+            ui.show_toast("Could not remove playlist", "info", "top_center")
+            return
+        end
+
+        refresh_playlist_items(nil, xmb.current_item_idx)
+        ui.show_toast("Playlist removed", "playlist_music", "bottom_right")
+    elseif action_id == "add_to_playlist" and xmb.context_menu.target_path then
+        open_playlist_sidebar(xmb.context_menu.target_path)
     end
 end
 
@@ -293,6 +602,9 @@ function xmb.go_back()
                 else
                     xmb.view_type = "music_artists"
                 end
+                xmb.refresh_items()
+            elseif xmb.view_type == "playlist_tracks" then
+                xmb.view_type = "music_playlists"
                 xmb.refresh_items()
             else
                 xmb.view_type = "category_root"
@@ -372,6 +684,8 @@ function xmb.refresh_items()
                 { name = "Albums", type = "view_trigger", target_view = "music_albums", icon = "albums" })
             table.insert(browser.files,
                 { name = "Artists", type = "view_trigger", target_view = "music_artists", icon = "mic" })
+            table.insert(browser.files,
+                { name = "Playlists", type = "view_trigger", target_view = "music_playlists", icon = "playlist_music" })
 
             local music_count = 0
             for _ in pairs(indexing.data.music.files) do music_count = music_count + 1 end
@@ -408,6 +722,20 @@ function xmb.refresh_items()
                 table.insert(browser.files, { name = name, type = "artist", data = artist })
             end
             table.sort(browser.files, function(a, b) return a.name:lower() < b.name:lower() end)
+        elseif xmb.view_type == "music_playlists" then
+            table.insert(browser.files, {
+                name = "Create Playlist",
+                type = "playlist_create",
+                icon = "playlist_add",
+            })
+
+            local playlists = list_playlists()
+            for _, item in ipairs(playlists) do
+                local tracks = parse_m3u_playlist(item.path)
+                local track_count = #tracks
+                item.description = (track_count == 0) and "Empty" or (track_count .. " tracks")
+                table.insert(browser.files, item)
+            end
         elseif xmb.view_type == "album_tracks" then
             table.insert(browser.files,
                 { name = "Shuffle Play", type = "shuffle_play", icon = "shuffle", tracks = xmb.view_data.tracks })
@@ -421,6 +749,26 @@ function xmb.refresh_items()
             for _, path in ipairs(xmb.view_data.tracks) do
                 local info = indexing.data.music.files[path]
                 table.insert(browser.files, { name = info.title or "Unknown", path = path, type = "file" })
+            end
+        elseif xmb.view_type == "playlist_tracks" then
+            if xmb.view_data and xmb.view_data.tracks then
+                -- Show Shuffle Play first, then first track, then remaining tracks
+                if #xmb.view_data.tracks > 0 then
+                    table.insert(browser.files,
+                        { name = "Shuffle Play", type = "shuffle_play", icon = "shuffle", tracks = xmb.view_data.tracks })
+                end
+                if #xmb.view_data.tracks > 0 then
+                    local first_track = xmb.view_data.tracks[1]
+                    local info = indexing.data.music.files[first_track.path]
+                    local track_name = (info and info.title) or first_track.name or "Unknown"
+                    table.insert(browser.files, { name = track_name, path = first_track.path, type = "file" })
+                end
+                for i = 2, #xmb.view_data.tracks do
+                    local track = xmb.view_data.tracks[i]
+                    local info = indexing.data.music.files[track.path]
+                    local track_name = (info and info.title) or track.name or "Unknown"
+                    table.insert(browser.files, { name = track_name, path = track.path, type = "file" })
+                end
             end
         elseif xmb.view_type == "browser" then
             browser.scan()
@@ -670,6 +1018,12 @@ function xmb.update(dt)
         xmb.context_menu.alpha = math.max(0, xmb.context_menu.alpha - dt * 10)
     end
 
+    if xmb.playlist_sidebar_active then
+        xmb.playlist_sidebar_alpha = math.min(1, xmb.playlist_sidebar_alpha + dt * 12)
+    else
+        xmb.playlist_sidebar_alpha = math.max(0, xmb.playlist_sidebar_alpha - dt * 12)
+    end
+
     -- Smooth scroll (use exponential smoothing for consistent easing)
     xmb.category_scroll_x = utils.smooth(xmb.category_scroll_x, xmb.target_category_scroll_x, dt, 10)
     xmb.item_scroll_y = utils.smooth(xmb.item_scroll_y, xmb.target_item_scroll_y, dt, 10)
@@ -682,6 +1036,8 @@ function xmb.update(dt)
 
     local selected = browser.files[xmb.current_item_idx]
     settings_view.update(dt, selected and selected.setting_idx)
+
+    xmb.playlist_sidebar_scroll_y = utils.lerp(xmb.playlist_sidebar_scroll_y, xmb.playlist_sidebar_target_scroll_y or 0, dt * 12)
 
     -- Categories are centered at 1/4 of screen width
     xmb.target_category_scroll_x = -(xmb.current_category_idx - 1) * (theme.icon_size + theme.icon_spacing)
@@ -699,6 +1055,12 @@ function xmb.update(dt)
         xmb.item_marquee.offset = 0
         xmb.item_marquee.timer = 0
         xmb.item_marquee.phase = "pause_start"
+    end
+
+    if keyboard.is_active() or xmb.playlist_sidebar_active then
+        xmb.last_key = nil
+        xmb.repeat_timer = 0
+        return
     end
 
     -- Continuous scroll handling
@@ -737,6 +1099,40 @@ function xmb.update(dt)
 end
 
 function xmb.keypressed(key, player, music, viewer)
+    if keyboard.is_active() then
+        keyboard.keypressed(key)
+        if settings.keytone_enabled then
+            assets.play_sfx("nav")
+        end
+        return
+    end
+
+    if xmb.playlist_sidebar_active then
+        if key == "up" then
+            xmb.playlist_sidebar_selected_idx = math.max(1, xmb.playlist_sidebar_selected_idx - 1)
+            ensure_playlist_sidebar_visible()
+            if settings.keytone_enabled then assets.play_sfx("nav") end
+        elseif key == "down" then
+            xmb.playlist_sidebar_selected_idx = math.min(#xmb.playlist_sidebar_items, xmb.playlist_sidebar_selected_idx + 1)
+            ensure_playlist_sidebar_visible()
+            if settings.keytone_enabled then assets.play_sfx("nav") end
+        elseif key == "return" or key == "enter" or key == "a" or key == "space" then
+            local pick = xmb.playlist_sidebar_items[xmb.playlist_sidebar_selected_idx]
+            if pick and xmb.playlist_sidebar_track_to_add then
+                local ok = add_track_to_playlist(pick.path, xmb.playlist_sidebar_track_to_add)
+                if ok then
+                    ui.show_toast("Added to playlist", "playlist_music", "bottom_right")
+                else
+                    ui.show_toast("Could not add to playlist", "info", "top_center")
+                end
+            end
+            close_playlist_sidebar()
+        elseif key == "backspace" or key == "b" or key == "escape" then
+            close_playlist_sidebar()
+        end
+        return
+    end
+
     if settings_view.active then
         -- If folder picker is active, handle its navigation separately
         if settings_view.picker_active then
@@ -1029,10 +1425,20 @@ function xmb.keypressed(key, player, music, viewer)
             elseif selected.type == "shuffle_play" then
                 local playlist = {}
                 if selected.tracks then
-                    -- From indexing data
-                    for _, path in ipairs(selected.tracks) do
-                        local info = indexing.data.music.files[path]
-                        table.insert(playlist, { name = info.title or utils.get_filename(path), path = path })
+                    -- From playlist or indexing data
+                    for _, item in ipairs(selected.tracks) do
+                        -- Check if item is already a track object (from playlist) or just a path
+                        if type(item) == "table" and item.name and item.path then
+                            table.insert(playlist, { name = item.name, path = item.path })
+                        else
+                            -- It's a path, look it up in indexing
+                            local info = indexing.data.music.files[item]
+                            if info then
+                                table.insert(playlist, { name = info.title or utils.get_filename(item), path = item })
+                            else
+                                table.insert(playlist, { name = utils.get_filename(item), path = item })
+                            end
+                        end
                     end
                 else
                     -- From current browser files
@@ -1068,6 +1474,52 @@ function xmb.keypressed(key, player, music, viewer)
                     utils.shuffle(playlist)
                     player.play_video(playlist)
                 end
+            elseif selected.type == "playlist_create" then
+                keyboard.open({
+                    title = "Create Playlist",
+                    max_length = 50,
+                    on_submit = function(name)
+                        local full_path, err, replaced_invalid = create_playlist(name)
+                        if not full_path then
+                            if err == "invalid_name" then
+                                ui.show_toast("Enter a valid playlist name", "playlist_add", "top_center")
+                            elseif err == "exists" then
+                                ui.show_toast("Playlist already exists", "playlist_music", "top_center")
+                            else
+                                ui.show_toast("Could not create playlist", "info", "top_center")
+                            end
+                            return
+                        end
+
+                        xmb.refresh_items()
+                        xmb.current_item_idx = 1
+                        for i, item in ipairs(browser.files) do
+                            if item.path == full_path then
+                                xmb.current_item_idx = i
+                                break
+                            end
+                        end
+                        prep_files()
+                        xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
+                        xmb.item_scroll_y = xmb.target_item_scroll_y
+                        if replaced_invalid then
+                            ui.show_toast("Invalid filename characters", "info", "top_center")
+                        end
+                        ui.show_toast("Playlist created", "playlist_music", "bottom_right")
+                    end,
+                })
+            elseif selected.type == "playlist" then
+                local tracks = parse_m3u_playlist(selected.path)
+                table.insert(xmb.nav_stack, xmb.current_item_idx)
+                xmb.view_type = "playlist_tracks"
+                xmb.view_data = { path = selected.path, tracks = tracks }
+                xmb.refresh_items()
+                xmb.current_item_idx = first_playlist_track_index()
+                prep_files()
+                xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
+                xmb.item_scroll_y = xmb.target_item_scroll_y
+                xmb.list_slide_x = 120
+                xmb.list_slide_alpha = 0
             end
         end
     elseif key == "backspace" or key == "b" then
@@ -1084,6 +1536,16 @@ function xmb.keypressed(key, player, music, viewer)
             end
         elseif selected and selected.type == "file" and (cat_id == "video" or cat_id == "folder") and is_video_file(selected.path) then
             open_video_context_menu(selected.path)
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+        elseif selected and selected.type == "file" and cat_id == "music" and is_music_file(selected.path) then
+            open_music_context_menu(selected.path)
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+        elseif selected and selected.type == "playlist" then
+            open_playlist_context_menu(selected.path)
             if settings.keytone_enabled then
                 assets.play_sfx("nav")
             end

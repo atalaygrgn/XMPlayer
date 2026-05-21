@@ -12,6 +12,7 @@ local settings_view  = require("settings_view")
 local video_manager  = require("video_manager")
 local indexing       = require("indexing")
 local utils          = require("utils")
+local keyboard       = require("onscreen_keyboard")
 
 local xmb_draw = {}
 
@@ -128,7 +129,7 @@ function xmb_draw.draw()
                 if cat_id == "video" then
                     icon = assets.images.file_video
                 elseif cat_id == "music" then
-                    if xmb.view_type == "album_tracks" or xmb.view_type == "artist_tracks" then
+                    if xmb.view_type == "album_tracks" or xmb.view_type == "artist_tracks" or xmb.view_type == "playlist_tracks" then
                         icon = assets.images.track
                     else
                         icon = assets.images.file_music
@@ -239,6 +240,77 @@ function xmb_draw.draw()
             end
         end
     end
+
+    -- ─── Playlist Sidebar (Add to Playlist) ───
+    local ps = xmb.playlist_sidebar
+    if xmb.playlist_sidebar_active or xmb.playlist_sidebar_alpha > 0 then
+        local alpha = xmb.playlist_sidebar_alpha
+        local panel_w = screen_w * 0.6
+        local x = screen_w - (panel_w * alpha)
+        local y = 0
+
+        love.graphics.setColor(0.02, 0.02, 0.05, 0.92 * alpha)
+        love.graphics.rectangle("fill", x, y, panel_w, screen_h)
+        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.8 * alpha)
+        love.graphics.rectangle("fill", x, y, 4, screen_h)
+
+        love.graphics.setFont(assets.fonts.main)
+        ui.draw_glow_text("Add to Playlist", x + 20, 50, assets.fonts.main,
+            { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
+
+        local content_y_base = screen_h * 0.25
+        local visible_area_h = screen_h * 0.6
+        local list_x = x + 20
+        local list_y = content_y_base
+        local panel_h = math.min(screen_h * 0.6, 420)
+        local list_h = panel_h
+        local item_h = 48
+
+        love.graphics.setScissor(list_x - 6, list_y - 6, panel_w - 28, list_h)
+        love.graphics.push()
+        love.graphics.translate(0, list_y + xmb.playlist_sidebar_scroll_y)
+
+        for i, it in ipairs(xmb.playlist_sidebar_items or {}) do
+            local cy = (i - 1) * item_h
+            local focused = (i == xmb.playlist_sidebar_selected_idx)
+            if focused then
+                love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.3 * alpha)
+                love.graphics.rectangle("fill", list_x - 6, cy - 6, panel_w - 28, item_h, 6, 6)
+                love.graphics.setColor(1,1,1,1 * alpha)
+            else
+                love.graphics.setColor(1,1,1,0.8 * alpha)
+            end
+            love.graphics.setFont(assets.fonts.small)
+            love.graphics.print(it.name or "", list_x, cy + 4)
+        end
+
+        love.graphics.pop()
+        love.graphics.setScissor()
+
+        -- Scroll indicators (match Settings panel style)
+        local items = xmb.playlist_sidebar_items or {}
+        if #items * item_h > list_h then
+            love.graphics.setColor(1, 1, 1, 0.3 * alpha)
+            local centerX = x + panel_w / 2
+            -- Up arrow: show when content is scrolled down (there's content above)
+            if xmb.playlist_sidebar_scroll_y < -1 then
+                love.graphics.polygon("fill",
+                    centerX - 10, list_y - 14,
+                    centerX + 10, list_y - 14,
+                    centerX,      list_y - 26)
+            end
+            -- Down arrow: show when there's content below the visible area
+            if xmb.playlist_sidebar_scroll_y > -(#items * item_h) + list_h then
+                local targetY = list_y + list_h + 14
+                love.graphics.polygon("fill",
+                    centerX - 10, targetY,
+                    centerX + 10, targetY,
+                    centerX,      targetY + 12)
+            end
+        end
+    end
+
+    keyboard.draw()
 end
 
 return xmb_draw
