@@ -39,7 +39,7 @@ function player.play_video(filepath, resume)
 
     local resume_flag = resume and "--resume-playback=yes" or "--start=0"
     local command = string.format(
-        "mpv %s --save-position-on-quit --watch-later-directory=%q --write-filename-in-watch-later-config=yes %s --input-conf=./config/input.conf",
+        "mpv %s --save-position-on-quit --watch-later-directory=%q --write-filename-in-watch-later-config=yes %s --input-conf=./config/input.conf --config-dir=./config",
         paths_str, watch_later_dir, resume_flag)
 
     print("Executing: " .. command)

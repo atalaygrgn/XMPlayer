@@ -76,7 +76,7 @@ Fluid particle animations and customizable color themes to your liking. You can 
 | **L2** | - | Seek -10s | Cycle Audio Tracks | - |
 | **R1** | - | Next Track | Next Video | Next Image |
 | **R2** | - | Seek +10s | Cycle Subtitles | - |
-| **Start** | - | - | Change Aspect Ratio | Toggle Info |
+| **Start** | - | - | Toggle Aspect Ratio | Toggle Info |
 | **Select** | - | - | Return to XMB | Return to XMB |
 
 ---

@@ -12,7 +12,7 @@ local hasFFI = pcall(function() ffi = require("ffi") end)
 local SAMPLE_RATE = 44100
 local CHANNELS = 2
 local BIT_DEPTH = 16
-local BYTES_PER_SAMPLE = (BIT_DEPTH / 8) * CHANNELS  -- 4 bytes: 2 channels * 2 bytes each
+local BYTES_PER_SAMPLE = (BIT_DEPTH / 8) * CHANNELS    -- 4 bytes: 2 channels * 2 bytes each
 local MIN_PLAY_FRAMES = math.floor(SAMPLE_RATE * 0.05) -- 50ms worth of frames before forcing play
 
 -- Thread and channel management
@@ -23,22 +23,23 @@ local queueableSource = nil
 local streamChannelName = "audio_stream_channel"
 local controlChannelName = "audio_control_channel"
 local currentGeneration = 0
+local terminatingChannels = {}
 
 -- Playback state
 local isPlaying = false
 local isPaused = false
-local hasStartedPlayback = false  -- Track if we've initiated playback at least once
+local hasStartedPlayback = false -- Track if we've initiated playback at least once
 local playbackHasStarted = false -- True after queueableSource:play() actually called
 local currentFilePath = nil
 local totalDuration = 0
 local elapsedTime = 0
 local startTime = 0  -- Wall clock time when playback started
-local pausedTime = 0  -- Time at pause moment
+local pausedTime = 0 -- Time at pause moment
 
 -- Sample tracking for visualizers
-local totalSamplesQueued = 0  -- Total samples ever pushed to queue
-local sampleRingBuffer = {}  -- For visualizer access
-local ringBufferSize = SAMPLE_RATE * 2  -- 2 seconds of samples for visualizer
+local totalSamplesQueued = 0           -- Total samples ever pushed to queue
+local sampleRingBuffer = {}            -- For visualizer access
+local ringBufferSize = SAMPLE_RATE * 2 -- 2 seconds of samples for visualizer
 local currentSeekTime = 0
 local totalSamplesQueuedAtSeek = 0
 
@@ -53,30 +54,30 @@ end
 -- Extract sample data from 16-bit PCM bytes and update ring buffer
 local function processPCMChunk(rawBytes)
     if not rawBytes or #rawBytes < 2 then return 0 end
-    
+
     local sampleCount = #rawBytes / BYTES_PER_SAMPLE
-    
+
     -- Parse 16-bit signed little-endian PCM samples
     for i = 1, #rawBytes, 2 do
         -- Read two bytes as little-endian 16-bit signed integer
         local byte1 = string.byte(rawBytes, i)
         local byte2 = string.byte(rawBytes, i + 1)
         local sample = byte1 + (byte2 * 256)
-        
+
         -- Convert to signed
         if sample > 32767 then
             sample = sample - 65536
         end
-        
+
         -- Normalize to -1.0 to 1.0 range
         sample = sample / 32768.0
-        
+
         -- Store in ring buffer for visualizer
         local ringIdx = (totalSamplesQueued % ringBufferSize) + 1
         sampleRingBuffer[ringIdx] = sample
         totalSamplesQueued = totalSamplesQueued + 1
     end
-    
+
     return sampleCount
 end
 
@@ -87,15 +88,15 @@ local function getDuration(filepath)
         'ffprobe -v error -show_entries format=duration -of "default=noprint_wrappers=1:nokey=1:nokey=1" "%s"',
         filepath
     )
-    
+
     local pipe = io.popen(ffprobeCmd, "r")
     if not pipe then
         return 0
     end
-    
+
     local output = pipe:read("*a")
     pipe:close()
-    
+
     -- Parse the duration value
     local duration = tonumber(output)
     return duration or 0
@@ -104,10 +105,10 @@ end
 function ffmpeg_audio.init()
     audioChannel = love.thread.getChannel(streamChannelName)
     controlChannel = love.thread.getChannel(controlChannelName)
-    
+
     -- Create QueueableSource for 44100Hz, 16-bit, stereo
     queueableSource = love.audio.newQueueableSource(SAMPLE_RATE, BIT_DEPTH, CHANNELS)
-    
+
     initRingBuffer()
 end
 
@@ -119,7 +120,7 @@ function ffmpeg_audio.load(filepath)
     if queueableSource then
         queueableSource:stop()
     end
-    
+
     currentFilePath = filepath
     isPlaying = false
     isPaused = false
@@ -129,9 +130,13 @@ function ffmpeg_audio.load(filepath)
     totalSamplesQueued = 0
     currentSeekTime = 0
     totalSamplesQueuedAtSeek = 0
-    
+
     initRingBuffer()
-    
+
+    if streamChannelName then
+        table.insert(terminatingChannels, streamChannelName)
+    end
+
     currentGeneration = currentGeneration + 1
     streamChannelName = "audio_stream_channel_" .. currentGeneration
     controlChannelName = "audio_control_channel_" .. currentGeneration
@@ -141,20 +146,20 @@ function ffmpeg_audio.load(filepath)
 
     -- Clear any pending messages from previous thread
     while audioChannel:pop() do end
-    
+
     -- Get duration
     totalDuration = getDuration(filepath)
-    
+
     -- Start FFmpeg background thread (non-blocking)
     audioThread = love.thread.newThread("audio_worker.lua")
     audioThread:start(filepath, streamChannelName, controlChannelName, currentGeneration)
-    
+
     return true
 end
 
 function ffmpeg_audio.play()
     if not queueableSource then return end
-    
+
     if isPaused then
         -- Resume from pause
         queueableSource:play()
@@ -172,7 +177,7 @@ end
 
 function ffmpeg_audio.pause()
     if not queueableSource then return end
-    
+
     if isPlaying and not isPaused then
         queueableSource:pause()
         pausedTime = elapsedTime
@@ -184,11 +189,11 @@ function ffmpeg_audio.stop()
     if queueableSource then
         queueableSource:stop()
     end
-    
+
     if audioThread and controlChannel then
         controlChannel:push({ command = "stop", generation = currentGeneration })
     end
-    
+
     isPlaying = false
     isPaused = false
     hasStartedPlayback = false
@@ -197,6 +202,25 @@ function ffmpeg_audio.stop()
 end
 
 function ffmpeg_audio.update()
+    -- Process terminating channels from previous generations to prevent memory leak
+    for i = #terminatingChannels, 1, -1 do
+        local chanName = terminatingChannels[i]
+        local chan = love.thread.getChannel(chanName)
+        local keep = true
+        while true do
+            local msg = chan:pop()
+            if not msg then
+                break
+            end
+            if msg.type == "thread_done" then
+                keep = false
+            end
+        end
+        if not keep then
+            table.remove(terminatingChannels, i)
+        end
+    end
+
     -- Check for thread errors
     if audioThread then
         local err = audioThread:getError()
@@ -206,7 +230,7 @@ function ffmpeg_audio.update()
             return
         end
     end
-    
+
     -- Process incoming PCM data from thread
     local bufferCount = queueableSource:getFreeBufferCount()
     while bufferCount > 0 do
@@ -220,10 +244,10 @@ function ffmpeg_audio.update()
             if message.type == "audio_data" then
                 -- Convert PCM bytes to SoundData and queue it
                 local sampleCount = processPCMChunk(message.data)
-                
+
                 local ok, soundData = pcall(function()
                     local sd = love.sound.newSoundData(sampleCount, SAMPLE_RATE, BIT_DEPTH, CHANNELS)
-                    
+
                     -- Copy bytes into SoundData if FFI is available
                     if hasFFI and ffi then
                         local ptr = sd:getPointer()
@@ -246,10 +270,10 @@ function ffmpeg_audio.update()
                             end
                         end
                     end
-                    
+
                     return sd
                 end)
-                
+
                 if ok and soundData then
                     queueableSource:queue(soundData)
                     bufferCount = queueableSource:getFreeBufferCount()
@@ -272,14 +296,12 @@ function ffmpeg_audio.update()
                 else
                     print("Failed to create SoundData: " .. tostring(soundData))
                 end
-                
             elseif message.type == "end" or message.type == "thread_done" then
                 -- Stream ended or thread finishing
                 if message.type == "thread_done" then
                     audioThread = nil
                 end
                 break
-                
             elseif message.type == "error" then
                 -- Error in thread
                 print("FFmpeg error: " .. (message.message or "unknown"))
@@ -288,7 +310,7 @@ function ffmpeg_audio.update()
             end
         end
     end
-    
+
     -- Update elapsed time if playing
     if isPlaying and not isPaused and queueableSource:isPlaying() then
         elapsedTime = love.timer.getTime() - startTime
@@ -363,6 +385,10 @@ function ffmpeg_audio.seek(time)
     startTime = love.timer.getTime() - targetTime
     currentSeekTime = targetTime
     totalSamplesQueuedAtSeek = totalSamplesQueued
+
+    if streamChannelName then
+        table.insert(terminatingChannels, streamChannelName)
+    end
 
     currentGeneration = currentGeneration + 1
     streamChannelName = "audio_stream_channel_" .. currentGeneration

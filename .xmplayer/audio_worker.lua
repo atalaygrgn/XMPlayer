@@ -15,11 +15,16 @@ if seekTime and tonumber(seekTime) and tonumber(seekTime) > 0 then
     seekOpt = string.format("-ss %.3f ", tonumber(seekTime))
 end
 
+-- Determine null device based on path separator to redirect stderr safely (thread safe)
+local isWindows = (package.config:sub(1,1) == "\\")
+local devNull = isWindows and "NUL" or "/dev/null"
+
 -- FFmpeg command: decode to 16-bit PCM at 44100Hz stereo, no video.
 local ffmpegCmd = string.format(
-    'ffmpeg -nostdin -v error %s-i "%s" -vn -f s16le -acodec pcm_s16le -ar 44100 -ac 2 -',
+    'ffmpeg -nostdin -v error %s-i "%s" -vn -f s16le -acodec pcm_s16le -ar 44100 -ac 2 - 2>%s',
     seekOpt,
-    mediaPath
+    mediaPath,
+    devNull
 )
 
 -- Open FFmpeg pipe for reading raw PCM data
