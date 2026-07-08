@@ -1,3 +1,0 @@
-*.sh text eol=lf
-*.lua text eol=lf
-Makefile text eol=lf
