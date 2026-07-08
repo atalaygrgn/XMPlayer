@@ -1,0 +1,19 @@
+guide = esc
+
+up = up
+down = down
+left = left
+right = right
+
+a = enter
+b = backspace
+x = x
+y = y
+
+l1 = pageup
+r1 = pagedown
+l2 = l
+r2 = e
+
+start = z
+select = space
