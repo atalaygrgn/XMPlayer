@@ -4,6 +4,8 @@ local metadata     = require("metadata")
 local ui           = require("ui")
 local utils        = require("utils")
 local ffmpeg_audio = require("ffmpeg_audio")
+local viewport     = require("viewport")
+local indexing     = require("indexing")
 
 local music = {}
 
@@ -30,6 +32,8 @@ music.next_tags = {}
 
 -- Animation
 music.fade_alpha = 0
+music.slide_x = 0
+music.pending_slide_dir = nil
 music.marquees   = {}  -- Populated by music_view.init()
 
 function music.init()
@@ -67,7 +71,13 @@ function music.load_track(track_info)
     -- Pre-load next track tags for display
     if #music.playlist > 1 then
         local next_idx = (music.current_index % #music.playlist) + 1
-        music.next_tags = metadata.get_tags(music.playlist[next_idx].path)
+        local next_path = music.playlist[next_idx].path
+        local indexed = (indexing and indexing.data and indexing.data.music and indexing.data.music.files) and indexing.data.music.files[next_path]
+        if indexed then
+            music.next_tags = { title = indexed.title }
+        else
+            music.next_tags = { title = utils.get_track_name(music.playlist[next_idx].name) }
+        end
     else
         music.next_tags = {}
     end
@@ -94,12 +104,19 @@ function music.load_track(track_info)
         ffmpeg_audio.play()
         music.playing = true
         music.paused = false
+        if music.pending_slide_dir then
+            music.slide_x = music.pending_slide_dir
+            music.pending_slide_dir = nil
+        else
+            music.slide_x = 0
+        end
         return true
     else
         print("Failed to load with FFmpeg: " .. track_info.path)
         music.playing = false
         music.source = nil
         music.sound_data = nil
+        music.pending_slide_dir = nil
         return false
     end
 end
@@ -127,6 +144,7 @@ function music.play(filepath, custom_playlist)
 
     music.active = true
     music.fade_alpha = 0
+    music.slide_x = 0
     if music.auto_sleep_minutes > 0 then
         music.auto_sleep_remaining = music.auto_sleep_minutes * 60
     else
@@ -161,18 +179,21 @@ function music.next_track()
     if music.current_index > #music.playlist then
         music.current_index = 1
     end
+    music.pending_slide_dir = 120
     music.load_track(music.playlist[music.current_index])
 end
 
 function music.prev_track()
     if #music.playlist == 0 then return end
     if music.elapsed > 3 then
+        music.pending_slide_dir = -120
         music.load_track(music.playlist[music.current_index])
     else
         music.current_index = music.current_index - 1
         if music.current_index < 1 then
             music.current_index = #music.playlist
         end
+        music.pending_slide_dir = -120
         music.load_track(music.playlist[music.current_index])
     end
 end
@@ -182,6 +203,7 @@ function music.close()
     music.active = false
     music.current_track = nil
     music.playlist = {}
+    music.slide_x = 0
     music.auto_sleep_remaining = nil
 end
 
@@ -191,7 +213,7 @@ end
 
 function music.set_auto_sleep_minutes(minutes)
     local mins = tonumber(minutes) or 0
-    mins = math.max(0, math.min(30, math.floor(mins)))
+    mins = math.max(0, math.min(120, math.floor(mins)))
     music.auto_sleep_minutes = mins
 
     if mins > 0 and music.active then
@@ -202,7 +224,7 @@ function music.set_auto_sleep_minutes(minutes)
 end
 
 function music.set_visualizer_mode(mode)
-    if mode == "off" or mode == "wave" or mode == "bars" then
+    if mode == "off" or mode == "wave" or mode == "bars" or mode == "walk" then
         music.visualizer_mode = mode
     end
 end
@@ -216,6 +238,14 @@ function music.update(dt)
     -- Fade in
     if music.fade_alpha < 1 then
         music.fade_alpha = math.min(1, music.fade_alpha + dt * 4)
+    end
+
+    -- Update slide_x
+    if music.slide_x and music.slide_x ~= 0 then
+        music.slide_x = utils.smooth(music.slide_x, 0, dt, 14)
+        if math.abs(music.slide_x) < 0.5 then
+            music.slide_x = 0
+        end
     end
 
     if music.auto_sleep_remaining then
@@ -240,6 +270,7 @@ function music.update(dt)
 
             if near_end then
                 if music.repeat_one and music.playlist[music.current_index] then
+                    music.pending_slide_dir = 120
                     music.load_track(music.playlist[music.current_index])
                 else
                     music.next_track()
@@ -249,20 +280,30 @@ function music.update(dt)
 
     -- Update marquees
     if music.current_track then
-        local info_w = love.graphics.getWidth() * 0.65
+        local info_w = viewport.get() * 0.65
         music.marquees.title.max_width = info_w
         music.marquees.artist.max_width = info_w
         music.marquees.album.max_width = info_w
 
         local track_name = music.tags.title or utils.get_track_name(music.current_track.name)
-        ui.update_marquee(music.marquees.title, dt, assets.fonts.title:getWidth(track_name))
+        ui.update_marquee(music.marquees.title, dt, ui.measure_text_width(assets.fonts.title, track_name))
 
         local artist_name = music.tags.artist or "Unknown Artist"
-        ui.update_marquee(music.marquees.artist, dt, assets.fonts.artist:getWidth(artist_name))
+        ui.update_marquee(music.marquees.artist, dt, ui.measure_text_width(assets.fonts.artist, artist_name))
 
         local album_name = music.tags.album or "Unknown Album"
-        ui.update_marquee(music.marquees.album, dt, assets.fonts.album:getWidth(album_name))
+        ui.update_marquee(music.marquees.album, dt, ui.measure_text_width(assets.fonts.album, album_name))
     end
+end
+
+function music.seek(seconds)
+    if not music.active or not music.source then return end
+
+    local target = music.elapsed + seconds
+    ffmpeg_audio.seek(target)
+
+    -- Update state immediately for visual responsiveness
+    music.elapsed = math.max(0, math.min(target, music.duration))
 end
 
 return music

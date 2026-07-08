@@ -1,4 +1,5 @@
 local viewer = {}
+local viewport = require("viewport")
 
 viewer.active = false
 viewer.current_image = nil
@@ -7,6 +8,10 @@ viewer.playlist = {}
 viewer.current_index = 1
 
 viewer.zoom = 1.0
+viewer.target_zoom = 1.0
+viewer.rotation = 0
+viewer.target_rotation = 0
+viewer.show_info = true
 viewer.pan_x = 0
 viewer.pan_y = 0
 viewer.fade_alpha = 0
@@ -71,22 +76,29 @@ function viewer.load_image(path)
     
     if ok then
         viewer.current_image = result
-        viewer.reset_view()
+        viewer.reset_view(true)
     else
         print("Failed to load image: " .. tostring(result))
         viewer.current_image = nil
     end
 end
 
-function viewer.reset_view()
+function viewer.reset_view(snap)
     if not viewer.current_image then return end
     
-    local w, h = love.graphics.getDimensions()
+    local w, h = viewport.get()
     local img_w, img_h = viewer.current_image:getDimensions()
     
     local scale_w = w / img_w
     local scale_h = h / img_h
-    viewer.zoom = math.min(scale_w, scale_h)
+    local target = math.min(scale_w, scale_h)
+    
+    viewer.target_zoom = target
+    viewer.target_rotation = 0
+    if snap then
+        viewer.zoom = target
+        viewer.rotation = 0
+    end
     
     -- Center the image
     viewer.pan_x = w / 2
@@ -123,11 +135,65 @@ function viewer.update(dt)
         viewer.fade_alpha = math.min(1, viewer.fade_alpha + dt * 4)
     end
     
-    if love.keyboard.isDown("y") then
+    if viewer.zoom ~= viewer.target_zoom then
+        local lerp_factor = 1 - math.exp(-10 * dt)
+        viewer.zoom = viewer.zoom + (viewer.target_zoom - viewer.zoom) * lerp_factor
+        if math.abs(viewer.zoom - viewer.target_zoom) < 0.0001 then
+            viewer.zoom = viewer.target_zoom
+        end
+    end
+
+    if viewer.rotation ~= viewer.target_rotation then
+        local diff = viewer.target_rotation - viewer.rotation
+        diff = (diff + math.pi) % (2 * math.pi) - math.pi
+        
+        local lerp_factor = 1 - math.exp(-10 * dt)
+        viewer.rotation = viewer.rotation + diff * lerp_factor
+        viewer.rotation = viewer.rotation % (2 * math.pi)
+        
+        if math.abs(diff) < 0.0001 then
+            viewer.rotation = viewer.target_rotation
+        end
+    end
+    
+    if viewer.current_image then
+        local w, h = viewport.get()
+        local img_w, img_h = viewer.current_image:getDimensions()
+        
+        -- Check target rotation to determine effective width and height
+        local rot_90_count = math.floor(math.abs(viewer.target_rotation / (math.pi / 2)) + 0.5)
+        local eff_w, eff_h = img_w, img_h
+        if rot_90_count % 2 == 1 then
+            eff_w, eff_h = img_h, img_w
+        end
+        
         if love.keyboard.isDown("up") then viewer.pan_y = viewer.pan_y + pan_speed * dt end
         if love.keyboard.isDown("down") then viewer.pan_y = viewer.pan_y - pan_speed * dt end
         if love.keyboard.isDown("left") then viewer.pan_x = viewer.pan_x + pan_speed * dt end
         if love.keyboard.isDown("right") then viewer.pan_x = viewer.pan_x - pan_speed * dt end
+        
+        -- Clamp pan positions to borders
+        local half_img_w = (eff_w / 2) * viewer.zoom
+        local min_x, max_x
+        if eff_w * viewer.zoom > w then
+            min_x = w - half_img_w
+            max_x = half_img_w
+        else
+            min_x = half_img_w
+            max_x = w - half_img_w
+        end
+        viewer.pan_x = math.max(min_x, math.min(max_x, viewer.pan_x))
+        
+        local half_img_h = (eff_h / 2) * viewer.zoom
+        local min_y, max_y
+        if eff_h * viewer.zoom > h then
+            min_y = h - half_img_h
+            max_y = half_img_h
+        else
+            min_y = half_img_h
+            max_y = h - half_img_h
+        end
+        viewer.pan_y = math.max(min_y, math.min(max_y, viewer.pan_y))
     end
 end
 

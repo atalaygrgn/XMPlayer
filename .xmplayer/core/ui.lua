@@ -1,12 +1,61 @@
 local theme = require("theme")
 local assets = require("assets")
 local utils = require("utils")
+local viewport = require("viewport")
 local ui = {}
 
 ui.active_toasts = {}
 
+function ui.measure_text_width(font, text)
+    return font:getWidth(text or "")
+end
+
+function ui.measure_text_height(font)
+    return font:getHeight()
+end
+
+function ui.print_text(text, x, y, font, color)
+    if font then
+        love.graphics.setFont(font)
+    end
+    if color then
+        love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+    end
+    local scale = (simpleScale and simpleScale.scale) or 1
+    if scale ~= 1 then
+        love.graphics.push()
+        love.graphics.translate(x, y)
+        love.graphics.scale(1 / scale, 1 / scale)
+        love.graphics.print(text or "", 0, 0)
+        love.graphics.pop()
+    else
+        love.graphics.print(text or "", x, y)
+    end
+end
+
+function ui.printf_text(text, x, y, limit, align, font, color)
+    if font then
+        love.graphics.setFont(font)
+    end
+    if color then
+        love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+    end
+    local scale = (simpleScale and simpleScale.scale) or 1
+    if scale ~= 1 then
+        love.graphics.push()
+        love.graphics.translate(x, y)
+        love.graphics.scale(1 / scale, 1 / scale)
+        love.graphics.printf(text or "", 0, 0, (limit or 0) * scale, align)
+        love.graphics.pop()
+    else
+        love.graphics.printf(text or "", x, y, limit or 0, align)
+    end
+end
+
 -- Gloss Shader for premium glass icons (Static 3D look)
 ui.gloss_shader = love.graphics.newShader [[
+    uniform vec3 accent_color;
+
     vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
         vec4 texcolor = Texel(texture, texture_coords);
         if (texcolor.a <= 0.001) return vec4(0.0);
@@ -14,16 +63,19 @@ ui.gloss_shader = love.graphics.newShader [[
         // Base color with vertex tint
         vec4 base = texcolor * color;
 
-        // 3D Bottom Highlight (Static)
+        // Slightly tint base color to the accent theme color, then dim it to 88% to let gloss pop
+        vec3 surface = mix(base.rgb, accent_color, 0.2) * 0.88;
+
+        // 3D Bottom Highlight (Static) with larger vertical radius
         // Concentrated at the bottom, falling off towards the center
-        float bottom_glow = smoothstep(0.5, 1.0, texture_coords.y);
-        float horizontal_focus = 1.0 - pow(abs(texture_coords.x - 0.5) * 2.1, 2.0);
-        float gloss = clamp(bottom_glow * horizontal_focus, 0.0, 1.0) * 0.35 * texcolor.a;
+        float bottom_glow = smoothstep(0.3, 1.0, texture_coords.y);
+        float horizontal_focus = 1.0 - pow(abs(texture_coords.x - 0.5) * 1.8, 2.0);
+        float gloss = clamp(bottom_glow * horizontal_focus, 0.0, 1.0) * 0.45 * texcolor.a;
 
         // Subtle top darkening to enhance depth
-        float top_dim = smoothstep(0.4, 0.0, texture_coords.y) * 0.15;
+        float top_dim = smoothstep(0.4, 0.0, texture_coords.y) * 0.18;
 
-        vec4 res = base;
+        vec4 res = vec4(surface, base.a);
         res.rgb = res.rgb * (1.0 - top_dim) + vec3(1.0) * gloss;
 
         return res;
@@ -76,7 +128,7 @@ function ui.update_marquee(m, dt, text_width)
 end
 
 function ui.draw_marquee(m, text, x, y, font, color, abs_x, abs_y, glow_color)
-    local text_w = font:getWidth(text)
+    local text_w = ui.measure_text_width(font, text)
     love.graphics.setFont(font)
     local alpha = color[4] or 1
 
@@ -85,11 +137,11 @@ function ui.draw_marquee(m, text, x, y, font, color, abs_x, abs_y, glow_color)
         if text_w > m.max_width then
             local sx = abs_x or x
             local sy = abs_y or y
-            love.graphics.setScissor(sx, sy, m.max_width, font:getHeight())
-            love.graphics.print(text, x - m.offset + (ox or 0), y + (oy or 0))
+            viewport.set_scissor(sx, sy, m.max_width, ui.measure_text_height(font) + 4)
+            ui.print_text(text, x - m.offset + (ox or 0), y + (oy or 0), font)
             love.graphics.setScissor()
         else
-            love.graphics.print(text, x + (ox or 0), y + (oy or 0))
+            ui.print_text(text, x + (ox or 0), y + (oy or 0), font)
         end
     end
     -- Adaptive intensities
@@ -129,20 +181,17 @@ end
 
 -- Icon helper
 function ui.draw_indexing_popup(progress_text, final_message)
-    local screen_w, screen_h = love.graphics.getDimensions()
+    local screen_w, screen_h = viewport.get()
     local accent = theme.accent
     local t = love.timer.getTime()
 
     -- Centered product title
     local title_font = assets.fonts.large
-    love.graphics.setFont(title_font)
-    ui.draw_glow_text("XMPlayer", 0, screen_h * 0.5 - title_font:getHeight() * 0.5, title_font,
+    ui.draw_glow_text("XMPlayer", 0, screen_h * 0.5 - ui.measure_text_height(title_font) * 0.5, title_font,
         { 1, 1, 1, 1 }, accent, screen_w, "center")
 
     -- Bottom-left version tag
-    love.graphics.setFont(assets.fonts.small)
-    love.graphics.setColor(1, 1, 1, 0.75)
-    love.graphics.print("v0.1.3 Beta", 20, screen_h - 36)
+    ui.print_text("v0.2.0 Beta", 20, screen_h - 36, assets.fonts.small, { 1, 1, 1, 0.75 })
 
     -- Bottom-right indexing status with subtle pulse
     local status = progress_text or "Scanning media..."
@@ -155,11 +204,10 @@ function ui.draw_indexing_popup(progress_text, final_message)
     end
 
     local status_font = assets.fonts.xs or assets.fonts.small
-    love.graphics.setFont(status_font)
-    local sw = status_font:getWidth(status_text)
+    local sw = ui.measure_text_width(status_font, status_text)
     local pulse = 0.62 + (math.sin(t * 3.0) + 1) * 0.14
     love.graphics.setColor(accent[1], accent[2], accent[3], pulse)
-    love.graphics.print(status_text, screen_w - sw - 20, screen_h - 36)
+    ui.print_text(status_text, screen_w - sw - 20, screen_h - 36, status_font)
 end
 
 function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail)
@@ -175,6 +223,9 @@ function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail)
         love.graphics.draw(thumbnail, x, y, 0, scale, scale, iw / 2, ih / 2)
     elseif icon then
         -- Apply Gloss Shader for monochrome/theme-tinted icons only.
+        if ui.gloss_shader:hasUniform("accent_color") and theme and theme.accent then
+            ui.gloss_shader:send("accent_color", { theme.accent[1], theme.accent[2], theme.accent[3] })
+        end
         love.graphics.setShader(ui.gloss_shader)
         local img_w = icon:getWidth()
         local img_h = icon:getHeight()
@@ -189,6 +240,9 @@ end
 -- Draw text with a soft glow effect
 function ui.draw_glow_text(text, x, y, font, color, glow_color, limit, align)
     local alpha = color[4] or 1
+    if font then
+        love.graphics.setFont(font)
+    end
 
     -- Adaptive intensities
     local shadow_alpha = theme.shadow_intensity * alpha
@@ -200,9 +254,9 @@ function ui.draw_glow_text(text, x, y, font, color, glow_color, limit, align)
         local layer_alpha = shadow_alpha * (1.1 - i * 0.25)
         love.graphics.setColor(0, 0, 0, layer_alpha)
         if limit and align then
-            love.graphics.printf(text, x + offset, y + offset, limit, align)
+            ui.printf_text(text, x + offset, y + offset, limit, align, font)
         else
-            love.graphics.print(text, x + offset, y + offset)
+            ui.print_text(text, x + offset, y + offset, font)
         end
     end
 
@@ -213,15 +267,15 @@ function ui.draw_glow_text(text, x, y, font, color, glow_color, limit, align)
             local layer_alpha = (theme.glow_intensity * glow_mult / i) * alpha
             love.graphics.setColor(gc[1], gc[2], gc[3], layer_alpha)
             if limit and align then
-                love.graphics.printf(text, x - i, y, limit, align)
-                love.graphics.printf(text, x + i, y, limit, align)
-                love.graphics.printf(text, x, y - i, limit, align)
-                love.graphics.printf(text, x, y + i, limit, align)
+                ui.printf_text(text, x - i, y, limit, align, font)
+                ui.printf_text(text, x + i, y, limit, align, font)
+                ui.printf_text(text, x, y - i, limit, align, font)
+                ui.printf_text(text, x, y + i, limit, align, font)
             else
-                love.graphics.print(text, x - i, y)
-                love.graphics.print(text, x + i, y)
-                love.graphics.print(text, x, y - i)
-                love.graphics.print(text, x, y + i)
+                ui.print_text(text, x - i, y, font)
+                ui.print_text(text, x + i, y, font)
+                ui.print_text(text, x, y - i, font)
+                ui.print_text(text, x, y + i, font)
             end
         end
     end
@@ -229,9 +283,9 @@ function ui.draw_glow_text(text, x, y, font, color, glow_color, limit, align)
     -- Main text
     love.graphics.setColor(color[1], color[2], color[3], alpha)
     if limit and align then
-        love.graphics.printf(text, x, y, limit, align)
+        ui.printf_text(text, x, y, limit, align, font)
     else
-        love.graphics.print(text, x, y)
+        ui.print_text(text, x, y, font)
     end
 end
 
@@ -279,6 +333,9 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
         end
 
         -- Main image
+        if ui.gloss_shader:hasUniform("accent_color") and theme and theme.accent then
+            ui.gloss_shader:send("accent_color", { theme.accent[1], theme.accent[2], theme.accent[3] })
+        end
         love.graphics.setShader(ui.gloss_shader)
         love.graphics.setColor(color[1], color[2], color[3], a)
     end
@@ -370,7 +427,7 @@ function ui.update_toasts(dt)
 end
 
 function ui.draw_toasts()
-    local sw, sh = love.graphics.getDimensions()
+    local sw, sh = viewport.get()
     local font = assets.fonts.small
     local padding = 15
     local icon_size = 28
@@ -426,8 +483,8 @@ function ui.draw_toasts()
             ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress, { 1, 1, 1, 0.9 * t.alpha },
                 { 1, 1, 1, 0.2 * t.alpha })
         else
-            local tw = font:getWidth(t.text or "")
-            local th = font:getHeight()
+            local tw = ui.measure_text_width(font, t.text or "")
+            local th = ui.measure_text_height(font)
             box_w = tw + padding * 2
             if t.icon then box_w = box_w + icon_size + 10 end
             box_h = math.max(th, icon_size) + padding
@@ -458,9 +515,7 @@ function ui.draw_toasts()
             end
 
             -- Text
-            love.graphics.setFont(font)
-            love.graphics.setColor(1, 1, 1, t.alpha)
-            love.graphics.print(t.text or "", cur_x, y + (box_h - th) / 2)
+            ui.print_text(t.text or "", cur_x, y + (box_h - th) / 2, font, { 1, 1, 1, t.alpha })
         end
     end
 end

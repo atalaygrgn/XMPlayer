@@ -3,6 +3,8 @@ local utils = require("utils")
 local settings = require("settings")
 local xmb = require("xmb")
 local categories = require("categories")
+local viewport = require("viewport")
+local assets = require("assets")
 
 local background = {}
 
@@ -17,8 +19,11 @@ local custom_bg_path = nil
 local wallpaper_blur_enabled = true
 local wallpaper_tint_enabled = true
 local wallpaper_brightness = 1 -- 1: No Change, 2: Brighter, 3: Darker
-local wallpaper_type = 1 -- 1: Static, 2: Scrolling, 3: Seamless
+local wallpaper_type = 1       -- 1: Static, 2: Scrolling, 3: Seamless
 local blur_shader = nil
+
+local walk_state
+local update_walk, draw_walk
 
 local function load_wallpaper_image(path)
     local utils = require("utils")
@@ -47,7 +52,7 @@ function background.set_wallpaper_type(mode_index)
 end
 
 function background.init()
-    screen_w, screen_h = love.graphics.getDimensions()
+    screen_w, screen_h = viewport.get()
 
     -- Initialize particles
     for i = 1, 50 do
@@ -86,7 +91,7 @@ function background.init()
 end
 
 function background.update(dt, is_paused)
-    target_speed = is_paused and 0.15 or 1.0
+    target_speed = is_paused and 0.15 or 1.25
     -- Smoothly transition speed
     local speed_lerp_t = math.min(1, dt * 2)
     speed = utils.lerp(speed, target_speed, speed_lerp_t)
@@ -96,14 +101,326 @@ function background.update(dt, is_paused)
         -- Returning from external players can produce a very large dt.
         -- Clamp integration time so particles do not all wrap to the left at once.
         local particle_dt = math.min(dt, 1 / 30)
+        local vertical_drift = is_paused and 2.0 or 5.0
         for _, p in ipairs(particles) do
             p.x = p.x + p.speed * particle_dt * speed * 0.5
+            p.y = p.y + math.sin((p.x + p.size) * 0.02 + love.timer.getTime() * 0.8) * particle_dt * vertical_drift
             if p.x > screen_w then
                 p.x = -10
                 p.y = math.random() * screen_h
+            elseif p.y < -10 then
+                p.y = screen_h + 10
+            elseif p.y > screen_h + 10 then
+                p.y = -10
             end
         end
     end
+
+    local music = require("music_player")
+    if music and music.active and music.visualizer_mode == "walk" then
+        update_walk(dt, music)
+    else
+        walk_state.initialized = false
+    end
+end
+
+walk_state = {
+    initialized = false,
+    beat_timer = 0,
+    runner = {
+        x = 0,
+        y = 0,
+        vy = 0,
+        is_jumping = false,
+        jump_t = 0,
+        jump_dur = 0.5,
+        jump_height = 0,
+        base_y = 0,
+        run_cycle = 0,
+        flip_angle = 0,
+    },
+    blocks = {},
+    trail_particles = {},
+    sprout_types = { "flower", "star", "diamond" },
+    scroll_speed = 180,
+
+    base_jump_height = 40,
+    max_jump_height = 80,
+    base_sprout_height = 20,
+    max_sprout_height = 80,
+}
+
+local function init_walk()
+    local w, h = screen_w or 640, screen_h or 480
+    walk_state.runner.x = w * 0.4
+    walk_state.runner.base_y = h * 0.75
+    walk_state.runner.y = walk_state.runner.base_y
+    walk_state.runner.vy = 0
+    walk_state.runner.is_jumping = false
+    walk_state.runner.jump_t = 0
+    walk_state.runner.run_cycle = 0
+    walk_state.runner.flip_angle = 0
+
+    walk_state.beat_timer = 0
+    walk_state.blocks = {}
+    walk_state.stars = {}
+    walk_state.trail_particles = {}
+
+    local spacing = walk_state.scroll_speed * 0.5
+    for i = 0, 8 do
+        local bx = walk_state.runner.x + i * spacing
+        table.insert(walk_state.blocks, {
+            x = bx,
+            y = walk_state.runner.base_y + 15,
+            opened = false,
+            sprout_height = 0,
+            sprout_max_height = 0,
+            sprout_type = "flower"
+        })
+    end
+
+
+
+    walk_state.initialized = true
+end
+
+update_walk = function(dt, music)
+    if not walk_state.initialized then
+        init_walk()
+    end
+
+    if music.paused then
+        local run = walk_state.runner
+        if run.y < run.base_y then
+            run.y = math.min(run.base_y, run.y + 500 * dt)
+            run.flip_angle = utils.smooth(run.flip_angle, 0, dt, 10)
+            if run.y >= run.base_y then
+                run.is_jumping = false
+                run.flip_angle = 0
+            end
+        else
+            run.y = run.base_y
+            run.is_jumping = false
+            run.flip_angle = 0
+        end
+        return
+    end
+
+    local rms = 0.05
+    local treble = 0.05
+    if music.sound_data then
+        local SAMPLE_RATE = 44100
+        local current_sample = math.floor(music.elapsed * SAMPLE_RATE)
+        local total_samples = music.sound_data:getSampleCount()
+
+        local window = 512
+        local sum = 0
+        local diff_sum = 0
+        for i = 0, window - 1, 16 do
+            local s_idx = math.min(total_samples - 1, current_sample + i)
+            local sample = music.sound_data:getSample(s_idx)
+            sum = sum + sample * sample
+
+            local s_next = math.min(total_samples - 1, s_idx + 1)
+            local diff = sample - music.sound_data:getSample(s_next)
+            diff_sum = diff_sum + diff * diff
+        end
+        rms = math.sqrt(sum / (window / 16))
+        treble = math.sqrt(diff_sum / (window / 16))
+    end
+
+
+    walk_state.runner.run_cycle = walk_state.runner.run_cycle + dt * 12
+    walk_state.beat_timer = walk_state.beat_timer + dt
+
+    if walk_state.beat_timer >= 0.5 then
+        walk_state.beat_timer = walk_state.beat_timer - 0.5
+
+        if walk_state.runner.is_jumping then
+            walk_state.runner.is_jumping = false
+            walk_state.runner.flip_angle = 0
+
+            local closest_block = nil
+            local min_dist = 9999
+            for _, b in ipairs(walk_state.blocks) do
+                local dist = math.abs(b.x - walk_state.runner.x)
+                if dist < min_dist then
+                    min_dist = dist
+                    closest_block = b
+                end
+            end
+
+            if closest_block and not closest_block.opened then
+                closest_block.opened = true
+                closest_block.sprout_max_height = walk_state.base_sprout_height +
+                    math.min(walk_state.max_sprout_height, rms * 350)
+                closest_block.sprout_type = walk_state.sprout_types[math.random(1, #walk_state.sprout_types)]
+
+                for k = 1, 12 do
+                    local angle = math.random() * math.pi * 2
+                    local p_speed = 30 + math.random() * 80
+                    table.insert(walk_state.trail_particles, {
+                        x = walk_state.runner.x,
+                        y = walk_state.runner.base_y,
+                        vx = math.cos(angle) * p_speed,
+                        vy = -math.random(10, 80),
+                        size = math.random(15, 35) / 10,
+                        alpha = 1.0,
+                        life = 0.4 + math.random() * 0.3,
+                        color = { theme.accent[1], theme.accent[2], theme.accent[3] }
+                    })
+                end
+            end
+        end
+
+        walk_state.runner.is_jumping = true
+        walk_state.runner.jump_t = 0
+        walk_state.runner.jump_height = walk_state.base_jump_height + math.min(walk_state.max_jump_height, rms * 400)
+    end
+
+    if walk_state.runner.is_jumping then
+        walk_state.runner.jump_t = walk_state.runner.jump_t + dt
+        if walk_state.runner.jump_t > 0.5 then
+            walk_state.runner.jump_t = 0.5
+        end
+        local progress = walk_state.runner.jump_t / 0.5
+        walk_state.runner.y = walk_state.runner.base_y - walk_state.runner.jump_height * math.sin(progress * math.pi)
+
+        if walk_state.runner.jump_height > 60 then
+            walk_state.runner.flip_angle = progress * math.pi * 2
+        else
+            walk_state.runner.flip_angle = 0
+        end
+    else
+        walk_state.runner.y = walk_state.runner.base_y
+        walk_state.runner.flip_angle = 0
+    end
+
+    for _, b in ipairs(walk_state.blocks) do
+        b.x = b.x - walk_state.scroll_speed * dt
+        if b.opened and b.sprout_height < b.sprout_max_height then
+            b.sprout_height = utils.smooth(b.sprout_height, b.sprout_max_height, dt, 8)
+        end
+    end
+
+    for i = #walk_state.blocks, 1, -1 do
+        if walk_state.blocks[i].x < -100 then
+            table.remove(walk_state.blocks, i)
+        end
+    end
+
+    local rightmost_x = -100
+    for _, b in ipairs(walk_state.blocks) do
+        if b.x > rightmost_x then
+            rightmost_x = b.x
+        end
+    end
+    local w = screen_w or 640
+    local spacing = walk_state.scroll_speed * 0.5
+    if rightmost_x < w + 200 then
+        table.insert(walk_state.blocks, {
+            x = rightmost_x + spacing,
+            y = walk_state.runner.base_y + 15,
+            opened = false,
+            sprout_height = 0,
+            sprout_max_height = 0,
+            sprout_type = "flower"
+        })
+    end
+
+    for i = #walk_state.trail_particles, 1, -1 do
+        local p = walk_state.trail_particles[i]
+        p.x = p.x + p.vx * dt
+        p.y = p.y + p.vy * dt
+        p.vy = p.vy + 200 * dt
+        p.life = p.life - dt
+        p.alpha = math.max(0, p.life / 0.5)
+        if p.life <= 0 then
+            table.remove(walk_state.trail_particles, i)
+        end
+    end
+end
+
+draw_walk = function(music)
+    if not walk_state.initialized then return end
+
+    local alpha = music.fade_alpha or 1
+    love.graphics.push("all")
+
+
+
+    for _, b in ipairs(walk_state.blocks) do
+        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.7 * alpha)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", b.x - 15, b.y - 15, 30, 30, 4, 4)
+
+        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.15 * alpha)
+        love.graphics.rectangle("fill", b.x - 14, b.y - 14, 28, 28, 4, 4)
+
+        love.graphics.setColor(1, 1, 1, 0.8 * alpha)
+        love.graphics.circle("fill", b.x, b.y, 3)
+
+        if b.opened then
+            local r_scale = math.min(15, b.sprout_height * 0.5)
+            love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], (1 - r_scale / 15) * 0.8 * alpha)
+            love.graphics.setLineWidth(1)
+            love.graphics.circle("line", b.x, b.y, r_scale)
+        end
+
+        if b.sprout_height > 0 then
+            local hx, hy = b.x, b.y - 15 - b.sprout_height
+            love.graphics.setColor(0.3, 0.8, 0.4, 0.8 * alpha)
+            love.graphics.setLineWidth(2)
+            love.graphics.line(b.x, b.y - 15, b.x, b.y - 15 - b.sprout_height)
+
+            if b.sprout_height > 10 then
+                love.graphics.circle("fill", b.x - 3, b.y - 15 - b.sprout_height * 0.4, 2)
+                love.graphics.circle("fill", b.x + 3, b.y - 15 - b.sprout_height * 0.7, 2)
+            end
+
+            if b.sprout_type == "flower" then
+                love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], alpha)
+                love.graphics.circle("fill", hx, hy, 3.5)
+                love.graphics.setColor(1, 0.5, 0.7, 0.75 * alpha)
+                love.graphics.circle("fill", hx - 3.5, hy, 2.5)
+                love.graphics.circle("fill", hx + 3.5, hy, 2.5)
+                love.graphics.circle("fill", hx, hy - 3.5, 2.5)
+                love.graphics.circle("fill", hx, hy + 3.5, 2.5)
+            elseif b.sprout_type == "star" then
+                love.graphics.setColor(1, 0.9, 0.3, 0.9 * alpha)
+                love.graphics.line(hx - 5, hy, hx + 5, hy)
+                love.graphics.line(hx, hy - 5, hx, hy + 5)
+                love.graphics.circle("fill", hx, hy, 1.5)
+            else
+                love.graphics.setColor(0.3, 0.7, 1.0, 0.9 * alpha)
+                love.graphics.polygon("fill", hx, hy - 5, hx + 3.5, hy, hx, hy + 5, hx - 3.5, hy)
+            end
+        end
+    end
+
+    for _, p in ipairs(walk_state.trail_particles) do
+        love.graphics.setColor(p.color[1], p.color[2], p.color[3], p.alpha * alpha)
+        love.graphics.circle("fill", p.x, p.y, p.size)
+    end
+
+    local run = walk_state.runner
+    local img = assets.images.walker or assets.get_image("walker")
+    if img then
+        local img_w, img_h = img:getDimensions()
+
+        local target_h = 32
+        local scale = target_h / img_h
+
+        love.graphics.setColor(1, 1, 1, alpha)
+        love.graphics.push()
+        love.graphics.translate(run.x, run.y - target_h / 2)
+        love.graphics.rotate(run.flip_angle)
+
+        love.graphics.draw(img, 0, 0, 0, scale, scale, img_w / 2, img_h / 2)
+        love.graphics.pop()
+    end
+
+    love.graphics.pop()
 end
 
 local function draw_waveform(music)
@@ -112,7 +429,7 @@ local function draw_waveform(music)
     local w, h = screen_w, screen_h
     local samples = 120 -- How many points in our waveform
     local amplitude = h * 0.1
-    
+
     -- Calculate current sample index from elapsed time (44100 Hz sample rate)
     local SAMPLE_RATE = 44100
     local current_sample = math.floor(music.elapsed * SAMPLE_RATE)
@@ -206,6 +523,22 @@ local function draw_bars_visualizer(music)
         love.graphics.setColor(1, 1, 1, alpha * 0.12)
         love.graphics.rectangle("fill", x, y, bar_w, math.max(2, bar_h * 0.16), 2, 2)
     end
+end
+
+local function draw_particle(p)
+    local red, green, blue = theme.accent[1], theme.accent[2], theme.accent[3]
+    local base_radius = math.max(1, p.size)
+    local segments = math.max(12, math.floor(base_radius * 8))
+    local opacity = p.alpha * 0.2
+
+    love.graphics.setColor(red, green, blue, opacity * 0.08)
+    love.graphics.circle("fill", p.x, p.y, base_radius * 2, segments)
+
+    love.graphics.setColor(red, green, blue, opacity * 0.18)
+    love.graphics.circle("fill", p.x, p.y, base_radius * 1, segments)
+
+    love.graphics.setColor(1, 1, 1, opacity * 0.5)
+    love.graphics.circle("fill", p.x, p.y, base_radius, segments)
 end
 
 local function draw_psp_waves()
@@ -351,7 +684,6 @@ function background.draw(music)
         if wallpaper_type == 1 then
             -- Static: centered image (default)
             love.graphics.draw(custom_bg_image, screen_w / 2, screen_h / 2, 0, scale, scale, sw / 2, sh / 2)
-
         elseif wallpaper_type == 2 then
             -- Scrolling: shift X based on category scroll position (limited to image bounds)
             local step = (theme.icon_size + theme.icon_spacing)
@@ -368,7 +700,6 @@ function background.draw(music)
             local max_shift = math.max(0, scaled_w - screen_w)
             local x_offset = (normalized - 0.5) * max_shift
             love.graphics.draw(custom_bg_image, screen_w / 2 + x_offset, screen_h / 2, 0, scale, scale, sw / 2, sh / 2)
-
         else
             -- Seamless: tile horizontally and slowly translate texture
             local t = love.timer.getTime()
@@ -396,14 +727,15 @@ function background.draw(music)
             draw_waveform(music)
         elseif music.visualizer_mode == "bars" then
             draw_bars_visualizer(music)
+        elseif music.visualizer_mode == "walk" then
+            draw_walk(music)
         end
     end
 
     -- Draw particles
     if settings.show_particles then
         for _, p in ipairs(particles) do
-            love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], p.alpha * 0.5)
-            love.graphics.circle("fill", p.x, p.y, p.size)
+            draw_particle(p)
         end
     end
 end

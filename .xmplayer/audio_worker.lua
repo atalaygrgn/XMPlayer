@@ -6,12 +6,19 @@ local mediaPath = ...
 local streamChannelName = select(2, ...)
 local controlChannelName = select(3, ...)
 local generation = select(4, ...)
+local seekTime = select(5, ...)
 local audioChannel = love.thread.getChannel(streamChannelName or "audio_stream_channel")
 local controlChannel = love.thread.getChannel(controlChannelName or "audio_control_channel")
 
+local seekOpt = ""
+if seekTime and tonumber(seekTime) and tonumber(seekTime) > 0 then
+    seekOpt = string.format("-ss %.3f ", tonumber(seekTime))
+end
+
 -- FFmpeg command: decode to 16-bit PCM at 44100Hz stereo, no video.
 local ffmpegCmd = string.format(
-    'ffmpeg -nostdin -v error -i "%s" -vn -f s16le -acodec pcm_s16le -ar 44100 -ac 2 -',
+    'ffmpeg -nostdin -v error %s-i "%s" -vn -f s16le -acodec pcm_s16le -ar 44100 -ac 2 -',
+    seekOpt,
     mediaPath
 )
 

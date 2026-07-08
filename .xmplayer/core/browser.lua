@@ -18,22 +18,33 @@ function browser.scan(path)
     path = path or browser.current_dir
     browser.files = {}
 
-    -- Using os.execute/io.popen for muOS compatibility as love.filesystem is restricted
-    local command = "find \"" .. path .. "\" -maxdepth 1 -not -path '*/.*' 2>/dev/null"
-    local handle = io.popen(command)
-    if not handle then return end
+    -- Retrieve all directories first to build a lookup set
+    local dir_command = "find \"" .. path .. "\" -maxdepth 1 -mindepth 1 -type d -not -path '*/.*' 2>/dev/null"
+    local dir_handle = io.popen(dir_command)
+    local dir_set = {}
+    if dir_handle then
+        local dir_output = dir_handle:read("*a")
+        dir_handle:close()
+        for line in dir_output:gmatch("[^\r\n]+") do
+            dir_set[line] = true
+        end
+    end
 
-    local output = handle:read("*a")
-    handle:close()
+    -- Retrieve all entries (files and directories)
+    local all_command = "find \"" .. path .. "\" -maxdepth 1 -mindepth 1 -not -path '*/.*' 2>/dev/null"
+    local all_handle = io.popen(all_command)
+    if not all_handle then return end
+
+    local all_output = all_handle:read("*a")
+    all_handle:close()
 
     local dirs = {}
     local files = {}
 
-    for line in output:gmatch("[^\r\n]+") do
+    for line in all_output:gmatch("[^\r\n]+") do
         if line ~= path then
             local filename = utils.get_filename(line)
-            -- Check if it's a directory
-            local is_dir = os.execute("test -d \"" .. line .. "\"") == 0
+            local is_dir = dir_set[line] == true
             if is_dir then
                 table.insert(dirs, { name = filename, path = line, type = "directory" })
             else

@@ -66,17 +66,17 @@ Fluid particle animations and customizable color themes to your liking. You can 
 
 | Button | XMB Menu | Music Player | Video Player (MPV) | Photo Viewer |
 | :--- | :--- | :--- | :--- | :--- |
-| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek +-5s | Previous/Next Photo |
-| **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s | - |
-| **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset Zoom & Fit to Screen |
+| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek +-5s | Pan Left/Right |
+| **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s | Pan Up/Down |
+| **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset View |
 | **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |
 | **X** | Context Menu | Playback Options | Toggle Mute | Zoom In |
-| **Y** | - | (Y + D-Pad Right) Un/Lock Controls | Show OSD | (Hold Y + D-Pad) Pan |
-| **L1** | - | - | Previous Video | - |
-| **L2** | - | - | Toggle Subtitles | - |
-| **R1** | - | - | Next Video | - |
-| **R2** | - | - | Next Subtitle | - |
-| **Start** | - | - | Change Aspect Ratio | - |
+| **Y** | - | Hotkey Display | Show OSD | Rotate 90° |
+| **L1** | - | Previous Track | Previous Video | Previous Image |
+| **L2** | - | Seek -10s | Cycle Audio Tracks | - |
+| **R1** | - | Next Track | Next Video | Next Image |
+| **R2** | - | Seek +10s | Cycle Subtitles | - |
+| **Start** | - | - | Change Aspect Ratio | Toggle Info |
 | **Select** | - | - | Return to XMB | Return to XMB |
 
 ---
@@ -110,31 +110,24 @@ More customization options are on the way!
 - [x] Wallpaper and customization.
 
 ### v0.2 (In Progress)
-- [ ] Add support for other firmwares (Knulli, ROCKNIX, ArkOS, etc.)
-- [ ] Custom playlists for video and music.
-- [ ] More visualizer options.
-- [ ] Photo gallery.
-- [ ] Image slideshows.
+- [ ] Portmaster release w/ Knulli support.
+- [x] Custom playlists for video and music.
+- [x] More visualizer options.
 
 ### Planned for Later Versions
+- [ ] Photo gallery.
+- [ ] Image slideshows.
 - [ ] External display support.
 - [ ] Custom icon sets.
 - [ ] VGM file support (.spc, .nsf, ...)
 - [ ] Add support for other media formats?
 
----
-
-## License
-
-XMPlayer is released under the **MIT License**.
-
----
-
 ## Credits
 
 - Built with **Love2D**.
 - Icons provided by **Remix Icon** library.
-- System information provided by **muOS**.
+- simpleScale script from [tomlum's simpleScale](https://github.com/tomlum/simpleScale).
+- System information provided by **muOS** & **Knulli**.
 - **PlayStation**, **XrossMediaBar**, and **XMB** are trademarks of Sony Interactive Entertainment Inc.
 
 ---

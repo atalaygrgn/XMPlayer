@@ -210,7 +210,7 @@ settings.options = {
         name = "Version",
         type = "info",
         group = "about",
-        value = "v0.1.3"
+        value = "v0.2.0"
     },
     {
         id = "website",
@@ -218,6 +218,13 @@ settings.options = {
         type = "info",
         group = "about",
         value = "github.com/atalaygrgn/XMPlayer"
+    },
+        {
+        id = "songo",
+        name = "Also try Songo #5",
+        type = "info",
+        group = "about",
+        value = "an incredible music player!"
     },
     {
         id = "test_toast_top",

@@ -6,7 +6,7 @@ theme.font_size_small = 18
 theme.icon_size = 64
 theme.icon_spacing = 64
 theme.glow_intensity = 0.3   -- Higher = brighter glow
-theme.glow_radius = 7        -- Higher = wider, softer glow
+theme.glow_radius = 3        -- Higher = wider, softer glow
 theme.shadow_intensity = 0.5 -- Shadow visibility
 theme.current_mode = "Light" -- Track current mode
 

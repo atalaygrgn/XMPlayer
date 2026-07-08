@@ -2,26 +2,28 @@
 -- Renders the XMB category bar, vertical item list, and settings popup.
 -- All navigation state is owned by xmb.lua; this module is read-only.
 
-local xmb            = require("xmb")
-local browser        = require("browser")
-local categories     = require("categories")
-local theme          = require("theme")
-local assets         = require("assets")
-local ui             = require("ui")
-local settings_view  = require("settings_view")
-local video_manager  = require("video_manager")
-local indexing       = require("indexing")
-local utils          = require("utils")
-local keyboard       = require("onscreen_keyboard")
+local xmb_module    = require("xmb")
+local browser       = require("browser")
+local categories    = require("categories")
+local theme         = require("theme")
+local assets        = require("assets")
+local ui            = require("ui")
+local settings_view = require("settings_view")
+local video_manager = require("video_manager")
+local indexing      = require("indexing")
+local utils         = require("utils")
+local keyboard      = require("onscreen_keyboard")
+local viewport      = require("viewport")
 
-local xmb_draw = {}
+local xmb_draw      = {}
 
-function xmb_draw.draw()
-    local screen_w, screen_h = love.graphics.getDimensions()
+function xmb_draw.draw(state)
+    local xmb                = state or xmb_module
+    local screen_w, screen_h = viewport.get()
 
     -- ─── Horizontal Category Bar ───
-    local cat_base_x = screen_w * 0.25
-    local cat_y      = screen_h * 0.25
+    local cat_base_x         = screen_w * 0.22
+    local cat_y              = screen_h * 0.22
 
     love.graphics.push()
     love.graphics.translate(cat_base_x + xmb.category_scroll_x, cat_y)
@@ -64,7 +66,7 @@ function xmb_draw.draw()
     local fade_top    = cat_y + theme.icon_size / 2 + 50
     local fade_range  = 100
 
-    love.graphics.setScissor(0, fade_top - 20, screen_w, screen_h - (fade_top - 20))
+    viewport.set_scissor(0, fade_top - 20, screen_w, screen_h - (fade_top - 20))
     love.graphics.push()
     love.graphics.translate(list_x + xmb.list_slide_x, list_base_y + xmb.item_scroll_y)
 
@@ -74,9 +76,9 @@ function xmb_draw.draw()
     local cat_id = categories[xmb.current_category_idx].id
 
     for i = first, last do
-        local item     = browser.files[i]
-        local y        = (i - 1) * item_h
-        local screen_y = list_base_y + xmb.item_scroll_y + y
+        local item       = browser.files[i]
+        local y          = (i - 1) * item_h
+        local screen_y   = list_base_y + xmb.item_scroll_y + y
 
         local item_alpha = xmb.list_slide_alpha
         if screen_y < list_base_y then
@@ -157,28 +159,28 @@ function xmb_draw.draw()
             if is_focused then
                 if item.description then
                     ui.draw_marquee(xmb.item_marquee, item.name, 0, y - 8, assets.fonts.main,
-                    { theme.text[1], theme.text[2], theme.text[3], final_alpha },
-                    list_x + xmb.list_slide_x, screen_y - 8)
+                        { theme.text[1], theme.text[2], theme.text[3], final_alpha },
+                        list_x + xmb.list_slide_x, screen_y - 8)
                 else
                     ui.draw_marquee(xmb.item_marquee, item.name, 0, y, assets.fonts.main,
-                    { theme.text[1], theme.text[2], theme.text[3], final_alpha },
-                    list_x + xmb.list_slide_x, screen_y)
+                        { theme.text[1], theme.text[2], theme.text[3], final_alpha },
+                        list_x + xmb.list_slide_x, screen_y)
                 end
-                
+
 
                 if item.description then
                     local desc_y = y + 24
                     local line_w = screen_w * 0.7
                     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha * 0.3)
                     love.graphics.line(0, desc_y, line_w, desc_y)
-                    love.graphics.setFont(assets.fonts.xs)
                     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha * 0.8)
-                    love.graphics.print(item.description, 0, desc_y + 5)
+                    ui.print_text(item.description, 0, desc_y + 5, assets.fonts.xs,
+                        { theme.text[1], theme.text[2], theme.text[3], final_alpha * 0.8 })
                 end
             else
-                love.graphics.setFont(assets.fonts.small)
                 love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha)
-                love.graphics.print(item.display_name or item.name, 0, y + 4)
+                ui.print_text(item.display_name or item.name, 0, y + 4, assets.fonts.small,
+                    { theme.text[1], theme.text[2], theme.text[3], final_alpha })
             end
         end
     end
@@ -214,8 +216,7 @@ function xmb_draw.draw()
         love.graphics.setLineWidth(2)
         love.graphics.rectangle("line", panel_x, panel_y, panel_w, panel_h, 16, 16)
 
-        love.graphics.setFont(assets.fonts.main)
-        ui.draw_glow_text(menu.title or "Options", panel_x + 24, panel_y + 20, assets.fonts.main,
+        ui.draw_glow_text(menu.title or "Options", panel_x + 24, panel_y + 20, assets.fonts.small,
             { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
 
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.22 * alpha)
@@ -230,14 +231,9 @@ function xmb_draw.draw()
                 love.graphics.rectangle("fill", panel_x + 18, row_y - 6, panel_w - 36, 40, 10, 10)
             end
 
-            love.graphics.setFont(assets.fonts.small)
-            if focused then
-                ui.draw_glow_text(option.label, panel_x + 32, row_y, assets.fonts.small,
-                    { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
-            else
-                love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.75 * alpha)
-                love.graphics.print(option.label, panel_x + 32, row_y)
-            end
+            local text_color = focused and { theme.text[1], theme.text[2], theme.text[3], alpha } or
+                { theme.text[1], theme.text[2], theme.text[3], 0.75 * alpha }
+            ui.print_text(option.label, panel_x + 32, row_y, assets.fonts.small, text_color)
         end
     end
 
@@ -254,8 +250,7 @@ function xmb_draw.draw()
         love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.8 * alpha)
         love.graphics.rectangle("fill", x, y, 4, screen_h)
 
-        love.graphics.setFont(assets.fonts.main)
-        ui.draw_glow_text("Add to Playlist", x + 20, 50, assets.fonts.main,
+        ui.draw_glow_text(xmb.playlist_sidebar_title or "Add to Playlist", x + 20, 50, assets.fonts.small,
             { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
 
         local content_y_base = screen_h * 0.25
@@ -266,7 +261,7 @@ function xmb_draw.draw()
         local list_h = panel_h
         local item_h = 48
 
-        love.graphics.setScissor(list_x - 6, list_y - 6, panel_w - 28, list_h)
+        viewport.set_scissor(list_x - 6, list_y - 6, panel_w - 28, list_h)
         love.graphics.push()
         love.graphics.translate(0, list_y + xmb.playlist_sidebar_scroll_y)
 
@@ -276,12 +271,12 @@ function xmb_draw.draw()
             if focused then
                 love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.3 * alpha)
                 love.graphics.rectangle("fill", list_x - 6, cy - 6, panel_w - 28, item_h, 6, 6)
-                love.graphics.setColor(1,1,1,1 * alpha)
+                love.graphics.setColor(1, 1, 1, 1 * alpha)
             else
-                love.graphics.setColor(1,1,1,0.8 * alpha)
+                love.graphics.setColor(1, 1, 1, 0.8 * alpha)
             end
-            love.graphics.setFont(assets.fonts.small)
-            love.graphics.print(it.name or "", list_x, cy + 4)
+            ui.print_text(it.name or "", list_x, cy + 4, assets.fonts.small,
+                { 1, 1, 1, focused and 1 * alpha or 0.8 * alpha })
         end
 
         love.graphics.pop()
@@ -297,7 +292,7 @@ function xmb_draw.draw()
                 love.graphics.polygon("fill",
                     centerX - 10, list_y - 14,
                     centerX + 10, list_y - 14,
-                    centerX,      list_y - 26)
+                    centerX, list_y - 26)
             end
             -- Down arrow: show when there's content below the visible area
             if xmb.playlist_sidebar_scroll_y > -(#items * item_h) + list_h then
@@ -305,7 +300,7 @@ function xmb_draw.draw()
                 love.graphics.polygon("fill",
                     centerX - 10, targetY,
                     centerX + 10, targetY,
-                    centerX,      targetY + 12)
+                    centerX, targetY + 12)
             end
         end
     end

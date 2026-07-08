@@ -7,6 +7,7 @@ local assets   = require("assets")
 local utils    = require("utils")
 local settings = require("settings")
 local ui       = require("ui")
+local viewport = require("viewport")
 
 local settings_view = {}
 
@@ -32,7 +33,7 @@ function settings_view.ensure_picker_visible()
         settings_view.picker_target_scroll_y = 0
         return
     end
-    local screen_w, screen_h = love.graphics.getDimensions()
+    local screen_w, screen_h = viewport.get()
     local panel_h = math.min(screen_h * 0.6, 420)
     local list_h = panel_h - 140 -- leave room for header + hints
     local item_h = 36
@@ -55,7 +56,7 @@ function settings_view.update(dt, setting_idx)
             local opt = settings.options[setting_idx]
             if opt and opt.choices then
                 local item_h = 50
-                local screen_h = love.graphics.getHeight()
+                local _, screen_h = viewport.get()
                 local visible_area_h = screen_h * 0.6
 
                 settings_view.target_scroll_y =
@@ -91,7 +92,7 @@ function settings_view.draw_popup(setting_idx)
     local opt = settings.options[setting_idx]
     if not opt or opt.type ~= "choice" or settings_view.alpha <= 0 then return end
 
-    local screen_w, screen_h = love.graphics.getDimensions()
+    local screen_w, screen_h = viewport.get()
     local panel_w = screen_w * 0.35
     local item_h  = 50
     local alpha   = settings_view.alpha
@@ -109,11 +110,10 @@ function settings_view.draw_popup(setting_idx)
     local content_y_base = screen_h * 0.3
     local visible_area_h = screen_h * 0.6
 
-    love.graphics.setScissor(x, content_y_base, panel_w, visible_area_h)
+    viewport.set_scissor(x, content_y_base, panel_w, visible_area_h)
     love.graphics.push()
     love.graphics.translate(0, content_y_base + settings_view.scroll_y)
 
-    love.graphics.setFont(assets.fonts.small)
     for i, choice in ipairs(opt.choices) do
         local cy          = (i - 1) * item_h
         local is_selected = (i == settings_view.selected_option_idx)
@@ -131,7 +131,7 @@ function settings_view.draw_popup(setting_idx)
             love.graphics.setColor(1, 1, 1, 0.6 * alpha)
         end
 
-        love.graphics.print(choice, x + 40, cy + 5)
+        ui.print_text(choice, x + 40, cy + 5, assets.fonts.small, { 1, 1, 1, is_selected and 1 * alpha or 0.6 * alpha })
 
         if is_current then
             love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 1 * alpha)
@@ -210,7 +210,7 @@ end
 
 function settings_view.draw_folder_picker()
     if settings_view.picker_alpha <= 0 then return end
-    local screen_w, screen_h = love.graphics.getDimensions()
+    local screen_w, screen_h = viewport.get()
     local panel_w = screen_w * 0.70
     local panel_h = math.min(screen_h * 0.8, 420)
     local x = math.floor(screen_w/2) - math.floor(panel_w/2)
@@ -223,13 +223,10 @@ function settings_view.draw_folder_picker()
     love.graphics.setLineWidth(2)
     love.graphics.rectangle("line", x, y, panel_w, panel_h, 12, 12)
 
-    love.graphics.setFont(assets.fonts.main)
     ui.draw_glow_text("Select Folder", x + 20, y + 18, assets.fonts.main,
         { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
 
-    love.graphics.setFont(assets.fonts.xs)
-    love.graphics.setColor(1,1,1,0.6 * alpha)
-    love.graphics.print(settings_view.picker_current_path, x + 20, y + 52)
+    ui.print_text(settings_view.picker_current_path, x + 20, y + 52, assets.fonts.xs, { 1, 1, 1, 0.6 * alpha })
 
     -- List area
     local list_x = x + 20
@@ -237,7 +234,7 @@ function settings_view.draw_folder_picker()
     local list_h = panel_h - 140 -- reserve space for header + hints
     local item_h = 36
 
-    love.graphics.setScissor(list_x, list_y, panel_w - 40, list_h)
+    viewport.set_scissor(list_x, list_y, panel_w - 40, list_h)
     love.graphics.push()
     love.graphics.translate(0, list_y + settings_view.picker_scroll_y)
 
@@ -251,8 +248,7 @@ function settings_view.draw_folder_picker()
         else
             love.graphics.setColor(1,1,1,0.8 * alpha)
         end
-        love.graphics.setFont(assets.fonts.small)
-        love.graphics.print(it.name, list_x, cy)
+        ui.print_text(it.name, list_x, cy, assets.fonts.small, { 1, 1, 1, focused and 1 * alpha or 0.8 * alpha })
     end
 
     love.graphics.pop()
@@ -260,10 +256,8 @@ function settings_view.draw_folder_picker()
 
     -- Button hints at bottom
     local hint_y = y + panel_h - 40
-    love.graphics.setFont(assets.fonts.xs)
-    love.graphics.setColor(1,1,1,0.85 * alpha)
     local hints = "A: Open    B: Back/Close    X: Set Folder"
-    love.graphics.print(hints, x + 20, hint_y)
+    ui.print_text(hints, x + 20, hint_y, assets.fonts.xs, { 1, 1, 1, 0.85 * alpha })
 end
 
 return settings_view

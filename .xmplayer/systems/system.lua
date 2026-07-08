@@ -55,4 +55,22 @@ function system.get_brightness()
     return nil
 end
 
+function system.set_brightness(level)
+    if not level then return end
+
+    local val = tonumber(level) or 50
+    if val > 0 then
+        -- Workaround for muOS: the bright.sh script caches the brightness state in its database
+        -- and skips writing to hardware if the new value matches the cached value.
+        -- Setting brightness to 0 (sleep) does not update the cached database value, so restoring
+        -- back to the original level would be ignored. We force a hardware refresh by applying
+        -- a transient offset first.
+        local transient = (val > 1) and (val - 1) or (val + 1)
+        os.execute("/opt/muos/script/device/bright.sh " .. transient)
+    end
+
+    -- Invoke the official muOS brightness script to update backlight and blank state
+    os.execute("/opt/muos/script/device/bright.sh " .. val)
+end
+
 return system

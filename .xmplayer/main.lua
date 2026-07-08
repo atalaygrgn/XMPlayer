@@ -1,4 +1,19 @@
-package.path = package.path .. ";modules/?.lua"
+local source_root = (love.filesystem and love.filesystem.getSource and love.filesystem.getSource()) or "."
+source_root = source_root:gsub("\\", "/")
+package.path = table.concat({
+    package.path,
+    source_root .. "/?.lua",
+    source_root .. "/core/?.lua",
+    source_root .. "/ui/?.lua",
+    source_root .. "/media/?.lua",
+    source_root .. "/players/?.lua",
+    source_root .. "/systems/?.lua",
+    source_root .. "/data/?.lua",
+}, ";")
+local viewport = require("viewport")
+local simpleScalePath = source_root .. "/simpleScale.lua"
+assert(loadfile(simpleScalePath))()
+local simpleScale = simpleScale
 local theme = require("theme")
 local player = require("player")
 local categories = require("categories")
@@ -16,13 +31,8 @@ local history = require("history")
 local video_manager = require("video_manager")
 local ui = require("ui")
 local system = require("system")
-
-
-local scan_co = nil
-local was_music_active = false
-local launch_status_message = nil
-local launch_status_timer = 0
-local LAUNCH_STATUS_DURATION = 2.5
+local runtime_state = require("runtime_state")
+local utils = require("utils")
 
 local function build_valid_media_paths()
     local valid_paths = {}
@@ -48,20 +58,17 @@ local function cleanup_stale_media_state()
     history.prune_missing(valid_paths)
 end
 
--- Battery status caching
-local battery_percentage = nil
-local is_charging = false
-local battery_timer = 0
-local BATTERY_UPDATE_INTERVAL = 10 -- Update every 10 seconds
-
--- Volume status caching
-local last_volume = nil
-local last_brightness = nil
-local ui_timer = 0
-local UI_CHECK_INTERVAL = 0.1 -- Update every 0.1 seconds
 
 function love.load()
     math.randomseed(os.time())
+
+    viewport.update_from_window(love.graphics.getDimensions())
+
+    simpleScale.setWindow(viewport.width, viewport.height, love.graphics.getWidth(), love.graphics.getHeight(), {
+        vsync = true,
+        resizable = false
+    })
+
     -- Load assets
     assets.load(categories)
 
@@ -90,25 +97,33 @@ function love.load()
     -- Trigger a full scan only when we have no usable index or the user requested one.
     -- Empty media categories are handled by the incremental scan path.
     if force_reindex or not has_existing_index then
-        scan_co = coroutine.create(function()
+        runtime_state.begin_scan(coroutine.create(function()
             indexing.scan(photo_dir, music_dir, video_dir)
-        end)
+        end))
         indexing.is_scanning = true
     else
-        scan_co = coroutine.create(function()
+        runtime_state.begin_scan(coroutine.create(function()
             indexing.scan_for_new_media(photo_dir, music_dir, video_dir)
-        end)
+        end))
         indexing.is_scanning = true
     end
 
     -- Initial battery check
-    battery_percentage = system.get_battery_percentage()
-    is_charging = system.is_charging()
-    last_volume = system.get_volume()
-    last_brightness = system.get_brightness()
+    runtime_state.battery_percentage = system.get_battery_percentage()
+    runtime_state.is_charging = system.is_charging()
+    runtime_state.last_volume = system.get_volume()
+    runtime_state.last_brightness = system.get_brightness()
 
     -- Screen setup
     love.graphics.setBackgroundColor(theme.colors.background)
+end
+
+function love.resize()
+    viewport.update_from_window(love.graphics.getDimensions())
+    simpleScale.resizeUpdate()
+    if assets and assets.update_font_scales then
+        assets.update_font_scales(simpleScale.scale)
+    end
 end
 
 function love.update(dt)
@@ -117,17 +132,23 @@ function love.update(dt)
         -- Force Love2D to re-init the display context
         -- This tears down the framebuffer connection and rebuilds it
         local width, height = love.graphics.getDimensions()
-        love.window.setMode(width, height, {
+        viewport.update_from_window(width, height)
+        simpleScale.updateWindow(width, height, {
             fullscreen = true,
             vsync = true,
             resizable = false
         })
+        if assets and assets.update_font_scales then
+            assets.update_font_scales(simpleScale.scale)
+        end
 
         player.needs_refresh = false
     end
 
     -- Update music player if active, otherwise update XMB
     local is_paused = false
+    local was_music_active = runtime_state.was_music_active
+
     if music.active then
         if not was_music_active then
             music_view.on_music_opened()
@@ -138,32 +159,24 @@ function love.update(dt)
         end
         is_paused = music.paused
     elseif image_viewer.active then
-        if was_music_active then
-            music_view.on_music_closed()
-        end
         image_viewer.update(dt)
         is_paused = true
     elseif indexing.is_scanning then
-        if was_music_active then
-            music_view.on_music_closed()
-        end
-        if scan_co then
-            local ok, err = coroutine.resume(scan_co)
+        if runtime_state.scan_co then
+            local ok, err = coroutine.resume(runtime_state.scan_co)
             if not ok then
                 print("Indexing error: " .. tostring(err))
                 indexing.is_scanning = false
-                scan_co = nil
+                runtime_state.clear_scan()
                 xmb.refresh_browser()
-                launch_status_message = "Indexing Error"
-                launch_status_timer = LAUNCH_STATUS_DURATION
-            elseif coroutine.status(scan_co) == "dead" then
+                runtime_state.set_launch_status("Indexing Error")
+            elseif coroutine.status(runtime_state.scan_co) == "dead" then
                 indexing.is_scanning = false
-                scan_co = nil
+                runtime_state.clear_scan()
                 cleanup_stale_media_state()
                 xmb.refresh_browser()
-                launch_status_message = "Indexing Complete"
-                launch_status_timer = LAUNCH_STATUS_DURATION
-                -- Startup sound 
+                runtime_state.set_launch_status("Indexing Complete")
+                -- Startup sound
                 local opt_startup = settings.get_option("startup_sound")
                 if (not opt_startup) or opt_startup.value == 1 then
                     if assets and assets.play_sfx then
@@ -173,50 +186,48 @@ function love.update(dt)
             end
         end
         return
-    elseif launch_status_timer > 0 then
-        if was_music_active then
-            music_view.on_music_closed()
-        end
-        launch_status_timer = math.max(0, launch_status_timer - dt)
-        if launch_status_timer == 0 then
-            launch_status_message = nil
+    elseif runtime_state.launch_status_timer > 0 then
+        runtime_state.launch_status_timer = math.max(0, runtime_state.launch_status_timer - dt)
+        if runtime_state.launch_status_timer == 0 then
+            runtime_state.launch_status_message = nil
         end
         return
     else
-        if was_music_active then
-            music_view.on_music_closed()
-        end
         xmb.update(dt)
     end
 
-    was_music_active = music.active
+    if was_music_active and not music.active then
+        music_view.on_music_closed()
+    end
+
+    runtime_state.was_music_active = music.active
 
     -- Update battery status
-    battery_timer = battery_timer + dt
-    if battery_timer >= BATTERY_UPDATE_INTERVAL then
-        battery_timer = 0
-        battery_percentage = system.get_battery_percentage()
-        is_charging = system.is_charging()
+    runtime_state.battery_timer = runtime_state.battery_timer + dt
+    if runtime_state.battery_timer >= runtime_state.battery_update_interval then
+        runtime_state.battery_timer = 0
+        runtime_state.battery_percentage = system.get_battery_percentage()
+        runtime_state.is_charging = system.is_charging()
     end
 
     -- Update volume & brightness status
-    ui_timer = ui_timer + dt
-    if ui_timer >= UI_CHECK_INTERVAL then
-        ui_timer = 0
+    runtime_state.ui_timer = runtime_state.ui_timer + dt
+    if runtime_state.ui_timer >= runtime_state.ui_check_interval then
+        runtime_state.ui_timer = 0
 
         -- Volume
         local current_volume = system.get_volume()
-        if settings.vol_bright_enabled and last_volume ~= nil and current_volume ~= nil and current_volume ~= last_volume then
+        if settings.vol_bright_enabled and runtime_state.last_volume ~= nil and current_volume ~= nil and current_volume ~= runtime_state.last_volume then
             ui.show_volume_toast(current_volume)
         end
-        last_volume = current_volume
+        runtime_state.last_volume = current_volume
 
         -- Brightness
         local current_brightness = system.get_brightness()
-        if settings.vol_bright_enabled and last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= last_brightness then
+        if settings.vol_bright_enabled and runtime_state.last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= runtime_state.last_brightness then
             ui.show_brightness_toast(current_brightness)
         end
-        last_brightness = current_brightness
+        runtime_state.last_brightness = current_brightness
     end
 
     background.update(dt, is_paused)
@@ -224,7 +235,8 @@ function love.update(dt)
 end
 
 function love.draw()
-    local screen_w, screen_h = love.graphics.getDimensions()
+    simpleScale.set()
+    local screen_w, screen_h = viewport.get()
 
     -- Force full clear every frame (essential for embedded devices)
     love.graphics.clear(theme.colors.background[1], theme.colors.background[2], theme.colors.background[3], 1)
@@ -236,26 +248,26 @@ function love.draw()
         music_view.draw()
     elseif image_viewer.active then
         image_view.draw()
-    elseif indexing.is_scanning or launch_status_timer > 0 then
-        ui.draw_indexing_popup(launch_status_message or indexing.scan_progress, launch_status_timer > 0)
+    elseif indexing.is_scanning or runtime_state.launch_status_timer > 0 then
+        ui.draw_indexing_popup(runtime_state.launch_status_message or indexing.scan_progress,
+            runtime_state.launch_status_timer > 0)
     else
-        xmb_draw.draw()
+        xmb_draw.draw(xmb)
 
         -- Clock and info
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
-        love.graphics.setFont(assets.fonts.small)
 
         -- Left: Clock
-        love.graphics.print(os.date("%H:%M"), 20, 20)
+        ui.print_text(os.date("%H:%M"), 20, 20, assets.fonts.small, { theme.text[1], theme.text[2], theme.text[3], 0.8 })
 
         -- Right: Battery
-        if battery_percentage then
-            local batt_str = string.format("%d%%", battery_percentage)
-            local batt_w = assets.fonts.small:getWidth(batt_str)
-            local icon = is_charging and assets.images.battery_charge or assets.images.battery
+        if runtime_state.battery_percentage then
+            local batt_str = string.format("%d%%", runtime_state.battery_percentage)
+            local batt_w = ui.measure_text_width(assets.fonts.small, batt_str)
+            local icon = runtime_state.is_charging and assets.images.battery_charge or assets.images.battery
 
             if icon then
-                local icon_h = assets.fonts.small:getHeight()
+                local icon_h = ui.measure_text_height(assets.fonts.small)
                 local scale = icon_h / icon:getHeight()
                 local icon_w = icon:getWidth() * scale
 
@@ -265,7 +277,8 @@ function love.draw()
                 love.graphics.draw(icon, x, y, 0, scale, scale)
             end
 
-            love.graphics.print(batt_str, screen_w - batt_w - 20, 20)
+            ui.print_text(batt_str, screen_w - batt_w - 20, 20, assets.fonts.small,
+                { theme.text[1], theme.text[2], theme.text[3], 0.8 })
         end
     end
 
@@ -273,6 +286,8 @@ function love.draw()
     if not (music.active and music_view.is_display_sleeping()) then
         ui.draw_toasts()
     end
+
+    simpleScale.unSet(theme.colors.background)
 end
 
 function love.keypressed(key)

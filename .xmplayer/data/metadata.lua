@@ -1,6 +1,8 @@
 local utils = require("utils")
 local metadata = {}
 
+local folder_cover_cache = {}
+
 local function parse_syncsafe(b1, b2, b3, b4)
     return b1 * 2097152 + b2 * 16384 + b3 * 128 + b4
 end
@@ -316,8 +318,17 @@ end
 function metadata.find_folder_cover(track_path)
     local dir = utils.get_dirname(track_path)
     if dir == "" then return nil end
-    local folder_name = utils.get_filename(dir)
 
+    if folder_cover_cache[dir] then
+        local cached = folder_cover_cache[dir]
+        if cached == "none" then
+            return nil
+        else
+            return cached.data, cached.ext
+        end
+    end
+
+    local folder_name = utils.get_filename(dir)
     local exts = { "jpg", "jpeg", "png", "bmp" }
     local candidates = {}
 
@@ -342,7 +353,9 @@ function metadata.find_folder_cover(track_path)
             local data = f:read("*a")
             f:close()
             if data and #data > 0 then
-                return data, name:match("%.([^%.]+)$")
+                local extension = name:match("%.([^%.]+)$")
+                folder_cover_cache[dir] = { data = data, ext = extension }
+                return data, extension
             end
         end
     end
@@ -359,13 +372,16 @@ function metadata.find_folder_cover(track_path)
                     local data = f:read("*a")
                     f:close()
                     handle:close()
-                    return data, ext:sub(2)
+                    local extension = ext:sub(2)
+                    folder_cover_cache[dir] = { data = data, ext = extension }
+                    return data, extension
                 end
             end
         end
         handle:close()
     end
 
+    folder_cover_cache[dir] = "none"
     return nil
 end
 

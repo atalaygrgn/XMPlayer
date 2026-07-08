@@ -5,6 +5,95 @@ assets.images = {}
 assets.fonts = {}
 assets.sfx = {}
 
+local path_eurostile = "assets/font/Eurostile-Bold.ttf"
+local path_oswald = "assets/font/Oswald-SemiBold.ttf"
+
+local font_sizes = {
+    main         = 28,
+    small        = 24,
+    title        = 28,
+    artist       = 24,
+    album        = 24,
+    time_elapsed = 28,
+    time_dur     = 24,
+    xs           = 20,
+    large        = 52,
+    keyboardkey  = 20,
+}
+
+-- Override setFont to unwrap our scaled font object
+local orig_setFont = love.graphics.setFont
+function love.graphics.setFont(font)
+    if type(font) == "table" and font._raw then
+        orig_setFont(font._raw)
+    else
+        orig_setFont(font)
+    end
+end
+
+local function wrap_font(raw_font, scale)
+    local wrapped = {
+        _raw = raw_font,
+        _scale = scale or 1
+    }
+    setmetatable(wrapped, {
+        __index = function(t, key)
+            if key == "getWidth" then
+                return function(self, text)
+                    return self._raw:getWidth(text or "") / self._scale
+                end
+            elseif key == "getHeight" then
+                return function(self)
+                    return self._raw:getHeight() / self._scale
+                end
+            elseif key == "getWrap" then
+                return function(self, text, width)
+                    local width_limit = (width or 0) * self._scale
+                    local w, lines = self._raw:getWrap(text or "", width_limit)
+                    return w / self._scale, lines
+                end
+            elseif key == "getAscent" then
+                return function(self)
+                    return self._raw:getAscent() / self._scale
+                end
+            elseif key == "getDescent" then
+                return function(self)
+                    return self._raw:getDescent() / self._scale
+                end
+            elseif key == "getBaseline" then
+                return function(self)
+                    return self._raw:getBaseline() / self._scale
+                end
+            else
+                -- Forward other methods or properties to the raw font
+                local val = raw_font[key]
+                if type(val) == "function" then
+                    return function(self, ...)
+                        return val(self._raw, ...)
+                    end
+                else
+                    return val
+                end
+            end
+        end
+    })
+    return wrapped
+end
+
+function assets.update_font_scales(scale)
+    scale = scale or 1
+    for font_key, original_size in pairs(font_sizes) do
+        local scaled_size = math.max(1, math.floor(original_size * scale + 0.5))
+        local main_font = love.graphics.newFont(path_eurostile, scaled_size)
+        local oswald_fallback = love.graphics.newFont(path_oswald, scaled_size)
+        local system_fallback = love.graphics.newFont(scaled_size)
+
+        main_font:setFallbacks(oswald_fallback, system_fallback)
+        assets.fonts[font_key] = wrap_font(main_font, scale)
+    end
+end
+
+
 function assets.load(categories)
     -- Load generic icons
     assets.images.folder = love.graphics.newImage("assets/icons/folder.png")
@@ -18,7 +107,9 @@ function assets.load(categories)
     assets.images.play = love.graphics.newImage("assets/icons/play.png")
     assets.images.pause = love.graphics.newImage("assets/icons/pause.png")
     assets.images.lock = love.graphics.newImage("assets/icons/lock.png")
+    assets.images.dpad = love.graphics.newImage("assets/icons/dpad.png")
     assets.images.repeat_one = love.graphics.newImage("assets/icons/repeat-one.png")
+    assets.images.repeat_all = love.graphics.newImage("assets/icons/repeat.png")
     assets.images.battery = love.graphics.newImage("assets/icons/battery.png")
     assets.images.battery_charge = love.graphics.newImage("assets/icons/batterycharge.png")
     assets.images.albums = love.graphics.newImage("assets/icons/albums.png")
@@ -39,7 +130,10 @@ function assets.load(categories)
     assets.images.shuffle = love.graphics.newImage("assets/icons/shuffle.png")
     assets.images.eye = love.graphics.newImage("assets/icons/eye.png")
     assets.images.playlist_music = love.graphics.newImage("assets/icons/playlist-music.png")
+    assets.images.playlist_video = love.graphics.newImage("assets/icons/playlist-video.png")
     assets.images.playlist_add = love.graphics.newImage("assets/icons/playlist-add.png")
+    assets.images.walker = love.graphics.newImage("assets/icons/walker.png")
+
 
     -- Load volume icons
     assets.images.volume_up = love.graphics.newImage("assets/icons/volume-up.png")
@@ -54,17 +148,8 @@ function assets.load(categories)
         end
     end
 
-    -- Load fonts
-    local font_path = "assets/font/eurostile_bold.ttf"
-    assets.fonts.main = love.graphics.newFont(font_path, 28)
-    assets.fonts.small = love.graphics.newFont(font_path, 24)
-    assets.fonts.title = love.graphics.newFont(font_path, 30)
-    assets.fonts.artist = love.graphics.newFont(font_path, 24)
-    assets.fonts.album = love.graphics.newFont(font_path, 22)
-    assets.fonts.time_elapsed = love.graphics.newFont(font_path, 28)
-    assets.fonts.time_dur = love.graphics.newFont(font_path, 24)
-    assets.fonts.xs = love.graphics.newFont(font_path, 18)
-    assets.fonts.large = love.graphics.newFont(font_path, 48)
+    local current_scale = (simpleScale and simpleScale.scale) or 1
+    assets.update_font_scales(current_scale)
 
     -- Load SFX
     assets.sfx.nav = love.audio.newSource("assets/sfx/keytone.wav", "static")
