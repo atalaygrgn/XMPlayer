@@ -83,16 +83,23 @@ function music.load_track(track_info)
     end
 
     -- Load cover art if available
+    if music.cover_art then
+        music.cover_art:release()
+    end
     music.cover_art = nil
+
     if music.tags.cover_data then
-        local ok, result = pcall(function()
-            local fd = love.filesystem.newFileData(music.tags.cover_data, "cover." .. (music.tags.cover_ext or "jpg"))
-            local id = love.image.newImageData(fd)
-            return love.graphics.newImage(id)
+        local fd, id, img
+        local ok = pcall(function()
+            fd = love.filesystem.newFileData(music.tags.cover_data, "cover." .. (music.tags.cover_ext or "jpg"))
+            id = love.image.newImageData(fd)
+            img = love.graphics.newImage(id)
         end)
-        if ok then
-            music.cover_art = result
+        if ok and img then
+            music.cover_art = img
         end
+        if id then id:release() end
+        if fd then fd:release() end
     end
 
     -- Load audio via FFmpeg backend

@@ -55,6 +55,9 @@ end
 function viewer.load_image(path)
     local file_handle = io.open(path, "rb")
     if not file_handle then
+        if viewer.current_image then
+            viewer.current_image:release()
+        end
         viewer.current_image = nil
         return false
     end
@@ -63,41 +66,106 @@ function viewer.load_image(path)
     file_handle:close()
 
     if not file_data_raw or #file_data_raw == 0 then
+        if viewer.current_image then
+            viewer.current_image:release()
+        end
         viewer.current_image = nil
         return false
     end
 
+    local fd, id, img
     local ok, result = pcall(function()
         local filename = path:match("([^/]+)$") or "image"
-        local fd = love.filesystem.newFileData(file_data_raw, filename)
-        local id = love.image.newImageData(fd)
-        return love.graphics.newImage(id)
+        fd = love.filesystem.newFileData(file_data_raw, filename)
+        id = love.image.newImageData(fd)
+        
+        -- Cap at GPU limit or 2048 for safety and performance on retro consoles
+        local w, h = id:getDimensions()
+        local max_texture_size = 2048
+        if love.graphics and love.graphics.getSystemLimit then
+            local ok_limit, val = pcall(love.graphics.getSystemLimit, "texturesize")
+            if ok_limit and val then
+                max_texture_size = val
+            end
+        end
+        local limit = math.min(max_texture_size, 2048)
+        if w > limit or h > limit then
+            local scale = limit / math.max(w, h)
+            local tw, th = math.floor(w * scale), math.floor(h * scale)
+            local scaled_id = love.image.newImageData(tw, th)
+            for y = 0, th - 1 do
+                local sy = math.floor(y / scale)
+                if sy >= h then sy = h - 1 end
+                for x = 0, tw - 1 do
+                    local sx = math.floor(x / scale)
+                    if sx >= w then sx = w - 1 end
+                    local r, g, b, a = id:getPixel(sx, sy)
+                    scaled_id:setPixel(x, y, r, g, b, a)
+                end
+            end
+            id:release()
+            id = scaled_id
+        end
+
+        img = love.graphics.newImage(id)
+        return img
     end)
     
-    if ok then
-        viewer.current_image = result
+    if ok and img then
+        if viewer.current_image then
+            viewer.current_image:release()
+        end
+        viewer.current_image = img
+
+        -- Parse EXIF orientation for correction rotation
+        local utils = require("utils")
+        local orientation = utils.get_jpeg_orientation(path)
+        local initial_rot = 0
+        if orientation == 3 then
+            initial_rot = math.pi
+        elseif orientation == 6 then
+            initial_rot = math.pi / 2
+        elseif orientation == 8 then
+            initial_rot = 3 * math.pi / 2
+        end
+        viewer.exif_rotation = initial_rot
+        viewer.target_rotation = initial_rot
+
         viewer.reset_view(true)
     else
-        print("Failed to load image: " .. tostring(result))
+        print("Failed to load image: " .. tostring(result or "unknown error"))
+        if viewer.current_image then
+            viewer.current_image:release()
+        end
         viewer.current_image = nil
     end
+
+    if id then id:release() end
+    if fd then fd:release() end
 end
 
 function viewer.reset_view(snap)
     if not viewer.current_image then return end
     
+    viewer.target_rotation = viewer.exif_rotation or 0
+    
     local w, h = viewport.get()
     local img_w, img_h = viewer.current_image:getDimensions()
     
-    local scale_w = w / img_w
-    local scale_h = h / img_h
+    local rot_90_count = math.floor(math.abs(viewer.target_rotation / (math.pi / 2)) + 0.5)
+    local eff_w, eff_h = img_w, img_h
+    if rot_90_count % 2 == 1 then
+        eff_w, eff_h = img_h, img_w
+    end
+
+    local scale_w = w / eff_w
+    local scale_h = h / eff_h
     local target = math.min(scale_w, scale_h)
     
     viewer.target_zoom = target
-    viewer.target_rotation = 0
     if snap then
         viewer.zoom = target
-        viewer.rotation = 0
+        viewer.rotation = viewer.target_rotation
     end
     
     -- Center the image
@@ -125,6 +193,9 @@ end
 
 function viewer.close()
     viewer.active = false
+    if viewer.current_image then
+        viewer.current_image:release()
+    end
     viewer.current_image = nil
 end
 

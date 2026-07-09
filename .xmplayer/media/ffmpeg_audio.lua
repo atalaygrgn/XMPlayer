@@ -385,6 +385,9 @@ function ffmpeg_audio.seek(time)
     startTime = love.timer.getTime() - targetTime
     currentSeekTime = targetTime
     totalSamplesQueuedAtSeek = totalSamplesQueued
+    if isPaused then
+        pausedTime = targetTime
+    end
 
     if streamChannelName then
         table.insert(terminatingChannels, streamChannelName)

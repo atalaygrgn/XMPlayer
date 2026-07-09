@@ -276,6 +276,38 @@ function indexing.load()
 end
 
 function indexing.generate_thumbnail(image_path)
+    -- 1. Try to extract EXIF thumbnail and orientation first (for JPEGs)
+    local ext = image_path:match("%.([^%.]+)$")
+    local orientation = 1
+    if ext and (ext:lower() == "jpg" or ext:lower() == "jpeg") then
+        local parsed_orientation, thumb_bytes = utils.get_jpeg_metadata(image_path, true)
+        orientation = parsed_orientation or 1
+        if thumb_bytes and #thumb_bytes > 4 and thumb_bytes:byte(1) == 0xFF and thumb_bytes:byte(2) == 0xD8 then
+            -- Verify if LÖVE can load these bytes successfully
+            local test_fd, test_id
+            local test_ok = pcall(function()
+                test_fd = love.filesystem.newFileData(thumb_bytes, "test_thumb.jpg")
+                test_id = love.image.newImageData(test_fd)
+            end)
+            if test_id then test_id:release() end
+            if test_fd then test_fd:release() end
+
+            if test_ok then
+                local safe_name = image_path:gsub("[^%w]", "_")
+                local thumb_path = indexing.thumb_dir .. "/" .. safe_name .. ".jpg"
+                ensure_thumb_dir()
+                local f = io.open(thumb_path, "wb")
+                if f then
+                    f:write(thumb_bytes)
+                    f:close()
+                    return thumb_path, orientation
+                end
+            end
+        end
+    end
+
+    -- 2. Fallback path: load full image and resize
+    local fallback_file_data = nil
     local ok, img_data = pcall(love.image.newImageData, image_path)
     if not ok or not img_data then
         -- Fallback: try reading via io if love.image.newImageData(path) failed (e.g. absolute path issue)
@@ -285,12 +317,17 @@ function indexing.generate_thumbnail(image_path)
             f:close()
             if data then
                 local file_data = love.filesystem.newFileData(data, "temp_img")
+                fallback_file_data = file_data
                 ok, img_data = pcall(love.image.newImageData, file_data)
             end
         end
     end
 
-    if not ok or not img_data then return nil end
+    if fallback_file_data then
+        fallback_file_data:release()
+    end
+
+    if not ok or not img_data then return nil, orientation end
 
     local w, h = img_data:getDimensions()
     local thumb_size = 120
@@ -320,14 +357,12 @@ function indexing.generate_thumbnail(image_path)
         local thumb_data = canvas:newImageData()
         temp_img:release()
         canvas:release()
+        img_data:release()
 
         local safe_name = image_path:gsub("[^%w]", "_")
         local thumb_path = indexing.thumb_dir .. "/" .. safe_name .. ".png"
 
-        -- Create thumb dir if not exists
-        if os.execute("test -d \"" .. indexing.thumb_dir .. "\"") ~= 0 then
-            os.execute("mkdir -p \"" .. indexing.thumb_dir .. "\"")
-        end
+        ensure_thumb_dir()
 
         local file_data = thumb_data:encode("png")
         local f = io.open(thumb_path, "wb")
@@ -335,9 +370,13 @@ function indexing.generate_thumbnail(image_path)
             f:write(file_data:getString())
             f:close()
         end
-        return thumb_path
+        file_data:release()
+        thumb_data:release()
+        return thumb_path, orientation
+    else
+        img_data:release()
+        return image_path, orientation
     end
-    return image_path
 end
 
 local function generate_thumbnail_from_image_data(img_data, album_key)
@@ -351,6 +390,7 @@ local function generate_thumbnail_from_image_data(img_data, album_key)
     local tw, th = math.floor(w * scale), math.floor(h * scale)
     
     local thumb_data = img_data
+    local is_scaled = false
     if scale < 1 then
         local canvas = love.graphics.newCanvas(tw, th)
         local prev_canvas = love.graphics.getCanvas()
@@ -373,6 +413,7 @@ local function generate_thumbnail_from_image_data(img_data, album_key)
         thumb_data = canvas:newImageData()
         temp_img:release()
         canvas:release()
+        is_scaled = true
     end
     
     ensure_thumb_dir()
@@ -381,12 +422,21 @@ local function generate_thumbnail_from_image_data(img_data, album_key)
     
     local png_data = thumb_data:encode("png")
     local f = io.open(thumb_path, "wb")
+    local success = false
     if f then
         f:write(png_data:getString())
         f:close()
-        return thumb_path
+        success = true
     end
     
+    png_data:release()
+    if is_scaled then
+        thumb_data:release()
+    end
+    
+    if success then
+        return thumb_path
+    end
     return nil
 end
 
@@ -402,7 +452,9 @@ local function generate_album_thumbnails()
                     local ok, img_data = pcall(love.image.newImageData, file_data)
                     if ok and img_data then
                         album.thumb_path = generate_thumbnail_from_image_data(img_data, album_key)
+                        img_data:release()
                     end
+                    file_data:release()
                 end
             end
             album.thumb_version = ALBUM_THUMB_VERSION
@@ -480,11 +532,16 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     local new_photos = {}
     for i, path in ipairs(photo_files) do
         indexing.scan_progress = string.format("Indexing Photos (%d/%d)", i, #photo_files)
-        if i % 10 == 0 then coroutine.yield(indexing.scan_progress) end
+        if i % 10 == 0 then 
+            coroutine.yield(indexing.scan_progress) 
+            collectgarbage("collect")
+        end
 
-        local photo_info = indexing.data.photos[path] or { thumb_path = nil }
-        if not photo_info.thumb_path then
-            photo_info.thumb_path = indexing.generate_thumbnail(path)
+        local photo_info = indexing.data.photos[path] or { thumb_path = nil, orientation = nil }
+        if not photo_info.thumb_path or not photo_info.orientation then
+            local thumb_path, orientation = indexing.generate_thumbnail(path)
+            photo_info.thumb_path = thumb_path
+            photo_info.orientation = orientation or 1
         end
         new_photos[path] = photo_info
     end
@@ -609,15 +666,20 @@ function indexing.scan_for_new_media(photo_dir, music_dir, video_dir)
         if i % 10 == 0 then
             indexing.scan_progress = string.format("Checking Photos (%d/%d)", i, #photo_files)
             coroutine.yield(indexing.scan_progress)
+            collectgarbage("collect")
         end
         local photo_info = indexing.data.photos[path]
         if not photo_info then
+            local thumb_path, orientation = indexing.generate_thumbnail(path)
             indexing.data.photos[path] = {
-                thumb_path = indexing.generate_thumbnail(path)
+                thumb_path = thumb_path,
+                orientation = orientation or 1
             }
             new_count = new_count + 1
-        elseif not photo_info.thumb_path then
-            photo_info.thumb_path = indexing.generate_thumbnail(path)
+        elseif not photo_info.thumb_path or not photo_info.orientation then
+            local thumb_path, orientation = indexing.generate_thumbnail(path)
+            photo_info.thumb_path = thumb_path or photo_info.thumb_path
+            photo_info.orientation = orientation or photo_info.orientation or 1
         end
     end
 

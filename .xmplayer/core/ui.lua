@@ -210,8 +210,9 @@ function ui.draw_indexing_popup(progress_text, final_message)
     ui.print_text(status_text, screen_w - sw - 20, screen_h - 36, status_font)
 end
 
-function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail)
+function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail, rotation)
     if not icon and not thumbnail then return end
+    rotation = rotation or 0
 
     if thumbnail and type(thumbnail) ~= "string" then
         local iw = thumbnail:getWidth()
@@ -220,7 +221,7 @@ function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail)
         -- Thumbnails should keep their original colors.
         love.graphics.setShader()
         love.graphics.setColor(1, 1, 1, alpha or 1)
-        love.graphics.draw(thumbnail, x, y, 0, scale, scale, iw / 2, ih / 2)
+        love.graphics.draw(thumbnail, x, y, rotation, scale, scale, iw / 2, ih / 2)
     elseif icon then
         -- Apply Gloss Shader for monochrome/theme-tinted icons only.
         if ui.gloss_shader:hasUniform("accent_color") and theme and theme.accent then
@@ -231,7 +232,7 @@ function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail)
         local img_h = icon:getHeight()
         local scale = size / math.max(img_w, img_h)
         love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1) * (alpha or 1))
-        love.graphics.draw(icon, x, y, 0, scale, scale, img_w / 2, img_h / 2)
+        love.graphics.draw(icon, x, y, rotation, scale, scale, img_w / 2, img_h / 2)
     end
 
     love.graphics.setShader()
@@ -290,10 +291,11 @@ function ui.draw_glow_text(text, x, y, font, color, glow_color, limit, align)
 end
 
 -- Draw icon/thumbnail with a soft glow effect
-function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail)
+function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail, rotation)
     local img = (thumbnail and type(thumbnail) ~= "string") and thumbnail or icon
     if not img then return end
 
+    rotation = rotation or 0
     local a = alpha or 1
 
     local img_w = img:getWidth()
@@ -313,7 +315,7 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
             local offset = i + 1
             local layer_alpha = shadow_alpha * (1.1 - i * 0.25)
             love.graphics.setColor(0, 0, 0, layer_alpha)
-            love.graphics.draw(img, x + offset, y + offset, 0, base_scale, base_scale, img_w / 2, img_h / 2)
+            love.graphics.draw(img, x + offset, y + offset, rotation, base_scale, base_scale, img_w / 2, img_h / 2)
         end
 
         -- Draw glow layers
@@ -328,7 +330,7 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
                 local scale = base_scale * (1.0 + (i * 0.05)) * (0.98 + pulse * 0.02) -- Adjusted scale pulse
 
                 love.graphics.setColor(gc[1], gc[2], gc[3], layer_alpha)
-                love.graphics.draw(img, x, y, 0, scale, scale, img_w / 2, img_h / 2)
+                love.graphics.draw(img, x, y, rotation, scale, scale, img_w / 2, img_h / 2)
             end
         end
 
@@ -339,7 +341,7 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
         love.graphics.setShader(ui.gloss_shader)
         love.graphics.setColor(color[1], color[2], color[3], a)
     end
-    love.graphics.draw(img, x, y, 0, base_scale, base_scale, img_w / 2, img_h / 2)
+    love.graphics.draw(img, x, y, rotation, base_scale, base_scale, img_w / 2, img_h / 2)
 
     love.graphics.setShader()
 end

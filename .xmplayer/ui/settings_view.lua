@@ -2,30 +2,30 @@
 -- Renders the settings choice popup panel and manages its animation state.
 -- Model data (options, groups, persistence) lives in settings.lua.
 
-local theme    = require("theme")
-local assets   = require("assets")
-local utils    = require("utils")
-local settings = require("settings")
-local ui       = require("ui")
-local viewport = require("viewport")
+local theme                          = require("theme")
+local assets                         = require("assets")
+local utils                          = require("utils")
+local settings                       = require("settings")
+local ui                             = require("ui")
+local viewport                       = require("viewport")
 
-local settings_view = {}
+local settings_view                  = {}
 
 -- Animation / interaction state
-settings_view.active       = false  -- Is the popup open?
-settings_view.alpha        = 0      -- Fade-in progress (0-1)
-settings_view.scroll_y     = 0
-settings_view.target_scroll_y = 0
-settings_view.selected_option_idx = 1
+settings_view.active                 = false -- Is the popup open?
+settings_view.alpha                  = 0 -- Fade-in progress (0-1)
+settings_view.scroll_y               = 0
+settings_view.target_scroll_y        = 0
+settings_view.selected_option_idx    = 1
 
 -- Folder picker state (compact picker for path options)
-settings_view.picker_active = false
-settings_view.picker_alpha = 0
-settings_view.picker_items = {}
-settings_view.picker_selected_idx = 1
-settings_view.picker_current_path = "/"
-settings_view.picker_setting_idx = nil
-settings_view.picker_scroll_y = 0
+settings_view.picker_active          = false
+settings_view.picker_alpha           = 0
+settings_view.picker_items           = {}
+settings_view.picker_selected_idx    = 1
+settings_view.picker_current_path    = "/"
+settings_view.picker_setting_idx     = nil
+settings_view.picker_scroll_y        = 0
 settings_view.picker_target_scroll_y = 0
 
 function settings_view.ensure_picker_visible()
@@ -85,7 +85,8 @@ function settings_view.update(dt, setting_idx)
     else
         settings_view.picker_alpha = math.max(0, settings_view.picker_alpha - dt * 12)
     end
-    settings_view.picker_scroll_y = utils.lerp(settings_view.picker_scroll_y, settings_view.picker_target_scroll_y or 0, dt * 12)
+    settings_view.picker_scroll_y = utils.lerp(settings_view.picker_scroll_y, settings_view.picker_target_scroll_y or 0,
+        dt * 12)
 end
 
 function settings_view.draw_popup(setting_idx)
@@ -93,11 +94,11 @@ function settings_view.draw_popup(setting_idx)
     if not opt or opt.type ~= "choice" or settings_view.alpha <= 0 then return end
 
     local screen_w, screen_h = viewport.get()
-    local panel_w = screen_w * 0.35
-    local item_h  = 50
-    local alpha   = settings_view.alpha
-    local x       = screen_w - (panel_w * alpha)
-    local y       = 0
+    local panel_w            = screen_w * 0.35
+    local item_h             = 50
+    local alpha              = settings_view.alpha
+    local x                  = screen_w - (panel_w * alpha)
+    local y                  = 0
 
     -- Panel background
     love.graphics.setColor(0.02, 0.02, 0.05, 0.92 * alpha)
@@ -150,18 +151,17 @@ function settings_view.draw_popup(setting_idx)
             love.graphics.polygon("fill",
                 centerX - 10, content_y_base - 14,
                 centerX + 10, content_y_base - 14,
-                centerX,      content_y_base - 26)
+                centerX, content_y_base - 26)
         end
         if settings_view.scroll_y > -(#opt.choices * item_h) + visible_area_h then
             local targetY = content_y_base + visible_area_h + 14
             love.graphics.polygon("fill",
                 centerX - 10, targetY,
                 centerX + 10, targetY,
-                centerX,      targetY + 12)
+                centerX, targetY + 12)
         end
     end
 end
-
 
 -- Folder picker helpers
 local function list_directories(path)
@@ -213,8 +213,8 @@ function settings_view.draw_folder_picker()
     local screen_w, screen_h = viewport.get()
     local panel_w = screen_w * 0.70
     local panel_h = math.min(screen_h * 0.8, 420)
-    local x = math.floor(screen_w/2) - math.floor(panel_w/2)
-    local y = math.floor(screen_h/2) - math.floor(panel_h/2)
+    local x = math.floor(screen_w / 2) - math.floor(panel_w / 2)
+    local y = math.floor(screen_h / 2) - math.floor(panel_h / 2)
     local alpha = settings_view.picker_alpha
 
     love.graphics.setColor(0.02, 0.02, 0.05, 0.96 * alpha)
@@ -244,9 +244,9 @@ function settings_view.draw_folder_picker()
         if focused then
             love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.24 * alpha)
             love.graphics.rectangle("fill", list_x - 6, cy - 6, panel_w - 28, item_h, 6, 6)
-            love.graphics.setColor(1,1,1,1 * alpha)
+            love.graphics.setColor(1, 1, 1, 1 * alpha)
         else
-            love.graphics.setColor(1,1,1,0.8 * alpha)
+            love.graphics.setColor(1, 1, 1, 0.8 * alpha)
         end
         ui.print_text(it.name, list_x, cy, assets.fonts.small, { 1, 1, 1, focused and 1 * alpha or 0.8 * alpha })
     end
@@ -256,7 +256,7 @@ function settings_view.draw_folder_picker()
 
     -- Button hints at bottom
     local hint_y = y + panel_h - 40
-    local hints = "A: Open    B: Back/Close    X: Set Folder"
+    local hints = "A: Open    B: Back/Close    X: Set Current Folder"
     ui.print_text(hints, x + 20, hint_y, assets.fonts.xs, { 1, 1, 1, 0.85 * alpha })
 end
 

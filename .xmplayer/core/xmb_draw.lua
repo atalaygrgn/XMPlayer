@@ -70,7 +70,7 @@ function xmb_draw.draw(state)
     love.graphics.push()
     love.graphics.translate(list_x + xmb.list_slide_x, list_base_y + xmb.item_scroll_y)
 
-    local item_h = 75
+    local item_h = 65
     local first  = math.max(1, math.floor(-xmb.item_scroll_y / item_h) - 2)
     local last   = math.min(#browser.files, first + math.ceil(screen_h / item_h) + 4)
     local cat_id = categories[xmb.current_category_idx].id
@@ -95,11 +95,28 @@ function xmb_draw.draw(state)
             local icon  = assets.images.folder
             local thumb = nil
 
+            local rot = 0
             if item.type == "file" and (cat_id == "photo" or item.icon == "photo") then
                 icon = assets.images.photo
                 local info = indexing.data.photos[item.path]
-                local thumb_path = (info and info.thumb_path) or item.path
-                if thumb_path then
+                
+                -- Fast parse EXIF orientation on the fly if not in index
+                local orientation = 1
+                if info and info.orientation then
+                    orientation = info.orientation
+                else
+                    orientation = utils.get_jpeg_orientation(item.path)
+                end
+                if orientation == 3 then
+                    rot = math.pi
+                elseif orientation == 6 then
+                    rot = math.pi / 2
+                elseif orientation == 8 then
+                    rot = 3 * math.pi / 2
+                end
+
+                if info and info.thumb_path then
+                    local thumb_path = info.thumb_path
                     if not xmb.thumbs[thumb_path] then
                         xmb.thumbs[thumb_path] = utils.load_image(thumb_path)
                     end
@@ -107,7 +124,7 @@ function xmb_draw.draw(state)
                 end
                 if not thumb and item.path then
                     if not xmb.thumbs[item.path] then
-                        xmb.thumbs[item.path] = utils.load_image(item.path)
+                        xmb.thumbs[item.path] = utils.load_image_thumb(item.path)
                     end
                     thumb = xmb.thumbs[item.path]
                 end
@@ -145,9 +162,9 @@ function xmb_draw.draw(state)
             if is_focused then
                 -- local icon_y = item.description and (y + 24) or (y + 14)
                 local icon_y = y + 14
-                ui.draw_glow_icon(icon, -36, icon_y, 48, theme.text, final_alpha, theme.text, thumb)
+                ui.draw_glow_icon(icon, -36, icon_y, 48, theme.text, final_alpha, theme.text, thumb, rot)
             else
-                ui.draw_icon(icon, -36, y + 14, 48, theme.text, final_alpha, thumb)
+                ui.draw_icon(icon, -36, y + 14, 48, theme.text, final_alpha, thumb, rot)
             end
 
             -- Watched overlay for video files

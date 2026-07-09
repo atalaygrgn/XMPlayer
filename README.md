@@ -71,12 +71,12 @@ Fluid particle animations and customizable color themes to your liking. You can 
 | **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset View |
 | **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |
 | **X** | Context Menu | Playback Options | Toggle Mute | Zoom In |
-| **Y** | - | Hotkey Display | Show OSD | Rotate 90° |
+| **Y** | - | (Hold) Hotkey Display | Show OSD<br>**Menu+Y:** Toggle OSD | Rotate 90° |
 | **L1** | - | Previous Track | Previous Video | Previous Image |
 | **L2** | - | Seek -10s | Cycle Audio Tracks | - |
 | **R1** | - | Next Track | Next Video | Next Image |
 | **R2** | - | Seek +10s | Cycle Subtitles | - |
-| **Start** | - | - | Toggle Aspect Ratio | Toggle Info |
+| **Start** | - | - | Adjust Aspect Ratio<br>**Menu+Start:** Adjust Video Zoom (Panscan) | Toggle Info |
 | **Select** | - | - | Return to XMB | Return to XMB |
 
 ---

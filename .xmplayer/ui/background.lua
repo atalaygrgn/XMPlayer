@@ -286,7 +286,7 @@ update_walk = function(dt, music)
         local progress = walk_state.runner.jump_t / 0.5
         walk_state.runner.y = walk_state.runner.base_y - walk_state.runner.jump_height * math.sin(progress * math.pi)
 
-        if walk_state.runner.jump_height > 60 then
+        if walk_state.runner.jump_height > 100 then
             walk_state.runner.flip_angle = progress * math.pi * 2
         else
             walk_state.runner.flip_angle = 0

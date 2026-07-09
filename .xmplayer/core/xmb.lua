@@ -543,7 +543,7 @@ end
 
 local function reset_focus_position()
     xmb.current_item_idx = math.max(1, math.min(xmb.current_item_idx, math.max(1, #browser.files)))
-    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
+    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 65
     xmb.item_scroll_y = xmb.target_item_scroll_y
 end
 
@@ -556,7 +556,7 @@ local function set_item_focus(index, options)
         reset_marquee()
     end
 
-    xmb.target_item_scroll_y = -(target - 1) * 75
+    xmb.target_item_scroll_y = -(target - 1) * 65
     xmb.item_scroll_y = xmb.target_item_scroll_y
 
     if options then
@@ -1287,6 +1287,14 @@ function xmb.refresh_items()
                     icon = "folder_image",
                     description = photo_count .. " photos"
                 })
+            table.insert(browser.files,
+                {
+                    name = "Screenshots",
+                    type = "directory_trigger",
+                    path = "/run/muos/storage/screenshot", -- /userdata/screenshots for Knulli, ??? for Rocknix
+                    icon = "screenshot",
+                    is_screenshots = true
+                })
             browser.set_state(cat.path, cat.path, cat.filter)
         elseif xmb.view_type == "browser" then
             browser.scan()
@@ -1507,7 +1515,7 @@ function xmb.update(dt)
     xmb.target_category_scroll_x = -(xmb.current_category_idx - 1) * (theme.icon_size + theme.icon_spacing)
 
     -- Items are scrolled based on current selection
-    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 75
+    xmb.target_item_scroll_y = -(xmb.current_item_idx - 1) * 65
 
     local screen_w = viewport.get()
     local cat_base_x = screen_w * 0.25
@@ -1892,8 +1900,8 @@ function xmb.keypressed(key, player, music, viewer)
                     end
                 else
                     local cat_id = categories[xmb.current_category_idx].id
-                    if cat_id == "folder" then
-                        -- For Files tab storage entries, set base_dir to the selected storage path
+                    if cat_id == "folder" or selected.is_screenshots then
+                        -- For Files tab storage entries or Screenshots, set base_dir to the selected storage path
                         browser.set_state(selected.path, selected.path, current_filter())
                     else
                         browser.set_state(browser.base_dir, selected.path, current_filter())

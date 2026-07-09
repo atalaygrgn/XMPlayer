@@ -158,8 +158,39 @@ function utils.load_image(path)
             if success then
                 local ok2, img_data = pcall(love.image.newImageData, file_data)
                 if ok2 then
+                    local w, h = img_data:getDimensions()
+                    local max_texture_size = 2048
+                    if love.graphics and love.graphics.getSystemLimit then
+                        local ok_limit, val = pcall(love.graphics.getSystemLimit, "texturesize")
+                        if ok_limit and val then
+                            max_texture_size = val
+                        end
+                    end
+                    local limit = math.min(max_texture_size, 2048)
+                    if w > limit or h > limit then
+                        local scale = limit / math.max(w, h)
+                        local tw, th = math.floor(w * scale), math.floor(h * scale)
+                        local scaled_id = love.image.newImageData(tw, th)
+                        for y = 0, th - 1 do
+                            local sy = math.floor(y / scale)
+                            if sy >= h then sy = h - 1 end
+                            for x = 0, tw - 1 do
+                                local sx = math.floor(x / scale)
+                                if sx >= w then sx = w - 1 end
+                                local r, g, b, a = img_data:getPixel(sx, sy)
+                                scaled_id:setPixel(x, y, r, g, b, a)
+                            end
+                        end
+                        img_data:release()
+                        img_data = scaled_id
+                    end
+
                     local ok3, img3 = pcall(love.graphics.newImage, img_data)
+                    img_data:release()
+                    file_data:release()
                     if ok3 then return img3 end
+                else
+                    file_data:release()
                 end
             end
         end
@@ -172,6 +203,197 @@ function utils.shuffle(t)
         local j = math.random(i)
         t[i], t[j] = t[j], t[i]
     end
+end
+
+function utils.get_jpeg_metadata(filepath, need_thumb)
+    local f = io.open(filepath, "rb")
+    if not f then return nil end
+    local data = f:read(128 * 1024) -- Read first 128KB
+    f:close()
+    if not data or #data < 4 then return nil end
+
+    if data:byte(1) ~= 0xFF or data:byte(2) ~= 0xD8 then
+        return nil -- Not a valid JPEG SOI
+    end
+
+    local pos = 3
+    local len = #data
+    local exif_data = nil
+    local app1_pos = nil
+    
+    while pos < len - 4 do
+        local b = data:byte(pos)
+        if b == 0xFF then
+            local marker = data:byte(pos + 1)
+            -- Skip padding 0xFF bytes
+            while marker == 0xFF and pos + 1 < len do
+                pos = pos + 1
+                marker = data:byte(pos + 1)
+            end
+
+            if marker and marker ~= 0x00 and marker ~= 0xFF then
+                -- Valid marker found
+                if marker == 0xD9 or marker == 0xDA then
+                    -- SOS (Start of Scan) or EOI (End of Image)
+                    break
+                end
+
+                local has_length = true
+                if marker == 0xD8 or marker == 0xD9 or (marker >= 0xD0 and marker <= 0xD7) or marker == 0x01 then
+                    has_length = false
+                end
+
+                if has_length then
+                    local seg_len = data:byte(pos + 2) * 256 + data:byte(pos + 3)
+                    if marker == 0xE1 then
+                        -- APP1 marker (EXIF)
+                        if pos + 4 + 5 < len and data:sub(pos + 4, pos + 9) == "Exif\0\0" then
+                            exif_data = data:sub(pos + 10, pos + 2 + seg_len)
+                            app1_pos = pos
+                            break
+                        end
+                    end
+                    pos = pos + 2 + seg_len
+                else
+                    pos = pos + 2
+                end
+            else
+                pos = pos + 1
+            end
+        else
+            pos = pos + 1
+        end
+    end
+
+    if not exif_data or #exif_data < 8 then return nil end
+
+    -- Now parse the TIFF header in exif_data
+    local is_little = false
+    local byte_order = exif_data:sub(1, 2)
+    if byte_order == "II" then
+        is_little = true
+    elseif byte_order == "MM" then
+        is_little = false
+    else
+        return nil
+    end
+
+    local function read_u16(s, p)
+        local b1, b2 = s:byte(p), s:byte(p + 1)
+        if not b2 then return 0 end
+        if is_little then
+            return b2 * 256 + b1
+        else
+            return b1 * 256 + b2
+        end
+    end
+
+    local function read_u32(s, p)
+        local b1, b2, b3, b4 = s:byte(p), s:byte(p + 1), s:byte(p + 2), s:byte(p + 3)
+        if not b4 then return 0 end
+        if is_little then
+            return b4 * 16777216 + b3 * 65536 + b2 * 256 + b1
+        else
+            return b1 * 16777216 + b2 * 65536 + b3 * 256 + b4
+        end
+    end
+
+    local magic = read_u16(exif_data, 3)
+    if magic ~= 0x2A then return nil end
+
+    local first_ifd_offset = read_u32(exif_data, 5)
+    if first_ifd_offset == 0 or first_ifd_offset + 1 > #exif_data then return nil end
+
+    local p = first_ifd_offset + 1
+    local num_entries = read_u16(exif_data, p)
+    p = p + 2
+
+    local orientation = 1
+    local ifd1_offset = 0
+
+    for i = 1, num_entries do
+        if p + 12 > #exif_data then break end
+        local tag = read_u16(exif_data, p)
+        local type_code = read_u16(exif_data, p + 2)
+        if tag == 0x0112 then -- Orientation tag
+            local val
+            if type_code == 3 then
+                val = read_u16(exif_data, p + 8)
+            elseif type_code == 4 then
+                val = read_u32(exif_data, p + 8)
+            end
+            if val then orientation = val end
+        end
+        p = p + 12
+    end
+
+    if p + 4 <= #exif_data then
+        ifd1_offset = read_u32(exif_data, p)
+    end
+
+    local thumb_bytes = nil
+    if need_thumb and ifd1_offset > 0 and ifd1_offset + 1 <= #exif_data then
+        p = ifd1_offset + 1
+        local num_entries1 = read_u16(exif_data, p)
+        p = p + 2
+        local thumb_offset = 0
+        local thumb_length = 0
+        for i = 1, num_entries1 do
+            if p + 12 > #exif_data then break end
+            local tag = read_u16(exif_data, p)
+            if tag == 0x0201 then
+                thumb_offset = read_u32(exif_data, p + 8)
+            elseif tag == 0x0202 then
+                thumb_length = read_u32(exif_data, p + 8)
+            end
+            p = p + 12
+        end
+
+        if thumb_offset > 0 and thumb_length > 0 then
+            local f2 = io.open(filepath, "rb")
+            if f2 then
+                f2:seek("set", app1_pos - 1 + 10 + thumb_offset)
+                thumb_bytes = f2:read(thumb_length)
+                f2:close()
+            end
+        end
+    end
+
+    return orientation, thumb_bytes
+end
+
+function utils.get_jpeg_orientation(filepath)
+    local orientation = utils.get_jpeg_metadata(filepath, false)
+    return orientation or 1
+end
+
+function utils.load_image_bytes(bytes)
+    local fd, id, img
+    local ok = pcall(function()
+        fd = love.filesystem.newFileData(bytes, "temp_img.jpg")
+        id = love.image.newImageData(fd)
+        img = love.graphics.newImage(id)
+    end)
+    if id then id:release() end
+    if fd then fd:release() end
+    if ok and img then
+        return img
+    end
+    return nil
+end
+
+function utils.load_image_thumb(path)
+    if not path or path == "" then return nil end
+    local ext = path:match("%.([^%.]+)$")
+    if ext and (ext:lower() == "jpg" or ext:lower() == "jpeg") then
+        local _, thumb_bytes = utils.get_jpeg_metadata(path, true)
+        if thumb_bytes then
+            local img = utils.load_image_bytes(thumb_bytes)
+            if img then return img end
+        end
+    end
+    -- Fallback to loading full image
+    return utils.load_image(path)
 end
 
 return utils

@@ -1,4 +1,4 @@
-a_hk = esc
+guide = shift  # menu button
 
 a = p    # pause/play
 b = .    # frame step
@@ -16,4 +16,4 @@ r1 = ]     # next video (override)
 r2 = j     # subtitle next
 
 start = a  # change aspect ratio (override)
-select = q # quit
+back = q # quit
