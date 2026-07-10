@@ -2,9 +2,9 @@
 
 ![XMPlayer Hero](assets/readme/hero.png)
 
-**XMPlayer** is an all-in-one, XMB-inspired media suite designed specifically for handheld gaming devices running **muOS** (support for other firmwares are planned). It provides a clean, easy-to-use interface for managing and enjoying your music, videos, and photos.
+**XMPlayer** is an all-in-one, XMB-inspired media suite designed specifically for handheld gaming devices running **muOS** or **Knulli**. It provides a clean, easy-to-use interface for managing and enjoying your music, videos, and photos.
 
-> XMPlayer is a **media suite application** for Linux handhelds running muOS (and other firmwares, WIP). It is **NOT** a custom firmware or an emulation frontend. The main focus is on media content **other than games**.
+> XMPlayer is a **media suite application** for Linux handhelds running muOS or Knulli. It is **NOT** a custom firmware or an emulation frontend. The main focus is on media content **other than games**.
 
 **Disclaimer:** XMPlayer is developed for educational purposes and is not affiliated with Sony or the XrossMediaBar brand.
 
@@ -44,11 +44,13 @@ Fluid particle animations and customizable color themes to your liking. You can 
 
 ## Installation
 
-### Prerequisites
+### muOS App (.muxapp Release)
+
+#### Prerequisites
 - A handheld device running **muOS**. At least 1 GB of RAM is recommended for a smooth experience.
 - Your music, videos, and photos organized into dedicated folders on your SD card. Both single and dual SD card setups are supported.
 
-### Steps
+#### Steps
 1. Download the latest release and put in in the `ARCHIVES` folder on your SD card.
 2. Install the `XMPlayer.muxapp` file using Archive Manager.
 3. Go to Applications menu and launch XMPlayer.
@@ -57,6 +59,27 @@ Fluid particle animations and customizable color themes to your liking. You can 
 > - For single SD card setups, the SD card contents are mounted to `/mnt/mmc`. <br>
 > - For dual SD card setups, `/mnt/mmc` refers to the 1st SD card, and `/mnt/sdcard` refers to the 2nd.
 5. Under Media Directories, select **Reindex Media and Restart App**. XMPlayer will index your media library for you. After that, XMPlayer is ready to use.
+
+### PortMaster App (muOS & Knulli)
+
+> For **muOS**, installing the **.muxapp Release** instead is highly recommended. More information available here.
+
+#### Prerequisites
+- A handheld device running **muOS** or **Knulli**. At least 1 GB of RAM is recommended for a smooth experience.
+- **The latest version of PortMaster and runtimes** installed on your device.
+- Your music, videos, and photos organized into dedicated folders on your SD card. Both single and dual SD card setups are supported.
+
+#### Steps
+1. Download the latest release from PortMaster.
+2. Go to Ports section and launch XMPlayer.
+3. At launch, XMPlayer will ask you to set media directories. Set all media directories you plan to use from **Settings** > **Media Directories**.
+> **Need help where to locate?** <br>
+> #### muOS
+> - For single SD card setups, the SD card contents are mounted to `/mnt/mmc`. <br>
+> - For dual SD card setups, `/mnt/mmc` refers to the 1st SD card, and `/mnt/sdcard` refers to the 2nd.
+> #### Knulli
+> - For both single and dual SD card setups, `/userdata` is the directory of user content.
+4. Under Media Directories, select **Reindex Media and Restart App**. XMPlayer will index your media library for you. After that, XMPlayer is ready to use.
 
 ![XMPlayer on Device](assets/readme/console.png)
 
@@ -78,7 +101,6 @@ Fluid particle animations and customizable color themes to your liking. You can 
 | **R2** | - | Seek +10s | Cycle Subtitles | - |
 | **Start** | - | - | Adjust Aspect Ratio<br>**Menu+Start:** Adjust Video Zoom (Panscan) | Toggle Info |
 | **Select** | - | - | Return to XMB | Return to XMB |
-
 ---
 
 ## Customization
@@ -99,7 +121,7 @@ More customization options are on the way!
 
 ## Roadmap
 
-### v0.1 (Current)
+### v0.1 (Legacy)
 - [x] Mark/unmark videos as watched.
 - [x] Play videos from where you left off.
 - [x] Shuffle play: music (folder, album, artist)
@@ -109,8 +131,8 @@ More customization options are on the way!
 - [x] Continue playback while display turned off (+ lid closed for clamshells)
 - [x] Wallpaper and customization.
 
-### v0.2 (In Progress)
-- [ ] Portmaster release w/ Knulli support.
+### v0.2 (Current)
+- [x] Portmaster release with Knulli support.
 - [x] Custom playlists for video and music.
 - [x] More visualizer options.
 

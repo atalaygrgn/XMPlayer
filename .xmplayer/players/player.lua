@@ -1,4 +1,5 @@
 local history = require("history")
+local system = require("system")
 local player = {}
 
 -- Flag to signal main.lua to do a hard refresh
@@ -25,9 +26,24 @@ function player.play_video(filepath, resume)
     local watch_later_dir = storage_path .. "/config/mpv/watch_later"
     os.execute("mkdir -p " .. watch_later_dir)
 
-    -- Switch gptokeyb to MPV controls
-    os.execute("killall -9 gptokeyb2 2>/dev/null")
-    os.execute("./bin/gptokeyb2 mpv -c ./config/mpvplayer.gptk &")
+    -- Resolve gptokeyb details dynamically based on CFW and environment variables
+    local cfw = system.get_cfw_name()
+    local gptokeyb_exe = nil
+    local kill_cmd = nil
+
+    if cfw == "muOS" then
+        gptokeyb_exe = "./bin/gptokeyb2"
+        kill_cmd = "killall -9 gptokeyb2 2>/dev/null"
+    else
+        gptokeyb_exe = os.getenv("GPTOKEYB") or "gptokeyb"
+        kill_cmd = "killall -9 gptokeyb gptokeyb2 2>/dev/null"
+    end
+
+    -- Switch gptokeyb to MPV controls (only on muOS)
+    if cfw == "muOS" then
+        os.execute(kill_cmd)
+        os.execute(gptokeyb_exe .. " mpv -c ./config/mpvplayer.gptk &")
+    end
 
     -- Launch MPV (blocks until MPV exits)
     -- --resume-playback=yes: Automatically resume if data exists
@@ -48,8 +64,13 @@ function player.play_video(filepath, resume)
     print("MPV exited, returning to XMPlayer")
 
     -- Switch gptokeyb back to XMPlayer controls
-    os.execute("killall -9 gptokeyb2 2>/dev/null")
-    os.execute("./bin/gptokeyb2 love -c ./config/xmplayer.gptk &")
+    os.execute(kill_cmd)
+    if cfw == "muOS" then
+        os.execute("./bin/gptokeyb2 love -c ./config/xmplayer.gptk &")
+    else
+        local love_gptk = os.getenv("LOVE_GPTK") or "love"
+        os.execute(gptokeyb_exe .. " " .. love_gptk .. " -c ./config/xmplayer.gptk &")
+    end
 
     -- Signal that we need a hard display refresh
     player.needs_refresh = true

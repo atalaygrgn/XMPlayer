@@ -6,9 +6,9 @@ DIST_DIR = $(BUILD_DIR)/$(APP_NAME)
 PACKAGE_FILE = $(BUILD_DIR)/$(APP_NAME).muxapp
 POWERSHELL = powershell -NoProfile -Command
 
-.PHONY: all clean build package
+.PHONY: all clean build package portmaster
 
-all: package
+all: package portmaster
 
 build:
 	@echo "Resetting dist directory..."
@@ -42,6 +42,28 @@ package: build
 	@$(POWERSHELL) "Move-Item -Path '$(BUILD_DIR)/$(APP_NAME).zip' -Destination '$(PACKAGE_FILE)' -Force"
 	@$(POWERSHELL) "Remove-Item -Path '$(BUILD_DIR)/package_stage' -Recurse -Force"
 	@echo "Package ready: $(PACKAGE_FILE)"
+
+portmaster:
+	@echo "Creating Portmaster build structure..."
+	@$(POWERSHELL) "if (Test-Path '$(BUILD_DIR)/portmaster') { Remove-Item -Path '$(BUILD_DIR)/portmaster' -Recurse -Force }"
+	@$(POWERSHELL) "New-Item -ItemType Directory -Force -Path '$(BUILD_DIR)/portmaster/xmplayer/gamedata' | Out-Null"
+	
+	@echo "Copying Love2D application files..."
+	@$(POWERSHELL) "Copy-Item -Path '.\.xmplayer\*' -Destination '$(BUILD_DIR)\portmaster\xmplayer\gamedata' -Recurse -Force"
+	
+	@echo "Copying Portmaster-specific packaging files..."
+	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\XMPlayer.sh' -Destination '$(BUILD_DIR)\portmaster\' -Force"
+	@$(POWERSHELL) "$$_content = [System.IO.File]::ReadAllText('$(BUILD_DIR)/portmaster/XMPlayer.sh'); $$_content = $$_content -replace \"`r`n\", \"`n\"; [System.IO.File]::WriteAllText('$(BUILD_DIR)/portmaster/XMPlayer.sh', $$_content, (New-Object System.Text.UTF8Encoding($$false)))"
+	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\port.json' -Destination '$(BUILD_DIR)\portmaster\xmplayer\' -Force"
+	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\gameinfo.xml' -Destination '$(BUILD_DIR)\portmaster\xmplayer\' -Force"
+	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\README.md' -Destination '$(BUILD_DIR)\portmaster\xmplayer\' -Force"
+	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\screenshot.png' -Destination '$(BUILD_DIR)\portmaster\xmplayer\' -Force"
+	@$(POWERSHELL) "Copy-Item -Path '.\.xmplayer\config\xmplayer.gptk' -Destination '$(BUILD_DIR)\portmaster\xmplayer\xmplayer.gptk' -Force"
+	
+	@echo "Creating Portmaster package..."
+	@$(POWERSHELL) "$$zip = '$(BUILD_DIR)/XMPlayer-Knulli-Experimental.zip'; if (Test-Path $$zip) { Remove-Item -Path $$zip -Force }; Compress-Archive -Path '$(BUILD_DIR)/portmaster/*' -DestinationPath $$zip -Force"
+	@$(POWERSHELL) "Remove-Item -Path '$(BUILD_DIR)/portmaster' -Recurse -Force"
+	@echo "Portmaster package ready: $(BUILD_DIR)/XMPlayer-Knulli-Experimental.zip"
 
 clean:
 	@echo "Cleaning up build directory..."

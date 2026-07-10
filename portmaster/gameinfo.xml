@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gameList>
+  <game>
+    <path>./XMPlayer.sh</path>
+    <name>XMPlayer</name>
+    <desc>A media suite with a familiar interface you know and love.</desc>
+    <releasedate>20260709T000000</releasedate>
+    <developer>TheScriptor</developer>
+    <publisher>TheScriptor</publisher>
+    <genre>Other</genre>
+    <image>./xmplayer/screenshot.png</image>
+  </game>
+</gameList>

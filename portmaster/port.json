@@ -1,0 +1,35 @@
+{
+    "version": 4,
+    "name": "XMPlayer-Portmaster",
+    "items": [
+        "XMPlayer",
+        "xmplayer"
+    ],
+    "items_opt": [],
+    "attr": {
+        "title": "XMPlayer",
+        "porter": [
+            "TheScriptor"
+        ],
+        "desc": "A media suite with a familiar interface you know and love.",
+        "desc_md": null,
+        "inst": "Ready to run. Configure your media folders from Settings > Media Directories.",
+        "inst_md": "#### Controls\n\n| Button | XMB Menu | Music Player | Video Player (MPV) | Photo Viewer |\n| :--- | :--- | :--- | :--- | :--- |\n| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek +-5s | Pan Left/Right |\n| **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s | Pan Up/Down |\n| **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset View |\n| **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |\n| **X** | Context Menu | Playback Options | Toggle Mute | Zoom In |\n| **Y** | - | (Hold) Hotkey Display | Show OSD | Rotate 90° |\n| **L1** | - | Previous Track | Previous Video | Previous Image |\n| **L2** | - | Seek -10s | Cycle Audio Tracks | - |\n| **R1** | - | Next Track | Next Video | Next Image |\n| **R2** | - | Seek +10s | Cycle Subtitles | - |\n| **Start** | - | - | Adjust Aspect Ratio | Toggle Info |\n| **Select** | - | - | Return to XMB | Return to XMB |",
+        "genres": [
+            "other"
+        ],
+        "image": null,
+        "rtr": true,
+        "exp": true,
+        "runtime": [],
+        "store": [],
+        "availability": "full",
+        "reqs": [
+            "!lowres"
+        ],
+        "arch": [
+            "aarch64"
+        ],
+        "min_glibc": ""
+    }
+}

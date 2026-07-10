@@ -66,6 +66,11 @@ local function read_resume_path(full_watch_path)
 
     if not content then return nil end
 
+    -- Ignore redirect entries created by mpv for parent folders/playlists
+    if content:match("# redirect entry") then
+        return nil
+    end
+
     local path = content:match("# path: *([^\n\r]+)")
     if not path then
         path = content:match("#path: *([^\n\r]+)")

@@ -210,24 +210,26 @@ function love.update(dt)
         runtime_state.is_charging = system.is_charging()
     end
 
-    -- Update volume & brightness status
+    -- Update volume & brightness status (only on muOS to prevent lag on other CFWs)
     runtime_state.ui_timer = runtime_state.ui_timer + dt
     if runtime_state.ui_timer >= runtime_state.ui_check_interval then
         runtime_state.ui_timer = 0
 
-        -- Volume
-        local current_volume = system.get_volume()
-        if settings.vol_bright_enabled and runtime_state.last_volume ~= nil and current_volume ~= nil and current_volume ~= runtime_state.last_volume then
-            ui.show_volume_toast(current_volume)
-        end
-        runtime_state.last_volume = current_volume
+        if system.get_cfw_name() == "muOS" then
+            -- Volume
+            local current_volume = system.get_volume()
+            if settings.vol_bright_enabled and runtime_state.last_volume ~= nil and current_volume ~= nil and current_volume ~= runtime_state.last_volume then
+                ui.show_volume_toast(current_volume)
+            end
+            runtime_state.last_volume = current_volume
 
-        -- Brightness
-        local current_brightness = system.get_brightness()
-        if settings.vol_bright_enabled and runtime_state.last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= runtime_state.last_brightness then
-            ui.show_brightness_toast(current_brightness)
+            -- Brightness
+            local current_brightness = system.get_brightness()
+            if settings.vol_bright_enabled and runtime_state.last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= runtime_state.last_brightness then
+                ui.show_brightness_toast(current_brightness)
+            end
+            runtime_state.last_brightness = current_brightness
         end
-        runtime_state.last_brightness = current_brightness
     end
 
     background.update(dt, is_paused)

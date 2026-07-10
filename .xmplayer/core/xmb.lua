@@ -13,6 +13,7 @@ local keyboard = require("onscreen_keyboard")
 local viewport = require("viewport")
 local xmb_state = require("xmb_state")
 local xmb_actions = require("xmb_actions")
+local system = require("system")
 
 local xmb = xmb_state.new()
 xmb.item_marquee = ui.new_marquee(0, 50, 1.5, 1.0)
@@ -1291,7 +1292,7 @@ function xmb.refresh_items()
                 {
                     name = "Screenshots",
                     type = "directory_trigger",
-                    path = "/run/muos/storage/screenshot", -- /userdata/screenshots for Knulli, ??? for Rocknix
+                    path = system.get_screenshot_dir(),
                     icon = "screenshot",
                     is_screenshots = true
                 })
@@ -1311,29 +1312,82 @@ function xmb.refresh_items()
     elseif cat.id == "folder" then
         if xmb.view_type == "category_root" then
             -- Files tab: show storage roots instead of raw filesystem root
-            table.insert(browser.files, {
-                name = "Primary Storage",
-                type = "directory_trigger",
-                path = "/mnt/mmc",
-                icon = "drive",
-                description = "/mnt/mmc"
-            })
-
-            if dir_has_entries("/mnt/sdcard") then
-                table.insert(browser.files, {
-                    name = "Secondary Storage",
+            local paths = {}
+            if system.get_cfw_name() == "muOS" then
+                table.insert(paths, {
+                    name = "Primary Storage",
                     type = "directory_trigger",
-                    path = "/mnt/sdcard",
-                    icon = "sdcard",
-                    description = "/mnt/sdcard"
+                    path = "/mnt/mmc",
+                    icon = "drive",
+                    description = "/mnt/mmc"
                 })
+                if dir_has_entries("/mnt/sdcard") then
+                    table.insert(paths, {
+                        name = "Secondary Storage",
+                        type = "directory_trigger",
+                        path = "/mnt/sdcard",
+                        icon = "sdcard",
+                        description = "/mnt/sdcard"
+                    })
+                end
+            else
+                if dir_has_entries("/userdata") then
+                    table.insert(paths, {
+                        name = "Userdata Storage",
+                        type = "directory_trigger",
+                        path = "/userdata",
+                        icon = "drive",
+                        description = "/userdata"
+                    })
+                end
+                if dir_has_entries("/storage") then
+                    table.insert(paths, {
+                        name = "System Storage",
+                        type = "directory_trigger",
+                        path = "/storage",
+                        icon = "drive",
+                        description = "/storage"
+                    })
+                end
+                if dir_has_entries("/roms") then
+                    table.insert(paths, {
+                        name = "Roms Storage",
+                        type = "directory_trigger",
+                        path = "/roms",
+                        icon = "drive",
+                        description = "/roms"
+                    })
+                end
+                if dir_has_entries("/mnt/sdcard") then
+                    table.insert(paths, {
+                        name = "SD Card Storage",
+                        type = "directory_trigger",
+                        path = "/mnt/sdcard",
+                        icon = "sdcard",
+                        description = "/mnt/sdcard"
+                    })
+                end
+            end
+
+            if #paths == 0 then
+                table.insert(paths, {
+                    name = "Root Directory",
+                    type = "directory_trigger",
+                    path = "/",
+                    icon = "drive",
+                    description = "/"
+                })
+            end
+
+            for _, p in ipairs(paths) do
+                table.insert(browser.files, p)
             end
         elseif xmb.view_type == "browser" then
             -- In browser view for Files category: list selected storage contents
             browser.scan()
         end
     elseif cat.path then
-        local base_dir = cat.path or "/mnt/sdcard"
+        local base_dir = cat.path or system.get_default_base_dir()
         -- Preserve current browser state if already inside this category's base
         if not browser.current_dir or not utils.is_subpath(base_dir, browser.current_dir) then
             browser.set_state(base_dir, base_dir, cat.filter)
@@ -1361,7 +1415,7 @@ function xmb.refresh_browser(slide_dir)
     if (cat.id == "music" or cat.id == "video" or cat.id == "photo") and (not cat.path or cat.path == "") then
         browser.set_files({ { name = "Media directory not set. Please set directory from Settings.", type = "info_text" } })
     else
-        local base_dir = cat.path or "/mnt/sdcard"
+        local base_dir = cat.path or system.get_default_base_dir()
         browser.set_state(base_dir, base_dir, cat.filter)
         xmb.refresh_items()
     end
@@ -1838,7 +1892,7 @@ function xmb.keypressed(key, player, music, viewer)
                     settings_view.selected_option_idx = opt.value
                 elseif opt.type == "path" then
                     -- Open compact folder picker starting from filesystem root or current value
-                    local start_path = opt.value and opt.value ~= "" and opt.value or "/"
+                    local start_path = opt.value and opt.value ~= "" and opt.value or system.get_default_base_dir()
                     settings_view.open_folder_picker(start_path, selected.setting_idx)
                 elseif opt.type == "action" then
                     if opt.id == "clear_history" then

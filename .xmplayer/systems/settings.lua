@@ -213,13 +213,20 @@ settings.options = {
         value = "v0.2.0"
     },
     {
+        id = "build_type",
+        name = "Build Target",
+        type = "info",
+        group = "about",
+        value = os.getenv("XM_BUILD_TYPE") or "muOS App"
+    },
+    {
         id = "website",
         name = "Website",
         type = "info",
         group = "about",
         value = "github.com/atalaygrgn/XMPlayer"
     },
-        {
+    {
         id = "songo",
         name = "Also try Songo #5",
         type = "info",

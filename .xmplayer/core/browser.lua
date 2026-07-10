@@ -1,8 +1,9 @@
 local utils = require("utils")
 local indexing = require("indexing")
+local system = require("system")
 local browser = {}
 
-browser.base_dir = "/mnt/sdcard"
+browser.base_dir = system.get_default_base_dir()
 browser.current_dir = browser.base_dir
 browser.files = {}
 browser.selected_index = 1
