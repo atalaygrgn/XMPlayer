@@ -56,6 +56,9 @@ export LOVE_GPTK
 # Run Love2D game passing the gamedata directory containing main.lua
 cd "$GAMEDIR/gamedata"
 
+# Ensure ffmpeg binary is executable
+chmod +x ./bin/ffmpeg
+
 # Start gptokeyb daemon mapping
 if [ "$CFW_NAME" = "muOS" ]; then
   ./bin/gptokeyb2 "$LOVE_GPTK" -c "$GAMEDIR/xmplayer.gptk" &

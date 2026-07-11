@@ -82,6 +82,7 @@ export XM_BUILD_TYPE="muOS App"
 # Ensure binaries are executable
 chmod +x "$APP_DIR/bin/love"
 chmod +x "$APP_DIR/bin/gptokeyb2"
+chmod +x "$APP_DIR/bin/ffmpeg"
 
 # Launch Application
 cd "$APP_DIR" || exit

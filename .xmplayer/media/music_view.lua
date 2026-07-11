@@ -159,11 +159,13 @@ function music_view.register_user_input()
     if music_view.display_sleeping then
         music_view.display_sleep_alpha = 0
         music_view.display_sleeping = false
-        if music_view.saved_brightness and music_view.saved_brightness > 0 then
-            system.set_brightness(music_view.saved_brightness)
-            music_view.saved_brightness = nil
-        else
-            system.set_brightness(200)
+        if settings.power_save_sleep_enabled then
+            if music_view.saved_brightness and music_view.saved_brightness > 0 then
+                system.set_brightness(music_view.saved_brightness)
+                music_view.saved_brightness = nil
+            else
+                system.set_brightness(200)
+            end
         end
     end
 end
@@ -196,8 +198,10 @@ function music_view.update(dt)
         if not music_view.display_sleeping then
             music_view.display_sleeping = true
             music_view.display_sleep_alpha = 1
-            music_view.saved_brightness = system.get_brightness() or 50
-            system.set_brightness(0)
+            if settings.power_save_sleep_enabled then
+                music_view.saved_brightness = system.get_brightness() or 50
+                system.set_brightness(0)
+            end
         end
         return
     end
@@ -207,11 +211,13 @@ function music_view.update(dt)
         music_view.idle_seconds = 0
         if music_view.display_sleeping then
             music_view.display_sleeping = false
-            if music_view.saved_brightness and music_view.saved_brightness > 0 then
-                system.set_brightness(music_view.saved_brightness)
-                music_view.saved_brightness = nil
-            else
-                system.set_brightness(200)
+            if settings.power_save_sleep_enabled then
+                if music_view.saved_brightness and music_view.saved_brightness > 0 then
+                    system.set_brightness(music_view.saved_brightness)
+                    music_view.saved_brightness = nil
+                else
+                    system.set_brightness(200)
+                end
             end
         end
         music_view.display_sleep_alpha = math.max(0, music_view.display_sleep_alpha - dt * 6)
@@ -229,17 +235,21 @@ function music_view.update(dt)
     music_view.display_sleeping = (music_view.display_sleep_alpha >= 0.99)
 
     if music_view.display_sleeping and not was_sleeping then
-        local current = system.get_brightness() or 50
-        if current > 0 then
-            music_view.saved_brightness = current
+        if settings.power_save_sleep_enabled then
+            local current = system.get_brightness() or 50
+            if current > 0 then
+                music_view.saved_brightness = current
+            end
+            system.set_brightness(0)
         end
-        system.set_brightness(0)
     elseif not music_view.display_sleeping and was_sleeping then
-        if music_view.saved_brightness and music_view.saved_brightness > 0 then
-            system.set_brightness(music_view.saved_brightness)
-            music_view.saved_brightness = nil
-        else
-            system.set_brightness(200)
+        if settings.power_save_sleep_enabled then
+            if music_view.saved_brightness and music_view.saved_brightness > 0 then
+                system.set_brightness(music_view.saved_brightness)
+                music_view.saved_brightness = nil
+            else
+                system.set_brightness(200)
+            end
         end
     end
 end
@@ -524,8 +534,10 @@ function music_view.keypressed(key)
         music_view.display_sleep_alpha = 1
         music_view.display_sleeping = true
         if not was_sleeping then
-            music_view.saved_brightness = system.get_brightness() or 50
-            system.set_brightness(0)
+            if settings.power_save_sleep_enabled then
+                music_view.saved_brightness = system.get_brightness() or 50
+                system.set_brightness(0)
+            end
         end
         return true
     elseif key == "delete" then
@@ -535,7 +547,7 @@ function music_view.keypressed(key)
         music_view.display_sleeping = false
         music_view.idle_seconds = 0
         if was_sleeping then
-            if music_view.saved_brightness then
+            if settings.power_save_sleep_enabled and music_view.saved_brightness then
                 system.set_brightness(music_view.saved_brightness)
                 music_view.saved_brightness = nil
             end

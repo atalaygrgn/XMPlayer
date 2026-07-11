@@ -19,9 +19,19 @@ end
 local isWindows = (package.config:sub(1,1) == "\\")
 local devNull = isWindows and "NUL" or "/dev/null"
 
+-- Resolve ffmpeg binary path
+local ffmpeg_bin = "ffmpeg"
+if not isWindows then
+    local source_path = love.filesystem.getSource()
+    ffmpeg_bin = '"' .. source_path .. '/bin/ffmpeg"'
+    -- Ensure the binary is executable
+    os.execute("chmod +x " .. ffmpeg_bin .. " 2>/dev/null")
+end
+
 -- FFmpeg command: decode to 16-bit PCM at 44100Hz stereo, no video.
 local ffmpegCmd = string.format(
-    'ffmpeg -nostdin -v error %s-i "%s" -vn -f s16le -acodec pcm_s16le -ar 44100 -ac 2 - 2>%s',
+    '%s -nostdin -v error %s-i "%s" -vn -f s16le -acodec pcm_s16le -ar 44100 -ac 2 - 2>%s',
+    ffmpeg_bin,
     seekOpt,
     mediaPath,
     devNull

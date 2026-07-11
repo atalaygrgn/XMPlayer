@@ -5,6 +5,7 @@ local settings = {}
 
 settings.keytone_enabled = true
 settings.display_sleep_seconds = 0
+settings.power_save_sleep_enabled = true
 settings.track_info_background_mode = 1
 local storage_path = love.filesystem.getSource()
 settings.file_path = storage_path .. "/settings.cfg"
@@ -194,6 +195,14 @@ settings.options = {
         value = 1
     },
     {
+        id = "power_save_sleep",
+        name = "Power-saving Display Sleep",
+        type = "choice",
+        group = "general",
+        choices = { "On", "Off" },
+        value = 1
+    },
+    {
         id = "clear_history",
         name = "Clear Watch History",
         type = "action",
@@ -351,6 +360,13 @@ function settings.apply()
         settings.display_sleep_seconds = display_sleep_choices[opt_display_sleep.value] or 0
     else
         settings.display_sleep_seconds = 0
+    end
+
+    local opt_power_save_sleep = settings.get_option("power_save_sleep")
+    if opt_power_save_sleep then
+        settings.power_save_sleep_enabled = (opt_power_save_sleep.value == 1)
+    else
+        settings.power_save_sleep_enabled = true
     end
 
     local opt_track_info_background = settings.get_option("track_info_background")

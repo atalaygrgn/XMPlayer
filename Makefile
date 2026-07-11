@@ -61,9 +61,9 @@ portmaster:
 	@$(POWERSHELL) "Copy-Item -Path '.\.xmplayer\config\xmplayer.gptk' -Destination '$(BUILD_DIR)\portmaster\xmplayer\xmplayer.gptk' -Force"
 	
 	@echo "Creating Portmaster package..."
-	@$(POWERSHELL) "$$zip = '$(BUILD_DIR)/XMPlayer-Knulli-Experimental.zip'; if (Test-Path $$zip) { Remove-Item -Path $$zip -Force }; Compress-Archive -Path '$(BUILD_DIR)/portmaster/*' -DestinationPath $$zip -Force"
+	@$(POWERSHELL) "$$zip = '$(BUILD_DIR)/XMPlayer-PortMaster.zip'; if (Test-Path $$zip) { Remove-Item -Path $$zip -Force }; Compress-Archive -Path '$(BUILD_DIR)/portmaster/*' -DestinationPath $$zip -Force"
 	@$(POWERSHELL) "Remove-Item -Path '$(BUILD_DIR)/portmaster' -Recurse -Force"
-	@echo "Portmaster package ready: $(BUILD_DIR)/XMPlayer-Knulli-Experimental.zip"
+	@echo "PortMaster package ready: $(BUILD_DIR)/XMPlayer-PortMaster.zip"
 
 clean:
 	@echo "Cleaning up build directory..."

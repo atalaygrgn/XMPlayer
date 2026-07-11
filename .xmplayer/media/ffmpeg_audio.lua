@@ -81,15 +81,18 @@ local function processPCMChunk(rawBytes)
     return sampleCount
 end
 
--- Get duration via ffprobe
+-- Get duration via ffmpeg
 local function getDuration(filepath)
-    -- Use ffprobe to extract duration quickly
-    local ffprobeCmd = string.format(
-        'ffprobe -v error -show_entries format=duration -of "default=noprint_wrappers=1:nokey=1:nokey=1" "%s"',
-        filepath
-    )
+    local isWindows = (package.config:sub(1,1) == "\\")
+    local ffmpeg_bin = "ffmpeg"
+    if not isWindows then
+        local source_path = love.filesystem.getSource()
+        ffmpeg_bin = '"' .. source_path .. '/bin/ffmpeg"'
+    end
 
-    local pipe = io.popen(ffprobeCmd, "r")
+    -- Run ffmpeg -i and capture stderr
+    local cmd = string.format('%s -i "%s" 2>&1', ffmpeg_bin, filepath)
+    local pipe = io.popen(cmd, "r")
     if not pipe then
         return 0
     end
@@ -97,9 +100,16 @@ local function getDuration(filepath)
     local output = pipe:read("*a")
     pipe:close()
 
-    -- Parse the duration value
-    local duration = tonumber(output)
-    return duration or 0
+    if not output then return 0 end
+
+    -- Parse the duration format: Duration: hh:mm:ss.cc
+    local hh, mm, ss = output:match("Duration: (%d+):(%d+):(%d+%.?%d*)")
+    if hh and mm and ss then
+        local duration = tonumber(hh) * 3600 + tonumber(mm) * 60 + tonumber(ss)
+        return duration
+    end
+
+    return 0
 end
 
 function ffmpeg_audio.init()
@@ -250,7 +260,7 @@ function ffmpeg_audio.update()
 
                     -- Copy bytes into SoundData if FFI is available
                     if hasFFI and ffi then
-                        local ptr = sd:getPointer()
+                        local ptr = sd.getFFIPointer and sd:getFFIPointer() or sd:getPointer()
                         if ptr then
                             ffi.copy(ptr, message.data, message.size)
                         end

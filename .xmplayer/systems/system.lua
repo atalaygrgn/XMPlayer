@@ -104,112 +104,75 @@ function system.get_screenshot_dir()
     end
 end
 
-local function get_battery_info()
-    local cap = nil
-    local charging = false
-
-    -- Check Knulli specific cached battery files first for accurate percentage
-    local f_pct = io.open("/tmp/battery.percent", "r")
-    if f_pct then
-        local content = f_pct:read("*a")
-        f_pct:close()
-        cap = tonumber(content:match("(%d+)"))
-    end
-
-    -- If not found (or not on Knulli), fall back to querying power supply directories
-    if not cap then
-        -- List all power supply directories
-        local p = io.popen("ls -d /sys/class/power_supply/* 2>/dev/null")
-        if p then
-            for line in p:lines() do
-                line = line:match("^%s*(.-)%s*$")
-                if line ~= "" then
-                    -- Check capacity file first
-                    local cap_file = line .. "/capacity"
-                    local f = io.open(cap_file, "r")
-                    if f then
-                        local content = f:read("*a")
-                        f:close()
-                        cap = tonumber(content:match("(%d+)"))
-                    else
-                        -- Fallback to uevent
-                        local uevent_file = line .. "/uevent"
-                        local fu = io.open(uevent_file, "r")
-                        if fu then
-                            local content = fu:read("*a")
-                            fu:close()
-                            local cap_str = content:match("POWER_SUPPLY_CAPACITY=(%d+)")
-                            if cap_str then
-                                cap = tonumber(cap_str)
-                            else
-                                -- Fallback to charge_now / charge_full
-                                local now_str = content:match("POWER_SUPPLY_CHARGE_NOW=(%d+)")
-                                local max_str = content:match("POWER_SUPPLY_CHARGE_FULL=(%d+)")
-                                if now_str and max_str then
-                                    local now = tonumber(now_str)
-                                    local max = tonumber(max_str)
-                                    if max and max > 0 then
-                                        cap = math.floor((now / max) * 100 + 0.5)
-                                    end
-                                end
-                            end
-                        end
-                    end
-
-                    -- Check charging status if not already determined from Knulli files
-                    if not f_stat then
-                        local status_file = line .. "/status"
-                        local fs = io.open(status_file, "r")
-                        if fs then
-                            local content = fs:read("*a")
-                            fs:close()
-                            if content and content:match("Charging") then
-                                charging = true
-                            end
-                        end
-                    end
-
-                    -- If we found capacity, we can stop scanning
-                    if cap then
-                        break
-                    end
-                end
-            end
-            p:close()
-        end
-    end
-
-    -- General charging status fallback checking all power supplies online status
-    if not charging and not f_stat then
-        local p_online = io.popen("ls /sys/class/power_supply/*/online 2>/dev/null")
-        if p_online then
-            for line in p_online:lines() do
-                line = line:match("^%s*(.-)%s*$")
-                local f = io.open(line, "r")
-                if f then
-                    local content = f:read("*a")
-                    f:close()
-                    if (tonumber(content:match("(%d+)")) or 0) == 1 then
-                        charging = true
-                        break
-                    end
-                end
-            end
-            p_online:close()
-        end
-    end
-
-    return cap, charging
-end
-
 function system.get_battery_percentage()
-    local cap, _ = get_battery_info()
-    return cap
+    local cfw = system.get_cfw_name()
+    if cfw == "muOS" then
+        local path = "/sys/class/power_supply/axp2202-battery/capacity"
+        local f = io.open(path, "r")
+        if f then
+            local content = f:read("*a")
+            f:close()
+            if content then
+                return tonumber(content:match("(%d+)"))
+            end
+        end
+    elseif cfw == "knulli" then
+        local f = io.open("/tmp/battery.percent", "r")
+        if f then
+            local content = f:read("*a")
+            f:close()
+            if content then
+                return tonumber(content:match("(%d+)"))
+            end
+        end
+    elseif cfw == "ROCKNIX" then
+        local path = "/sys/class/power_supply/battery/capacity"
+        local f = io.open(path, "r")
+        if f then
+            local content = f:read("*a")
+            f:close()
+            if content then
+                return tonumber(content:match("(%d+)"))
+            end
+        end
+    end
+    return nil
 end
 
 function system.is_charging()
-    local _, charging = get_battery_info()
-    return charging
+    local cfw = system.get_cfw_name()
+    if cfw == "muOS" then
+        local path = "/sys/class/power_supply/axp2202-usb/online"
+        local f = io.open(path, "r")
+        if f then
+            local content = f:read("*a")
+            f:close()
+            if content then
+                return (tonumber(content:match("(%d+)")) or 0) == 1
+            end
+        end
+    elseif cfw == "knulli" then
+        local path = "/sys/class/power_supply/axp2202-usb/online"
+        local f = io.open(path, "r")
+        if f then
+            local content = f:read("*a")
+            f:close()
+            if content then
+                return (tonumber(content:match("(%d+)")) or 0) == 1
+            end
+        end
+    elseif cfw == "ROCKNIX" then
+        local path = "/sys/class/power_supply/battery/status"
+        local f = io.open(path, "r")
+        if f then
+            local content = f:read("*a")
+            f:close()
+            if content and (content:lower():match("charging") or content:lower():match("full")) then
+                return true
+            end
+        end
+    end
+    return nil
 end
 
 function system.get_volume()
@@ -256,6 +219,35 @@ function system.get_brightness()
                 return tonumber(content:match("(%d+)"))
             end
         end
+    elseif cfw == "ROCKNIX" then
+        -- Read Rocknix backlight value and calculate percentage
+        local p = io.popen("ls -d /sys/class/backlight/* 2>/dev/null")
+        if p then
+            for line in p:lines() do
+                line = line:match("^%s*(.-)%s*$")
+                if line ~= "" then
+                    local b_file = line .. "/brightness"
+                    local m_file = line .. "/max_brightness"
+                    local fb = io.open(b_file, "r")
+                    local fm = io.open(m_file, "r")
+                    if fb and fm then
+                        local b_content = fb:read("*a")
+                        local m_content = fm:read("*a")
+                        fb:close()
+                        fm:close()
+                        local b_val = tonumber(b_content:match("(%d+)"))
+                        local m_val = tonumber(m_content:match("(%d+)"))
+                        if b_val and m_val and m_val > 0 then
+                            p:close()
+                            return math.floor((b_val / m_val) * 100 + 0.5)
+                        end
+                    elseif fb then
+                        fb:close()
+                    end
+                end
+            end
+            p:close()
+        end
     end
     return nil
 end
@@ -280,6 +272,8 @@ function system.set_brightness(level)
         os.execute("/opt/muos/script/device/bright.sh " .. val)
     elseif cfw == "knulli" then
         os.execute("knulli-brightness " .. val)
+    elseif cfw == "ROCKNIX" then
+        os.execute("brightness set " .. val)
     end
 end
 
