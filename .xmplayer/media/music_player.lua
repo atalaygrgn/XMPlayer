@@ -1,40 +1,40 @@
-local browser      = require("browser")
-local assets       = require("assets")
-local metadata     = require("metadata")
-local ui           = require("ui")
-local utils        = require("utils")
-local ffmpeg_audio = require("ffmpeg_audio")
-local viewport     = require("viewport")
-local indexing     = require("indexing")
+local browser              = require("browser")
+local assets               = require("assets")
+local metadata             = require("metadata")
+local ui                   = require("ui")
+local utils                = require("utils")
+local ffmpeg_audio         = require("ffmpeg_audio")
+local viewport             = require("viewport")
+local indexing             = require("indexing")
 
-local music = {}
+local music                = {}
 
 -- Player state
-music.active = false      -- Is the music player view showing?
-music.playing = false     -- Is audio currently playing?
-music.paused = false
-music.current_track = nil -- {name, path}
-music.current_index = 0   -- Index in the playlist
-music.playlist = {}       -- List of tracks from current folder
-music.source = nil        -- FFmpeg audio backend (for compatibility)
-music.sound_data = nil    -- Compatibility wrapper for visualizers
-music.elapsed = 0         -- Elapsed time in seconds
-music.duration = 0        -- Total duration in seconds
-music.cover_art = nil     -- love.graphics Image for album art
-music.repeat_one = false
-music.auto_sleep_minutes = 0
+music.active               = false -- Is the music player view showing?
+music.playing              = false -- Is audio currently playing?
+music.paused               = false
+music.current_track        = nil -- {name, path}
+music.current_index        = 0 -- Index in the playlist
+music.playlist             = {} -- List of tracks from current folder
+music.source               = nil -- FFmpeg audio backend (for compatibility)
+music.sound_data           = nil -- Compatibility wrapper for visualizers
+music.elapsed              = 0 -- Elapsed time in seconds
+music.duration             = 0 -- Total duration in seconds
+music.cover_art            = nil -- love.graphics Image for album art
+music.repeat_one           = false
+music.auto_sleep_minutes   = 0
 music.auto_sleep_remaining = nil
-music.visualizer_mode = "wave" -- off, wave, bars
+music.visualizer_mode      = "wave" -- off, wave, bars
 
 -- Metadata tags
-music.tags = {}
-music.next_tags = {}
+music.tags                 = {}
+music.next_tags            = {}
 
 -- Animation
-music.fade_alpha = 0
-music.slide_x = 0
-music.pending_slide_dir = nil
-music.marquees   = {}  -- Populated by music_view.init()
+music.fade_alpha           = 0
+music.slide_x              = 0
+music.pending_slide_dir    = nil
+music.marquees             = {} -- Populated by music_view.init()
 
 function music.init()
     -- Initialize FFmpeg audio backend
@@ -72,7 +72,8 @@ function music.load_track(track_info)
     if #music.playlist > 1 then
         local next_idx = (music.current_index % #music.playlist) + 1
         local next_path = music.playlist[next_idx].path
-        local indexed = (indexing and indexing.data and indexing.data.music and indexing.data.music.files) and indexing.data.music.files[next_path]
+        local indexed = (indexing and indexing.data and indexing.data.music and indexing.data.music.files) and
+        indexing.data.music.files[next_path]
         if indexed then
             music.next_tags = { title = indexed.title }
         else
@@ -105,7 +106,7 @@ function music.load_track(track_info)
     -- Load audio via FFmpeg backend
     local ok = ffmpeg_audio.load(track_info.path)
     if ok then
-        music.source = true  -- Placeholder for compatibility
+        music.source = true -- Placeholder for compatibility
         music.sound_data = ffmpeg_audio.getSoundDataCompat()
         music.duration = ffmpeg_audio.getDuration()
         ffmpeg_audio.play()
@@ -266,24 +267,24 @@ function music.update(dt)
     end
 
     -- Update playback state
-        if music.playing and not music.paused then
-            music.elapsed = ffmpeg_audio.getElapsedTime()
+    if music.playing and not music.paused then
+        music.elapsed = ffmpeg_audio.getElapsedTime()
 
-            -- Determine track end robustly: only advance when elapsed is at (or very near)
-            -- the known duration. This prevents auto-advancing while FFmpeg is buffering
-            -- or before playback actually begins (causing 'roulette' skipping).
-            local dur = music.duration or 0
-            local near_end = (dur > 0) and (music.elapsed >= math.max(0, dur - 0.5))
+        -- Determine track end robustly: only advance when elapsed is at (or very near)
+        -- the known duration. This prevents auto-advancing while FFmpeg is buffering
+        -- or before playback actually begins (causing 'roulette' skipping).
+        local dur = music.duration or 0
+        local near_end = (dur > 0) and (music.elapsed >= math.max(0, dur - 0.5))
 
-            if near_end then
-                if music.repeat_one and music.playlist[music.current_index] then
-                    music.pending_slide_dir = 120
-                    music.load_track(music.playlist[music.current_index])
-                else
-                    music.next_track()
-                end
+        if near_end then
+            if music.repeat_one and music.playlist[music.current_index] then
+                music.pending_slide_dir = 120
+                music.load_track(music.playlist[music.current_index])
+            else
+                music.next_track()
             end
         end
+    end
 
     -- Update marquees
     if music.current_track then
@@ -305,6 +306,10 @@ end
 
 function music.seek(seconds)
     if not music.active or not music.source then return end
+
+    if music.current_track and utils.is_vgm_file(music.current_track.path) then
+        return
+    end
 
     local target = music.elapsed + seconds
     ffmpeg_audio.seek(target)

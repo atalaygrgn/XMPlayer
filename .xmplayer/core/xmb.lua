@@ -1988,7 +1988,7 @@ function xmb.keypressed(key, player, music, viewer)
                 end
             elseif selected.type == "video_play_all" then
                 if settings.video_player_mode == "ffplay" then
-                    ui.show_toast("ffplay is not compatible with Play All", "info", "bottom_right")
+                    ui.show_toast("ffplay is not compatible with Play All.", "info", "bottom_right")
                 else
                     local playlist = build_media_playlist_from_browser()
                     if #playlist > 0 then

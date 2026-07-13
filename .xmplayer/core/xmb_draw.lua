@@ -135,7 +135,7 @@ function xmb_draw.draw(state)
             elseif item.type == "album" then
                 icon = assets.images.album
                 local album = item.data
-                local thumb_path = album and album.thumb_path
+                local thumb_path = album and album.name ~= "Unknown Album" and album.thumb_path
                 if thumb_path and thumb_path ~= "" then
                     if not xmb.thumbs[thumb_path] then
                         xmb.thumbs[thumb_path] = utils.load_image(thumb_path)

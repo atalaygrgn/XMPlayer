@@ -9,11 +9,22 @@ local ffi = nil
 local hasFFI = pcall(function() ffi = require("ffi") end)
 
 -- Audio configuration
-local SAMPLE_RATE = 44100
+local SAMPLE_RATE = 44100          -- hardware/default
 local CHANNELS = 2
 local BIT_DEPTH = 16
-local BYTES_PER_SAMPLE = (BIT_DEPTH / 8) * CHANNELS    -- 4 bytes: 2 channels * 2 bytes each
-local MIN_PLAY_FRAMES = math.floor(SAMPLE_RATE * 0.05) -- 50ms worth of frames before forcing play
+local BYTES_PER_SAMPLE = (BIT_DEPTH / 8) * CHANNELS   -- 4 bytes: 2 channels * 2 bytes each
+
+-- Per-track sample rate (reduced for chip formats to cut synthesis CPU cost in half)
+local currentSampleRate = SAMPLE_RATE
+
+-- 1.5s pre-buffer at current rate before starting playback
+local function minPlayFrames() return math.floor(currentSampleRate * 1.5) end
+
+-- Chip/chiptune extensions that benefit from reduced synthesis rate
+local CHIP_EXTENSIONS = {
+    vgm=true, vgz=true, gym=true, gbs=true, hes=true,
+    kss=true, sap=true, ay=true, nsf=true, nsfe=true, spc=true
+}
 
 -- Thread and channel management
 local audioThread = nil
@@ -24,6 +35,8 @@ local streamChannelName = "audio_stream_channel"
 local controlChannelName = "audio_control_channel"
 local currentGeneration = 0
 local terminatingChannels = {}
+local QUEUE_BUFFERS = 24
+local hasReachedEOF = false
 
 -- Playback state
 local isPlaying = false
@@ -39,7 +52,7 @@ local pausedTime = 0 -- Time at pause moment
 -- Sample tracking for visualizers
 local totalSamplesQueued = 0           -- Total samples ever pushed to queue
 local sampleRingBuffer = {}            -- For visualizer access
-local ringBufferSize = SAMPLE_RATE * 2 -- 2 seconds of samples for visualizer
+local ringBufferSize = SAMPLE_RATE * 2 -- 2 seconds of samples for visualizer (use fixed rate)
 local currentSeekTime = 0
 local totalSamplesQueuedAtSeek = 0
 
@@ -83,7 +96,7 @@ end
 
 -- Get duration via ffmpeg
 local function getDuration(filepath)
-    local isWindows = (package.config:sub(1,1) == "\\")
+    local isWindows = (package.config:sub(1, 1) == "\\")
     local ffmpeg_bin = "ffmpeg"
     if not isWindows then
         local source_path = love.filesystem.getSource()
@@ -116,8 +129,9 @@ function ffmpeg_audio.init()
     audioChannel = love.thread.getChannel(streamChannelName)
     controlChannel = love.thread.getChannel(controlChannelName)
 
-    -- Create QueueableSource for 44100Hz, 16-bit, stereo
-    queueableSource = love.audio.newQueueableSource(SAMPLE_RATE, BIT_DEPTH, CHANNELS)
+    -- QueueableSource is created per-load (rate may differ per track)
+    -- Initialise with default rate so the object is never nil before first load
+    queueableSource = love.audio.newQueueableSource(SAMPLE_RATE, BIT_DEPTH, CHANNELS, QUEUE_BUFFERS)
 
     initRingBuffer()
 end
@@ -135,11 +149,28 @@ function ffmpeg_audio.load(filepath)
     isPlaying = false
     isPaused = false
     hasStartedPlayback = false
+    hasReachedEOF = false
     elapsedTime = 0
     startTime = 0
     totalSamplesQueued = 0
     currentSeekTime = 0
     totalSamplesQueuedAtSeek = 0
+
+    -- Detect chip/chiptune format and choose synthesis sample rate.
+    -- Chip formats synthesize at half rate (22050Hz) to cut CPU cost by ~50%.
+    -- LÖVE will present the audio at that rate; hardware resamples transparently.
+    local ext = filepath and filepath:match("%.([^%.]+)$")
+    if ext and CHIP_EXTENSIONS[ext:lower()] then
+        currentSampleRate = 22050
+    else
+        currentSampleRate = SAMPLE_RATE
+    end
+
+    -- Recreate QueueableSource to match this track's sample rate
+    if queueableSource then
+        queueableSource:stop()
+    end
+    queueableSource = love.audio.newQueueableSource(currentSampleRate, BIT_DEPTH, CHANNELS, QUEUE_BUFFERS)
 
     initRingBuffer()
 
@@ -160,9 +191,10 @@ function ffmpeg_audio.load(filepath)
     -- Get duration
     totalDuration = getDuration(filepath)
 
-    -- Start FFmpeg background thread (non-blocking)
+    -- Start FFmpeg background thread, passing the target sample rate so the worker
+    -- can configure libgme synthesis rate and output -ar to match.
     audioThread = love.thread.newThread("audio_worker.lua")
-    audioThread:start(filepath, streamChannelName, controlChannelName, currentGeneration)
+    audioThread:start(filepath, streamChannelName, controlChannelName, currentGeneration, nil, currentSampleRate)
 
     return true
 end
@@ -241,8 +273,12 @@ function ffmpeg_audio.update()
         end
     end
 
-    -- Process incoming PCM data from thread
+    -- Process incoming PCM data from thread.
+    -- While paused we skip this entirely: the queueable source already has up to 2.2s
+    -- of pre-buffered audio for smooth resume, and advancing totalSamplesQueued while
+    -- elapsedTime is frozen would desync the ring buffer and break the visualizer.
     local bufferCount = queueableSource:getFreeBufferCount()
+    if not isPaused then
     while bufferCount > 0 do
         local message = audioChannel:pop()
 
@@ -252,13 +288,13 @@ function ffmpeg_audio.update()
 
         if not message.generation or message.generation == currentGeneration then
             if message.type == "audio_data" then
-                -- Convert PCM bytes to SoundData and queue it
+                -- Messages arrive pre-sliced (16384 bytes / 92ms) from the worker thread.
+                -- One message = one SoundData allocation. No string.sub on the main thread.
                 local sampleCount = processPCMChunk(message.data)
 
                 local ok, soundData = pcall(function()
-                    local sd = love.sound.newSoundData(sampleCount, SAMPLE_RATE, BIT_DEPTH, CHANNELS)
+                    local sd = love.sound.newSoundData(sampleCount, currentSampleRate, BIT_DEPTH, CHANNELS)
 
-                    -- Copy bytes into SoundData if FFI is available
                     if hasFFI and ffi then
                         local ptr = sd.getFFIPointer and sd:getFFIPointer() or sd:getPointer()
                         if ptr then
@@ -288,12 +324,12 @@ function ffmpeg_audio.update()
                     queueableSource:queue(soundData)
                     bufferCount = queueableSource:getFreeBufferCount()
 
-                    -- If this is the first playback and we have buffered at least 2 chunks, start playing
+                    -- Start playback once we have enough frames buffered
                     if isPlaying and not isPaused and hasStartedPlayback and not queueableSource:isPlaying() then
                         local shouldPlay = false
                         if bufferCount < 3 then
                             shouldPlay = true
-                        elseif ffmpeg_audio.getSampleCount() >= MIN_PLAY_FRAMES then
+                        elseif ffmpeg_audio.getSampleCount() >= minPlayFrames() then
                             shouldPlay = true
                         end
 
@@ -308,6 +344,7 @@ function ffmpeg_audio.update()
                 end
             elseif message.type == "end" or message.type == "thread_done" then
                 -- Stream ended or thread finishing
+                hasReachedEOF = true
                 if message.type == "thread_done" then
                     audioThread = nil
                 end
@@ -319,7 +356,8 @@ function ffmpeg_audio.update()
                 break
             end
         end
-    end
+    end -- while bufferCount > 0
+    end -- if not isPaused
 
     -- Update elapsed time if playing
     if isPlaying and not isPaused and queueableSource:isPlaying() then
@@ -329,9 +367,9 @@ function ffmpeg_audio.update()
             elapsedTime = math.min(elapsedTime, totalDuration)
         end
     elseif isPlaying and not isPaused and not queueableSource:isPlaying() then
-        -- Only treat as track end if playback actually started
-        if playbackHasStarted then
-            -- Source stopped playing (track ended)
+        -- Only treat as track end if playback actually started, the thread has fully decoded the stream,
+        -- and the queueable source has completely played through all queued buffers.
+        if playbackHasStarted and hasReachedEOF and queueableSource:getFreeBufferCount() >= QUEUE_BUFFERS then
             isPlaying = false
             playbackHasStarted = false
         end
@@ -361,9 +399,13 @@ function ffmpeg_audio.getCurrentFilePath()
 end
 
 -- Get sample data for visualizer (from ring buffer)
+function ffmpeg_audio.getSampleRate()
+    return currentSampleRate
+end
+
 function ffmpeg_audio.getSampleCount()
     local decoded_since_seek = (totalSamplesQueued - totalSamplesQueuedAtSeek) / CHANNELS
-    return math.floor(decoded_since_seek + currentSeekTime * SAMPLE_RATE)
+    return math.floor(decoded_since_seek + currentSeekTime * currentSampleRate)
 end
 
 function ffmpeg_audio.getSample(index)
@@ -371,7 +413,7 @@ function ffmpeg_audio.getSample(index)
         return 0
     end
     -- Translate track-relative frame index to the physical sample offset in ring buffer
-    local delta_index = index - currentSeekTime * SAMPLE_RATE
+    local delta_index = index - currentSeekTime * currentSampleRate
     local sample_idx = totalSamplesQueuedAtSeek + delta_index * CHANNELS
     local ringIdx = math.floor(sample_idx % ringBufferSize) + 1
     local val = sampleRingBuffer[ringIdx]
@@ -414,18 +456,20 @@ function ffmpeg_audio.seek(time)
 
     -- Start new thread at targetTime
     audioThread = love.thread.newThread("audio_worker.lua")
-    audioThread:start(currentFilePath, streamChannelName, controlChannelName, currentGeneration, targetTime)
+    audioThread:start(currentFilePath, streamChannelName, controlChannelName, currentGeneration, targetTime, currentSampleRate)
 
     playbackHasStarted = false
     hasStartedPlayback = true
+    hasReachedEOF = false
 end
 
 -- Compatibility wrapper for old SoundData interface
 function ffmpeg_audio.getSoundDataCompat()
     return {
-        getDuration = function() return totalDuration end,
+        getDuration    = function() return totalDuration end,
+        getSampleRate  = function() return ffmpeg_audio.getSampleRate() end,
         getSampleCount = function() return ffmpeg_audio.getSampleCount() end,
-        getSample = function(_, idx) return ffmpeg_audio.getSample(idx) end,
+        getSample      = function(_, idx) return ffmpeg_audio.getSample(idx) end,
     }
 end
 

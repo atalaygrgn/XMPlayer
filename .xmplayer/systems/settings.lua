@@ -268,7 +268,7 @@ settings.options = {
         name = "Also try Songo #5",
         type = "info",
         group = "about",
-        value = "an incredible music player!"
+        value = "the amazing music player!"
     },
     {
         id = "test_toast_top",

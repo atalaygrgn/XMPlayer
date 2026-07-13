@@ -209,7 +209,7 @@ update_walk = function(dt, music)
     local rms = 0.05
     local treble = 0.05
     if music.sound_data then
-        local SAMPLE_RATE = 44100
+        local SAMPLE_RATE = music.sound_data.getSampleRate and music.sound_data:getSampleRate() or 44100
         local current_sample = math.floor(music.elapsed * SAMPLE_RATE)
         local total_samples = music.sound_data:getSampleCount()
 
@@ -430,8 +430,8 @@ local function draw_waveform(music)
     local samples = 120 -- How many points in our waveform
     local amplitude = h * 0.1
 
-    -- Calculate current sample index from elapsed time (44100 Hz sample rate)
-    local SAMPLE_RATE = 44100
+    -- Calculate current sample index from elapsed time
+    local SAMPLE_RATE = music.sound_data.getSampleRate and music.sound_data:getSampleRate() or 44100
     local current_sample = math.floor(music.elapsed * SAMPLE_RATE)
     local total_samples = music.sound_data:getSampleCount()
 
@@ -491,8 +491,8 @@ local function draw_bars_visualizer(music)
     local bar_w = (total_width - (bars - 1) * gap) / bars
     local start_x = (w - total_width) * 0.5
 
-    -- Calculate current sample index from elapsed time (44100 Hz sample rate)
-    local SAMPLE_RATE = 44100
+    -- Calculate current sample index from elapsed time
+    local SAMPLE_RATE = music.sound_data.getSampleRate and music.sound_data:getSampleRate() or 44100
     local current_sample = math.max(0, math.floor(music.elapsed * SAMPLE_RATE))
     local total_samples = music.sound_data:getSampleCount()
     local paused_alpha = music.paused and 0.35 or 1.0

@@ -316,7 +316,8 @@ function music_view.draw()
     -- Track Info
     if music.current_track then
         local info_x, info_y, info_w = w * 0.3, 60, w * 0.65
-        local extra_y = info_y + 118
+        local is_vgm = utils.is_vgm_file(music.current_track.path)
+        local extra_y = info_y + (is_vgm and 50 or 118)
 
         local function set_clip()
             viewport.set_scissor(info_x, 50, info_w, h - 50)
@@ -332,17 +333,19 @@ function music_view.draw()
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
         love.graphics.rectangle("fill", info_x, info_y + 40, info_w, 1)
 
-        -- Artist
-        set_clip()
-        local artist_name = music.tags.artist or "Unknown Artist"
-        ui.draw_marquee(music.marquees.artist, artist_name, info_x + music.slide_x, info_y + 46, assets.fonts.artist,
-            { theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha }, info_x, info_y + 46)
+        if not is_vgm then
+            -- Artist
+            set_clip()
+            local artist_name = music.tags.artist or "Unknown Artist"
+            ui.draw_marquee(music.marquees.artist, artist_name, info_x + music.slide_x, info_y + 46, assets.fonts.artist,
+                { theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha }, info_x, info_y + 46)
 
-        -- Album
-        set_clip()
-        local album_name = music.tags.album or "Unknown Album"
-        ui.draw_marquee(music.marquees.album, album_name, info_x + music.slide_x, info_y + 74, assets.fonts.album,
-            { theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha }, info_x, info_y + 74)
+            -- Album
+            set_clip()
+            local album_name = music.tags.album or "Unknown Album"
+            ui.draw_marquee(music.marquees.album, album_name, info_x + music.slide_x, info_y + 74, assets.fonts.album,
+                { theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha }, info_x, info_y + 74)
+        end
 
         -- Next Track Info
         set_clip()
