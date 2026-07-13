@@ -22,7 +22,7 @@ Provides special configurations to CFW's built-in **MPV** and **ffplay** for hig
 ![XMPlayer Video Player](assets/readme/resume.png)<br>
 
 ### Music Player
-A dedicated audio player interface with album art, track info, and playback controls. **Common audio formats** are supported. Moreover, basic support for **VGM files** and **chiptune formats** are available. Playback performance may differ depending on format and hardware, more information [here](docs/vgm_support_info.md).<br>
+A dedicated audio player interface with album art, track info, and playback controls. **Common audio formats** are supported. Moreover, basic support for **VGM files** and **chiptune formats** are available. Playback performance may differ depending on chiptune format and hardware, more information [here](docs/vgm_support_info.md).<br>
 
 ![XMPlayer Music Player](assets/readme/player.png)
 
@@ -137,10 +137,13 @@ More customization options are on the way!
 - [x] More visualizer options.
 - [x] VGM file support (.spc, .nsf, ...)
 
+### v0.3
+- [ ] Audiobooks support with dedicated player (bookmarks, chapters, ...)
+- [ ] Web radio streaming
+
 ### Planned for Later Versions
 - [ ] Photo gallery.
 - [ ] Image slideshows.
-- [ ] External display support.
 - [ ] Custom icon sets.
 - [ ] Add support for other media formats?
 
