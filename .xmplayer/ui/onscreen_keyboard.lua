@@ -24,7 +24,7 @@ local keyboard = {
 local rows = {
     { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
     { "q", "w", "e", "r", "t", "y", "u", "i", "o", "p" },
-    { "a", "s", "d", "f", "g", "h", "j", "k", "l", "<-" },
+    { "a", "s", "d", "f", "g", "h", "j", "k", "l", "del" },
     { "z", "x", "c", "v", "b", "n", "m", ",", ".", "-" },
 }
 
@@ -46,8 +46,8 @@ local function is_letter(key)
 end
 
 local function key_label(key)
-    if key == "<-" then
-        return "<-"
+    if key == "del" then
+        return "del"
     end
     if keyboard.caps_on and caps_number_map[key] then
         return caps_number_map[key]
@@ -87,7 +87,7 @@ local function apply_key(key)
         if #keyboard.value < keyboard.max_length then
             keyboard.value = keyboard.value .. " "
         end
-    elseif key == "<-" then
+    elseif key == "del" then
         if #keyboard.value > 0 then
             keyboard.value = keyboard.value:sub(1, -2)
         end
@@ -209,7 +209,7 @@ function keyboard.keypressed(key)
     end
 
     if key == "backspace" or key == "b" then -- B button
-        apply_key("<-")
+        apply_key("del")
         return true
     end
 

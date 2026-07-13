@@ -74,6 +74,20 @@ function utils.get_track_name(filename)
     return n or name
 end
 
+function utils.is_vgm_file(filepath)
+    if type(filepath) ~= "string" then return false end
+    local ext = utils.get_extension(filepath)
+    if not ext then return false end
+    ext = ext:lower()
+    local vgm_exts = {
+        [".spc"] = true, [".nsf"] = true, [".nsfe"] = true, [".vgm"] = true,
+        [".vgz"] = true, [".gym"] = true, [".gbs"] = true, [".hes"] = true,
+        [".kss"] = true, [".sap"] = true, [".ay"] = true, [".mod"] = true,
+        [".s3m"] = true, [".xm"] = true, [".it"] = true
+    }
+    return vgm_exts[ext] == true
+end
+
 function utils.clean_utf8(str)
     if not str then return "" end
     -- Replace invalid UTF-8 bytes with '?'

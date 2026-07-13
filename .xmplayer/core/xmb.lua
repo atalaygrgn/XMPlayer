@@ -1987,15 +1987,23 @@ function xmb.keypressed(key, player, music, viewer)
                     music.play(playlist[1].path, playlist)
                 end
             elseif selected.type == "video_play_all" then
-                local playlist = build_media_playlist_from_browser()
-                if #playlist > 0 then
-                    player.play_video(playlist)
+                if settings.video_player_mode == "ffplay" then
+                    ui.show_toast("ffplay is not compatible with Play All.", "info", "bottom_right")
+                else
+                    local playlist = build_media_playlist_from_browser()
+                    if #playlist > 0 then
+                        player.play_video(playlist)
+                    end
                 end
             elseif selected.type == "video_shuffle_play" then
-                local playlist = build_media_playlist_from_browser()
-                if #playlist > 0 then
-                    utils.shuffle(playlist)
-                    player.play_video(playlist)
+                if settings.video_player_mode == "ffplay" then
+                    ui.show_toast("ffplay is not compatible with Shuffle Play.", "info", "bottom_right")
+                else
+                    local playlist = build_media_playlist_from_browser()
+                    if #playlist > 0 then
+                        utils.shuffle(playlist)
+                        player.play_video(playlist)
+                    end
                 end
             elseif selected.type == "playlist_create" then
                 keyboard.open({

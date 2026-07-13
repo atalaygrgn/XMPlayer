@@ -21,7 +21,24 @@ indexing.data = {
 }
 
 indexing.compatible_extensions = {
-    music = { ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".opus", ".wma"},
+    music = { ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".opus", ".wma", ".alac", ".aif", ".aiff",
+        -- VGM Files
+        ".spc",  -- SNES
+        ".nsf",  -- NES
+        ".nsfe", -- Extended NES
+        ".vgm",  -- Sega Genesis, Master System, Game Gear
+        ".vgz",  -- Compressed VGM
+        ".gym",  -- Sega Genesis
+        ".gbs",  -- GB/GBC
+        ".hes",  -- TurboGrafx-16 / PC Engine
+        ".kss",  -- MSX & SEGA Master System (Z80)
+        ".sap",  -- Atari
+        ".ay",   -- ZX Spectrum & Amstrad CPC
+        ".mod",  -- Amiga Module
+        ".s3m",  -- Scream Tracker 3
+        ".xm",   -- FastTracker 2
+        ".it"    -- Impulse Tracker
+    },
     photo = { ".jpg", ".jpeg", ".png", ".bmp" },
     video = { ".mp4", ".mkv", ".avi", ".mov", ".wmv" }
 }
@@ -63,10 +80,28 @@ local function parse_track_index(value)
 end
 
 local function split_artists(artist_str)
+    if not artist_str or artist_str == "" then
+        return { "Unknown Artist" }
+    end
+
+    -- Replace common character separators with commas
+    local normalized = artist_str:gsub("%s*&%s*", ", ")
+    normalized = normalized:gsub("%s*;%s*", ", ")
+
+    -- Normalize featuring patterns case-insensitively with space boundaries
+    local patterns = {
+        "%s+[Ff][Ee][Aa][Tt]%.?%s+",
+        "%s+[Ff][Ee][Aa][Tt][Uu][Rr][Ii][Nn][Gg]%s+",
+        "%s+[Ff][Tt]%.?%s+"
+    }
+    for _, pat in ipairs(patterns) do
+        normalized = normalized:gsub(pat, ", ")
+    end
+
     local artists = {}
     local seen = {}
 
-    for _, artist in ipairs(utils.split(artist_str or "", ",")) do
+    for _, artist in ipairs(utils.split(normalized, ",")) do
         local trimmed = utils.trim(artist)
         if trimmed ~= "" and not seen[trimmed] then
             seen[trimmed] = true
@@ -163,42 +198,7 @@ local function add_music_file(path)
         disc_number = disc_number
     }
 
-    for _, a in ipairs(artists) do
-        if not indexing.data.music.artists[a] then
-            indexing.data.music.artists[a] = { name = a, albums = {}, tracks = {} }
-        end
-        table.insert(indexing.data.music.artists[a].tracks, path)
-        add_artist_album(indexing.data.music.artists[a], album)
-    end
-
-    local album_group_key = album_artist ~= "" and album_artist or ""
-    local album_display_artist = get_album_display_artist(album_artist, artist_str, artists)
-    local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
-    if not indexing.data.music.albums[album_key] then
-        indexing.data.music.albums[album_key] = { name = album, artist = album_display_artist, tracks = {} }
-    elseif album_artist ~= "" then
-        indexing.data.music.albums[album_key].artist = album_artist
-    elseif indexing.data.music.albums[album_key].artist == nil or indexing.data.music.albums[album_key].artist == "" then
-        indexing.data.music.albums[album_key].artist = album_display_artist
-    end
-    table.insert(indexing.data.music.albums[album_key].tracks, path)
-
-    return true
-end
-
-local function rebuild_music_collections_from_files()
-    local old_files = indexing.data.music.files or {}
-    local old_albums = indexing.data.music.albums or {}
-    indexing.data.music.albums = {}
-    indexing.data.music.artists = {}
-
-    for path, info in pairs(old_files) do
-        local artist_str = normalize_label(info.artist, "Unknown Artist")
-        local album = normalize_label(info.album, "Unknown Album")
-        local album_artist = utils.trim(info.album_artist or "")
-        local artists = split_artists(artist_str)
-        local primary_artist = artists[1]
-
+    if not utils.is_vgm_file(path) then
         for _, a in ipairs(artists) do
             if not indexing.data.music.artists[a] then
                 indexing.data.music.artists[a] = { name = a, albums = {}, tracks = {} }
@@ -211,20 +211,59 @@ local function rebuild_music_collections_from_files()
         local album_display_artist = get_album_display_artist(album_artist, artist_str, artists)
         local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
         if not indexing.data.music.albums[album_key] then
-            local preserved_album = old_albums[album_key] or {}
-            indexing.data.music.albums[album_key] = {
-                name = album,
-                artist = album_display_artist,
-                tracks = {},
-                thumb_path = preserved_album.thumb_path,
-                thumb_version = preserved_album.thumb_version
-            }
+            indexing.data.music.albums[album_key] = { name = album, artist = album_display_artist, tracks = {} }
         elseif album_artist ~= "" then
             indexing.data.music.albums[album_key].artist = album_artist
         elseif indexing.data.music.albums[album_key].artist == nil or indexing.data.music.albums[album_key].artist == "" then
             indexing.data.music.albums[album_key].artist = album_display_artist
         end
         table.insert(indexing.data.music.albums[album_key].tracks, path)
+    end
+
+    return true
+end
+
+local function rebuild_music_collections_from_files()
+    local old_files = indexing.data.music.files or {}
+    local old_albums = indexing.data.music.albums or {}
+    indexing.data.music.albums = {}
+    indexing.data.music.artists = {}
+
+    for path, info in pairs(old_files) do
+        if not utils.is_vgm_file(path) then
+            local artist_str = normalize_label(info.artist, "Unknown Artist")
+            local album = normalize_label(info.album, "Unknown Album")
+            local album_artist = utils.trim(info.album_artist or "")
+            local artists = split_artists(artist_str)
+            local primary_artist = artists[1]
+
+            for _, a in ipairs(artists) do
+                if not indexing.data.music.artists[a] then
+                    indexing.data.music.artists[a] = { name = a, albums = {}, tracks = {} }
+                end
+                table.insert(indexing.data.music.artists[a].tracks, path)
+                add_artist_album(indexing.data.music.artists[a], album)
+            end
+
+            local album_group_key = album_artist ~= "" and album_artist or ""
+            local album_display_artist = get_album_display_artist(album_artist, artist_str, artists)
+            local album_key = normalize_key(album) .. "::" .. normalize_key(album_group_key)
+            if not indexing.data.music.albums[album_key] then
+                local preserved_album = old_albums[album_key] or {}
+                indexing.data.music.albums[album_key] = {
+                    name = album,
+                    artist = album_display_artist,
+                    tracks = {},
+                    thumb_path = preserved_album.thumb_path,
+                    thumb_version = preserved_album.thumb_version
+                }
+            elseif album_artist ~= "" then
+                indexing.data.music.albums[album_key].artist = album_artist
+            elseif indexing.data.music.albums[album_key].artist == nil or indexing.data.music.albums[album_key].artist == "" then
+                indexing.data.music.albums[album_key].artist = album_display_artist
+            end
+            table.insert(indexing.data.music.albums[album_key].tracks, path)
+        end
     end
 
     sort_music_collections()
@@ -341,7 +380,7 @@ function indexing.generate_thumbnail(image_path)
         local prev_shader = love.graphics.getShader()
         local cr, cg, cb, ca = love.graphics.getColor()
         local blend_mode, blend_alpha_mode = love.graphics.getBlendMode()
-        
+
         love.graphics.setCanvas(canvas)
         love.graphics.clear(0, 0, 0, 0)
         love.graphics.setShader()
@@ -349,7 +388,7 @@ function indexing.generate_thumbnail(image_path)
         love.graphics.setColor(1, 1, 1, 1)
         local temp_img = love.graphics.newImage(img_data)
         love.graphics.draw(temp_img, 0, 0, 0, scale, scale)
-        
+
         love.graphics.setColor(cr, cg, cb, ca)
         love.graphics.setBlendMode(blend_mode, blend_alpha_mode)
         love.graphics.setShader(prev_shader)
@@ -381,14 +420,14 @@ end
 
 local function generate_thumbnail_from_image_data(img_data, album_key)
     if not img_data then return nil end
-    
+
     local w, h = img_data:getDimensions()
     if not w or not h or w <= 0 or h <= 0 then return nil end
-    
+
     local thumb_size = 120
     local scale = thumb_size / math.max(w, h)
     local tw, th = math.floor(w * scale), math.floor(h * scale)
-    
+
     local thumb_data = img_data
     local is_scaled = false
     if scale < 1 then
@@ -397,7 +436,7 @@ local function generate_thumbnail_from_image_data(img_data, album_key)
         local prev_shader = love.graphics.getShader()
         local cr, cg, cb, ca = love.graphics.getColor()
         local blend_mode, blend_alpha_mode = love.graphics.getBlendMode()
-        
+
         love.graphics.setCanvas(canvas)
         love.graphics.clear(0, 0, 0, 0)
         love.graphics.setShader()
@@ -405,7 +444,7 @@ local function generate_thumbnail_from_image_data(img_data, album_key)
         love.graphics.setColor(1, 1, 1, 1)
         local temp_img = love.graphics.newImage(img_data)
         love.graphics.draw(temp_img, 0, 0, 0, scale, scale)
-        
+
         love.graphics.setColor(cr, cg, cb, ca)
         love.graphics.setBlendMode(blend_mode, blend_alpha_mode)
         love.graphics.setShader(prev_shader)
@@ -415,11 +454,11 @@ local function generate_thumbnail_from_image_data(img_data, album_key)
         canvas:release()
         is_scaled = true
     end
-    
+
     ensure_thumb_dir()
     local safe_name = ("album_" .. album_key):gsub("[^%w]", "_")
     local thumb_path = indexing.thumb_dir .. "/" .. safe_name .. ".png"
-    
+
     local png_data = thumb_data:encode("png")
     local f = io.open(thumb_path, "wb")
     local success = false
@@ -428,12 +467,12 @@ local function generate_thumbnail_from_image_data(img_data, album_key)
         f:close()
         success = true
     end
-    
+
     png_data:release()
     if is_scaled then
         thumb_data:release()
     end
-    
+
     if success then
         return thumb_path
     end
@@ -442,22 +481,27 @@ end
 
 local function generate_album_thumbnails()
     for album_key, album in pairs(indexing.data.music.albums or {}) do
-        if not (album.thumb_path and album.thumb_version == ALBUM_THUMB_VERSION and file_exists(album.thumb_path)) then
-            local cover_track = album.tracks and album.tracks[1]
-            if cover_track then
-                -- Get folder cover image (cover.jpg, folder.png, etc.) - no metadata parsing
-                local img_bytes, img_ext = metadata.find_folder_cover(cover_track)
-                if img_bytes then
-                    local file_data = love.filesystem.newFileData(img_bytes, "album_" .. album_key .. ".bin")
-                    local ok, img_data = pcall(love.image.newImageData, file_data)
-                    if ok and img_data then
-                        album.thumb_path = generate_thumbnail_from_image_data(img_data, album_key)
-                        img_data:release()
-                    end
-                    file_data:release()
-                end
-            end
+        if album.name == "Unknown Album" then
+            album.thumb_path = nil
             album.thumb_version = ALBUM_THUMB_VERSION
+        else
+            if not (album.thumb_path and album.thumb_version == ALBUM_THUMB_VERSION and file_exists(album.thumb_path)) then
+                local cover_track = album.tracks and album.tracks[1]
+                if cover_track then
+                    -- Get folder cover image (cover.jpg, folder.png, etc.) - no metadata parsing
+                    local img_bytes, img_ext = metadata.find_folder_cover(cover_track)
+                    if img_bytes then
+                        local file_data = love.filesystem.newFileData(img_bytes, "album_" .. album_key .. ".bin")
+                        local ok, img_data = pcall(love.image.newImageData, file_data)
+                        if ok and img_data then
+                            album.thumb_path = generate_thumbnail_from_image_data(img_data, album_key)
+                            img_data:release()
+                        end
+                        file_data:release()
+                    end
+                end
+                album.thumb_version = ALBUM_THUMB_VERSION
+            end
         end
     end
 end
@@ -532,8 +576,8 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     local new_photos = {}
     for i, path in ipairs(photo_files) do
         indexing.scan_progress = string.format("Indexing Photos (%d/%d)", i, #photo_files)
-        if i % 10 == 0 then 
-            coroutine.yield(indexing.scan_progress) 
+        if i % 10 == 0 then
+            coroutine.yield(indexing.scan_progress)
             collectgarbage("collect")
         end
 

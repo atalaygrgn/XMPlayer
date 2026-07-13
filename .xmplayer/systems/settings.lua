@@ -6,6 +6,8 @@ local settings = {}
 settings.keytone_enabled = true
 settings.display_sleep_seconds = 0
 settings.power_save_sleep_enabled = true
+settings.video_player_mode = "mpv"
+settings.ffplay_aspect_ratio = "Original"
 settings.track_info_background_mode = 1
 local storage_path = love.filesystem.getSource()
 settings.file_path = storage_path .. "/settings.cfg"
@@ -24,6 +26,16 @@ settings.groups = {
         id = "general",
         name = "General Settings",
         icon = "option",
+    },
+    {
+        id = "music_settings",
+        name = "Music Settings",
+        icon = "music",
+    },
+    {
+        id = "video_settings",
+        name = "Video Settings",
+        icon = "video",
     },
     {
         id = "theme_settings",
@@ -120,14 +132,6 @@ settings.options = {
         value = 1
     },
     {
-        id = "track_info_background",
-        name = "Track Info Background",
-        type = "choice",
-        group = "theme_settings",
-        choices = { "Hide", "Clear", "Opaque" },
-        value = 1
-    },
-    {
         id = "photo_dir",
         name = "Photo Directory",
         type = "path",
@@ -190,7 +194,7 @@ settings.options = {
         id = "display_sleep",
         name = "Auto Display Sleep (Music)",
         type = "choice",
-        group = "general",
+        group = "music_settings",
         choices = { "Off", "5s", "10s", "15s", "30s", "1m", "3m" },
         value = 1
     },
@@ -198,15 +202,39 @@ settings.options = {
         id = "power_save_sleep",
         name = "Power-saving Display Sleep",
         type = "choice",
-        group = "general",
+        group = "music_settings",
         choices = { "On", "Off" },
+        value = 1
+    },
+    {
+        id = "track_info_background",
+        name = "Track Info Background",
+        type = "choice",
+        group = "music_settings",
+        choices = { "Hide", "Clear", "Opaque" },
+        value = 1
+    },
+    {
+        id = "video_player",
+        name = "Video Player",
+        type = "choice",
+        group = "video_settings",
+        choices = { "mpv", "ffplay" },
+        value = 1
+    },
+    {
+        id = "ffplay_aspect_ratio",
+        name = "ffplay Aspect Ratio",
+        type = "choice",
+        group = "video_settings",
+        choices = { "Original", "4:3", "16:9", "3:2", "1:1" },
         value = 1
     },
     {
         id = "clear_history",
         name = "Clear Watch History",
         type = "action",
-        group = "general",
+        group = "video_settings",
     },
     {
         id = "restore_default_wallpaper",
@@ -240,7 +268,7 @@ settings.options = {
         name = "Also try Songo #5",
         type = "info",
         group = "about",
-        value = "an incredible music player!"
+        value = "the amazing music player!"
     },
     {
         id = "test_toast_top",
@@ -369,6 +397,20 @@ function settings.apply()
         settings.power_save_sleep_enabled = true
     end
 
+    local opt_video_player = settings.get_option("video_player")
+    if opt_video_player then
+        settings.video_player_mode = opt_video_player.choices[opt_video_player.value] or "mpv"
+    else
+        settings.video_player_mode = "mpv"
+    end
+
+    local opt_ffplay_aspect = settings.get_option("ffplay_aspect_ratio")
+    if opt_ffplay_aspect then
+        settings.ffplay_aspect_ratio = opt_ffplay_aspect.choices[opt_ffplay_aspect.value] or "Original"
+    else
+        settings.ffplay_aspect_ratio = "Original"
+    end
+
     local opt_track_info_background = settings.get_option("track_info_background")
     if opt_track_info_background then
         settings.track_info_background_mode = math.max(1, math.min(3, math.floor(opt_track_info_background.value or 1)))
@@ -429,11 +471,11 @@ function settings.get_browser_items()
                     display_value = ": " .. tostring(opt.value)
                 end
 
-                local icon = "folder"
+                local icon = "option"
                 if opt.group == "about" then
                     icon = "info"
-                elseif opt.group == "general" or opt.group == "theme_settings" or opt.group == "devtools" then
-                    icon = "option"
+                elseif opt.group == "media_dirs" then
+                    icon = "folder"
                 end
                 table.insert(items, {
                     name = opt.name .. display_value,
