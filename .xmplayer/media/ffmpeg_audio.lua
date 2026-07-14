@@ -9,10 +9,10 @@ local ffi = nil
 local hasFFI = pcall(function() ffi = require("ffi") end)
 
 -- Audio configuration
-local SAMPLE_RATE = 44100          -- hardware/default
+local SAMPLE_RATE = 44100 -- hardware/default
 local CHANNELS = 2
 local BIT_DEPTH = 16
-local BYTES_PER_SAMPLE = (BIT_DEPTH / 8) * CHANNELS   -- 4 bytes: 2 channels * 2 bytes each
+local BYTES_PER_SAMPLE = (BIT_DEPTH / 8) * CHANNELS -- 4 bytes: 2 channels * 2 bytes each
 
 -- Per-track sample rate (reduced for chip formats to cut synthesis CPU cost in half)
 local currentSampleRate = SAMPLE_RATE
@@ -22,8 +22,14 @@ local function minPlayFrames() return math.floor(currentSampleRate * 1.5) end
 
 -- Chip/chiptune extensions that benefit from reduced synthesis rate
 local CHIP_EXTENSIONS = {
-    vgm=true, vgz=true, gym=true, gbs=true, hes=true,
-    kss=true, sap=true, ay=true, nsf=true, nsfe=true, spc=true
+    vgm = true,
+    vgz = true,
+    gbs = true,
+    hes = true,
+    kss = true,
+    nsf = true,
+    nsfe = true,
+    spc = true
 }
 
 -- Thread and channel management
@@ -279,85 +285,85 @@ function ffmpeg_audio.update()
     -- elapsedTime is frozen would desync the ring buffer and break the visualizer.
     local bufferCount = queueableSource:getFreeBufferCount()
     if not isPaused then
-    while bufferCount > 0 do
-        local message = audioChannel:pop()
+        while bufferCount > 0 do
+            local message = audioChannel:pop()
 
-        if not message then
-            break
-        end
-
-        if not message.generation or message.generation == currentGeneration then
-            if message.type == "audio_data" then
-                -- Messages arrive pre-sliced (16384 bytes / 92ms) from the worker thread.
-                -- One message = one SoundData allocation. No string.sub on the main thread.
-                local sampleCount = processPCMChunk(message.data)
-
-                local ok, soundData = pcall(function()
-                    local sd = love.sound.newSoundData(sampleCount, currentSampleRate, BIT_DEPTH, CHANNELS)
-
-                    if hasFFI and ffi then
-                        local ptr = sd.getFFIPointer and sd:getFFIPointer() or sd:getPointer()
-                        if ptr then
-                            ffi.copy(ptr, message.data, message.size)
-                        end
-                    else
-                        -- Fallback: manually set samples (slower but works without FFI)
-                        for i = 1, sampleCount do
-                            for ch = 1, CHANNELS do
-                                local byteIdx = (i - 1) * BYTES_PER_SAMPLE + (ch - 1) * 2 + 1
-                                local byte1 = string.byte(message.data, byteIdx)
-                                local byte2 = string.byte(message.data, byteIdx + 1)
-                                local sample = byte1 + (byte2 * 256)
-                                if sample > 32767 then
-                                    sample = sample - 65536
-                                end
-                                sample = sample / 32768.0
-                                sd:setSample((i - 1) * CHANNELS + ch, sample)
-                            end
-                        end
-                    end
-
-                    return sd
-                end)
-
-                if ok and soundData then
-                    queueableSource:queue(soundData)
-                    bufferCount = queueableSource:getFreeBufferCount()
-
-                    -- Start playback once we have enough frames buffered
-                    if isPlaying and not isPaused and hasStartedPlayback and not queueableSource:isPlaying() then
-                        local shouldPlay = false
-                        if bufferCount < 3 then
-                            shouldPlay = true
-                        elseif ffmpeg_audio.getSampleCount() >= minPlayFrames() then
-                            shouldPlay = true
-                        end
-
-                        if shouldPlay then
-                            queueableSource:play()
-                            startTime = love.timer.getTime() - elapsedTime
-                            playbackHasStarted = true
-                        end
-                    end
-                else
-                    print("Failed to create SoundData: " .. tostring(soundData))
-                end
-            elseif message.type == "end" or message.type == "thread_done" then
-                -- Stream ended or thread finishing
-                hasReachedEOF = true
-                if message.type == "thread_done" then
-                    audioThread = nil
-                end
-                break
-            elseif message.type == "error" then
-                -- Error in thread
-                print("FFmpeg error: " .. (message.message or "unknown"))
-                ffmpeg_audio.stop()
+            if not message then
                 break
             end
-        end
-    end -- while bufferCount > 0
-    end -- if not isPaused
+
+            if not message.generation or message.generation == currentGeneration then
+                if message.type == "audio_data" then
+                    -- Messages arrive pre-sliced (16384 bytes / 92ms) from the worker thread.
+                    -- One message = one SoundData allocation. No string.sub on the main thread.
+                    local sampleCount = processPCMChunk(message.data)
+
+                    local ok, soundData = pcall(function()
+                        local sd = love.sound.newSoundData(sampleCount, currentSampleRate, BIT_DEPTH, CHANNELS)
+
+                        if hasFFI and ffi then
+                            local ptr = sd.getFFIPointer and sd:getFFIPointer() or sd:getPointer()
+                            if ptr then
+                                ffi.copy(ptr, message.data, message.size)
+                            end
+                        else
+                            -- Fallback: manually set samples (slower but works without FFI)
+                            for i = 1, sampleCount do
+                                for ch = 1, CHANNELS do
+                                    local byteIdx = (i - 1) * BYTES_PER_SAMPLE + (ch - 1) * 2 + 1
+                                    local byte1 = string.byte(message.data, byteIdx)
+                                    local byte2 = string.byte(message.data, byteIdx + 1)
+                                    local sample = byte1 + (byte2 * 256)
+                                    if sample > 32767 then
+                                        sample = sample - 65536
+                                    end
+                                    sample = sample / 32768.0
+                                    sd:setSample((i - 1) * CHANNELS + ch, sample)
+                                end
+                            end
+                        end
+
+                        return sd
+                    end)
+
+                    if ok and soundData then
+                        queueableSource:queue(soundData)
+                        bufferCount = queueableSource:getFreeBufferCount()
+
+                        -- Start playback once we have enough frames buffered
+                        if isPlaying and not isPaused and hasStartedPlayback and not queueableSource:isPlaying() then
+                            local shouldPlay = false
+                            if bufferCount < 3 then
+                                shouldPlay = true
+                            elseif ffmpeg_audio.getSampleCount() >= minPlayFrames() then
+                                shouldPlay = true
+                            end
+
+                            if shouldPlay then
+                                queueableSource:play()
+                                startTime = love.timer.getTime() - elapsedTime
+                                playbackHasStarted = true
+                            end
+                        end
+                    else
+                        print("Failed to create SoundData: " .. tostring(soundData))
+                    end
+                elseif message.type == "end" or message.type == "thread_done" then
+                    -- Stream ended or thread finishing
+                    hasReachedEOF = true
+                    if message.type == "thread_done" then
+                        audioThread = nil
+                    end
+                    break
+                elseif message.type == "error" then
+                    -- Error in thread
+                    print("FFmpeg error: " .. (message.message or "unknown"))
+                    ffmpeg_audio.stop()
+                    break
+                end
+            end
+        end -- while bufferCount > 0
+    end     -- if not isPaused
 
     -- Update elapsed time if playing
     if isPlaying and not isPaused and queueableSource:isPlaying() then
@@ -456,7 +462,8 @@ function ffmpeg_audio.seek(time)
 
     -- Start new thread at targetTime
     audioThread = love.thread.newThread("audio_worker.lua")
-    audioThread:start(currentFilePath, streamChannelName, controlChannelName, currentGeneration, targetTime, currentSampleRate)
+    audioThread:start(currentFilePath, streamChannelName, controlChannelName, currentGeneration, targetTime,
+        currentSampleRate)
 
     playbackHasStarted = false
     hasStartedPlayback = true

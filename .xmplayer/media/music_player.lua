@@ -13,14 +13,14 @@ local music                = {}
 music.active               = false -- Is the music player view showing?
 music.playing              = false -- Is audio currently playing?
 music.paused               = false
-music.current_track        = nil -- {name, path}
-music.current_index        = 0 -- Index in the playlist
-music.playlist             = {} -- List of tracks from current folder
-music.source               = nil -- FFmpeg audio backend (for compatibility)
-music.sound_data           = nil -- Compatibility wrapper for visualizers
-music.elapsed              = 0 -- Elapsed time in seconds
-music.duration             = 0 -- Total duration in seconds
-music.cover_art            = nil -- love.graphics Image for album art
+music.current_track        = nil   -- {name, path}
+music.current_index        = 0     -- Index in the playlist
+music.playlist             = {}    -- List of tracks from current folder
+music.source               = nil   -- FFmpeg audio backend (for compatibility)
+music.sound_data           = nil   -- Compatibility wrapper for visualizers
+music.elapsed              = 0     -- Elapsed time in seconds
+music.duration             = 0     -- Total duration in seconds
+music.cover_art            = nil   -- love.graphics Image for album art
 music.repeat_one           = false
 music.auto_sleep_minutes   = 0
 music.auto_sleep_remaining = nil
@@ -73,7 +73,7 @@ function music.load_track(track_info)
         local next_idx = (music.current_index % #music.playlist) + 1
         local next_path = music.playlist[next_idx].path
         local indexed = (indexing and indexing.data and indexing.data.music and indexing.data.music.files) and
-        indexing.data.music.files[next_path]
+            indexing.data.music.files[next_path]
         if indexed then
             music.next_tags = { title = indexed.title }
         else
@@ -307,9 +307,7 @@ end
 function music.seek(seconds)
     if not music.active or not music.source then return end
 
-    if music.current_track and utils.is_vgm_file(music.current_track.path) then
-        return
-    end
+    if music.current_track and utils.is_vgm_file(music.current_track.path) then return end
 
     local target = music.elapsed + seconds
     ffmpeg_audio.seek(target)

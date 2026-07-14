@@ -62,7 +62,7 @@ function utils.is_subpath(base, current)
     if base == current then return true end
     -- If base is root, consider any absolute path a subpath
     if base == "/" then
-        return current:sub(1,1) == "/"
+        return current:sub(1, 1) == "/"
     end
     return current:sub(1, #base + 1) == base .. "/"
 end
@@ -80,10 +80,14 @@ function utils.is_vgm_file(filepath)
     if not ext then return false end
     ext = ext:lower()
     local vgm_exts = {
-        [".spc"] = true, [".nsf"] = true, [".nsfe"] = true, [".vgm"] = true,
-        [".vgz"] = true, [".gym"] = true, [".gbs"] = true, [".hes"] = true,
-        [".kss"] = true, [".sap"] = true, [".ay"] = true, [".mod"] = true,
-        [".s3m"] = true, [".xm"] = true, [".it"] = true
+        [".spc"] = true,
+        [".nsf"] = true,
+        [".nsfe"] = true,
+        [".vgm"] = true,
+        [".vgz"] = true,
+        [".gbs"] = true,
+        [".hes"] = true,
+        [".kss"] = true
     }
     return vgm_exts[ext] == true
 end
@@ -234,7 +238,7 @@ function utils.get_jpeg_metadata(filepath, need_thumb)
     local len = #data
     local exif_data = nil
     local app1_pos = nil
-    
+
     while pos < len - 4 do
         local b = data:byte(pos)
         if b == 0xFF then

@@ -2,7 +2,7 @@
 
 ### Compatibility on Average Linux Handheld Hardware
 
-**The only format expected to stutter consistently is `.vgm`**, due to its YM2612 FM synthesis requirement. All PSG and wavetable formats (`.spc`, `.nsf`, `.nsfe`, `.gbs`, `.hes`, `.kss`) should play smoothly.
+**The only formats expected to stutter consistently are `.vgm` and `.vgz`**. All PSG and wavetable formats (`.spc`, `.nsf`, `.nsfe`, `.gbs`, `.hes`, `.kss`) should play smoothly.
 
 ---
 
@@ -13,6 +13,7 @@ These formats use **Frequency Modulation synthesis**: multiple sine-wave operato
 | Format | Chip | Notes |
 |--------|------|-------|
 | `.vgm` | YM2612 — Sega Genesis / Master System / Game Gear | 6 channels × 4 FM operators = 24 oscillators per sample. **May stutter** on constrained hardware. |
+| `.vgz` | YM2612 (compressed VGM) | Identical to VGM after decompression. **May stutter** on constrained hardware. |
 
 ---
 
@@ -34,7 +35,6 @@ These are **simple oscillators or sample playback**, just computing square waves
 
 | Format | Notes |
 |--------|--------|
-| `.vgz` | No native support |
 | `.gym` | No native support |
 | `.sap` | No native support |
 | `.ay` | No native support |
