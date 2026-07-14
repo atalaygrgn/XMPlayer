@@ -1,36 +1,44 @@
 # VGM Files Compatibility Information
 
 ### Compatibility on Average Linux Handheld Hardware
-**The only formats expected to stutter consistently are `.vgm`, `.vgz`, and `.gym`**, all sharing the same YM2612 FM chip. Everything else should behave more like `.spc` and `.nsf`. The tracker formats (`.it` especially) may stutter on particularly dense compositions but should be fine for typical files.
 
-### Formats with FM Synthesis
-These use **Frequency Modulation synthesis**: multiple sine-wave operators per channel and cycle-accurate register emulation. This is the most CPU-intensive class of chip music.
-| Format | Chip | Reason |
-|--------|------|--------|
-| `.vgm` | YM2612 (Genesis) | 6 channels × 4 FM operators = 24 oscillators computed per sample |
-| `.vgz` | YM2612 (compressed VGM) | Identical to VGM after decompression |
-| `.gym` | YM2612 (Genesis) | Same chip as VGM, raw register log of the same hardware |
+**The only format expected to stutter consistently is `.vgm`**, due to its YM2612 FM synthesis requirement. All PSG and wavetable formats (`.spc`, `.nsf`, `.nsfe`, `.gbs`, `.hes`, `.kss`) should play smoothly.
+
+---
+
+### FM Synthesis
+
+These formats use **Frequency Modulation synthesis**: multiple sine-wave operators per channel with cycle-accurate register emulation. This is the most CPU-intensive class of chip audio.
+
+| Format | Chip | Notes |
+|--------|------|-------|
+| `.vgm` | YM2612 — Sega Genesis / Master System / Game Gear | 6 channels × 4 FM operators = 24 oscillators per sample. **May stutter** on constrained hardware. |
+
+---
 
 ### PSG / Wavetable
 These are **simple oscillators or sample playback**, just computing square waves, triangle waves, or reading sample tables. Orders of magnitude cheaper than FM.
 
-| Format | Chip | Complexity |
-|--------|------|------------|
-| `.spc` | SNES SPC700 DSP | 8 BRR-compressed sample channels + hardware echo/reverb. **Confirmed working well.** |
-| `.nsf` | NES 2A03 APU | 2 pulse + 1 triangle + 1 noise + 1 DPCM. One of the simplest chips. **Confirmed working well.** |
-| `.nsfe` | NES 2A03 APU | Extended NSF with track name/time metadata. Same chip as NSF. **Confirmed working well.** |
-| `.gbs` | Game Boy APU | 2 pulse + 1 wavetable + 1 noise, similar to NES |
-| `.hes` | HuC6280 (PC Engine) | 6 wavetable channels, slightly more than NES, still cheap |
-| `.kss` | AY-3-8910 / SN76489 | 3-4 channel PSG square waves, extremely lightweight |
-| `.sap` | Atari POKEY | 4 channels, simple waveforms |
-| `.ay` | AY-3-8910 (ZX Spectrum) | 3-channel PSG, one of the simplest chips |
+| Format | Chip | Notes |
+|--------|------|-------|
+| `.spc` | SNES SPC700 DSP | 8 BRR-compressed sample channels with hardware echo/reverb. |
+| `.nsf` | NES 2A03 APU | 2 pulse + 1 triangle + 1 noise + 1 DPCM. One of the simplest chips. |
+| `.nsfe` | NES 2A03 APU | Extended NSF with track name/time metadata. Same chip as NSF.|
+| `.gbs` | Game Boy APU | 2 pulse + 1 wavetable + 1 noise, similar to NES APU. |
+| `.hes` | HuC6280 — TurboGrafx-16 / PC Engine | 6 wavetable channels, slightly more complex than NES, still lightweight. |
+| `.kss` | AY-3-8910 / SN76489 — MSX & Sega Master System | 3–4 channel PSG square waves, extremely lightweight. |
 
-### Tracker Formats
-MOD/S3M/XM/IT are **sample-based trackers**. They replay PCM samples at different pitches with envelopes. Handled by `libopenmpt` in FFmpeg. Simple files will be fine; heavily complex files with many channels and DSP effects may stutter.
+---
 
-| Format | Max Channels | Risk |
-|--------|-------------|------|
-| `.mod` | 4 (Amiga Paula) | Always fine, only 4 channels of sample playback |
-| `.s3m` | 32 | Usually fine |
-| `.xm` | 32 + some FM emulation | Complex files might struggle |
-| `.it` | 64 + resonant filters + NNA | Complex IT files with many active voices and filter DSP are the most demanding tracker format |
+### Not Supported
+
+| Format | Notes |
+|--------|--------|
+| `.vgz` | No native support |
+| `.gym` | No native support |
+| `.sap` | No native support |
+| `.ay` | No native support |
+| `.mod` | Requires `libopenmpt` |
+| `.s3m` | Requires `libopenmpt` |
+| `.xm` | Requires `libopenmpt` |
+| `.it` | Requires `libopenmpt` |

@@ -28,19 +28,12 @@ indexing.compatible_extensions = {
         ".nsfe", -- Extended NES
         ".vgm",  -- Sega Genesis, Master System, Game Gear
         ".vgz",  -- Compressed VGM
-        ".gym",  -- Sega Genesis
         ".gbs",  -- GB/GBC
         ".hes",  -- TurboGrafx-16 / PC Engine
         ".kss",  -- MSX & SEGA Master System (Z80)
-        ".sap",  -- Atari
-        ".ay",   -- ZX Spectrum & Amstrad CPC
-        ".mod",  -- Amiga Module
-        ".s3m",  -- Scream Tracker 3
-        ".xm",   -- FastTracker 2
-        ".it"    -- Impulse Tracker
     },
     photo = { ".jpg", ".jpeg", ".png", ".bmp" },
-    video = { ".mp4", ".mkv", ".avi", ".mov", ".wmv" }
+    video = { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".m4v" }
 }
 
 indexing.is_scanning = false

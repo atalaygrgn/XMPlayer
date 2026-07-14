@@ -65,7 +65,7 @@ The goal of this project is to address the multimedia playback shortcomings of g
 ### Experimental PortMaster Test Build
 
 > **Important Notice**<br>
-> Some features of XMPlayer may be currently unavailable or unstable depending on CFW. More information on compatibility available [here](docs/compatibility.md).
+> Some features of XMPlayer may be currently unavailable or unstable depending on CFW. More information on compatibility [here](docs/compatibility.md).
 
 #### Prerequisites
 - A handheld device running a CFW with PortMaster support. At least 1 GB of RAM is recommended for a smooth experience.
@@ -152,7 +152,7 @@ More customization options are on the way!
 - Built with **Love2D**.
 - Icons provided by **Remix Icon** library.
 - simpleScale script from [tomlum's simpleScale](https://github.com/tomlum/simpleScale).
-- System information provided by **muOS** & **Knulli**.
+- System information provided by **muOS**, **Knulli**, **ROCKNIX**.
 - **PlayStation**, **XrossMediaBar**, and **XMB** are trademarks of Sony Interactive Entertainment Inc.
 
 ---
