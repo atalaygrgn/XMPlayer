@@ -288,7 +288,11 @@ function music.update(dt)
 
     -- Update marquees
     if music.current_track then
-        local info_w = viewport.get() * 0.65
+        local w, h = viewport.get()
+        local art_size = math.min(w, h) * 0.3
+        local art_x = w * 0.05
+        local info_x = math.max(w * 0.3, art_x + art_size + 12)
+        local info_w = (w * 0.95) - info_x
         music.marquees.title.max_width = info_w
         music.marquees.artist.max_width = info_w
         music.marquees.album.max_width = info_w

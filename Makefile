@@ -38,8 +38,7 @@ package: build
 	@$(POWERSHELL) "New-Item -ItemType Directory -Force -Path '$(BUILD_DIR)/package_stage' | Out-Null"
 	@$(POWERSHELL) "New-Item -ItemType Directory -Force -Path '$(BUILD_DIR)/package_stage/$(APP_NAME)' | Out-Null"
 	@$(POWERSHELL) "Copy-Item -Path '$(DIST_DIR)/*' -Destination '$(BUILD_DIR)/package_stage/$(APP_NAME)' -Recurse -Force"
-	@$(POWERSHELL) "$$zip = '$(BUILD_DIR)/$(APP_NAME).zip'; if (Test-Path $$zip) { Remove-Item -Path $$zip -Force }; Compress-Archive -Path '$(BUILD_DIR)/package_stage/*' -DestinationPath $$zip -Force"
-	@$(POWERSHELL) "Move-Item -Path '$(BUILD_DIR)/$(APP_NAME).zip' -Destination '$(PACKAGE_FILE)' -Force"
+	@$(POWERSHELL) "tar -c --format zip -f '$(PACKAGE_FILE)' -C '$(BUILD_DIR)/package_stage' *"
 	@$(POWERSHELL) "Remove-Item -Path '$(BUILD_DIR)/package_stage' -Recurse -Force"
 	@echo "Package ready: $(PACKAGE_FILE)"
 
@@ -61,7 +60,7 @@ portmaster:
 	@$(POWERSHELL) "Copy-Item -Path '.\.xmplayer\config\xmplayer.gptk' -Destination '$(BUILD_DIR)\portmaster\xmplayer\xmplayer.gptk' -Force"
 	
 	@echo "Creating Portmaster package..."
-	@$(POWERSHELL) "$$zip = '$(BUILD_DIR)/XMPlayer-PortMaster.zip'; if (Test-Path $$zip) { Remove-Item -Path $$zip -Force }; Compress-Archive -Path '$(BUILD_DIR)/portmaster/*' -DestinationPath $$zip -Force"
+	@$(POWERSHELL) "tar -a -c -f '$(BUILD_DIR)/XMPlayer-PortMaster.zip' -C '$(BUILD_DIR)/portmaster' *"
 	@$(POWERSHELL) "Remove-Item -Path '$(BUILD_DIR)/portmaster' -Recurse -Force"
 	@echo "PortMaster package ready: $(BUILD_DIR)/XMPlayer-PortMaster.zip"
 

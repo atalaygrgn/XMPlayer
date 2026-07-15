@@ -13,7 +13,7 @@ local settings_view                  = {}
 
 -- Animation / interaction state
 settings_view.active                 = false -- Is the popup open?
-settings_view.alpha                  = 0 -- Fade-in progress (0-1)
+settings_view.alpha                  = 0     -- Fade-in progress (0-1)
 settings_view.scroll_y               = 0
 settings_view.target_scroll_y        = 0
 settings_view.selected_option_idx    = 1
@@ -94,7 +94,7 @@ function settings_view.draw_popup(setting_idx)
     if not opt or opt.type ~= "choice" or settings_view.alpha <= 0 then return end
 
     local screen_w, screen_h = viewport.get()
-    local panel_w            = screen_w * 0.35
+    local panel_w            = math.max(screen_w * 0.35, 220)
     local item_h             = 50
     local alpha              = settings_view.alpha
     local x                  = screen_w - (panel_w * alpha)

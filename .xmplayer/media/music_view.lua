@@ -121,7 +121,11 @@ local function cycle_current_option(direction)
 end
 
 function music_view.init()
-    local info_w              = viewport.get() * 0.65
+    local w, h                = viewport.get()
+    local art_size            = math.min(w, h) * 0.3
+    local art_x               = w * 0.05
+    local info_x              = math.max(w * 0.3, art_x + art_size + 12)
+    local info_w              = (w * 0.95) - info_x
     music.marquees.title      = ui.new_marquee(info_w)
     music.marquees.artist     = ui.new_marquee(info_w)
     music.marquees.album      = ui.new_marquee(info_w)
@@ -315,7 +319,9 @@ function music_view.draw()
 
     -- Track Info
     if music.current_track then
-        local info_x, info_y, info_w = w * 0.3, 60, w * 0.65
+        local info_x = math.max(w * 0.3, art_x + art_size + 12)
+        local info_y = 60
+        local info_w = (w * 0.95) - info_x
         local is_vgm = utils.is_vgm_file(music.current_track.path)
         local extra_y = info_y + (is_vgm and 50 or 118)
 
