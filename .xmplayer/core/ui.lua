@@ -191,7 +191,7 @@ function ui.draw_indexing_popup(progress_text, final_message)
         { 1, 1, 1, 1 }, accent, screen_w, "center")
 
     -- Bottom-left version tag
-    ui.print_text("v0.2.0 Beta", 20, screen_h - 36, assets.fonts.small, { 1, 1, 1, 0.75 })
+    ui.print_text("v0.2.0 Symphony", 20, screen_h - 36, assets.fonts.small, { 1, 1, 1, 0.75 })
 
     -- Bottom-right indexing status with subtle pulse
     local status = progress_text or "Scanning media..."

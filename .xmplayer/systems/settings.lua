@@ -74,7 +74,7 @@ settings.options = {
         type = "choice",
         group = "theme_settings",
         choices = { "Dark Red", "Volcanic", "Golden", "Lime Green", "Apple Green", "Moss Green", "Undersea", "Electric Blue", "Midnight Blue", "Dark Purple", "Ice Cold", "Morning Blue", "Gray Light", "Gray Dark" },
-        value = 8
+        value = 5
     },
     {
         id = "particles",
@@ -247,7 +247,7 @@ settings.options = {
         name = "Version",
         type = "info",
         group = "about",
-        value = "v0.2.0"
+        value = "v0.2.0 Symphony"
     },
     {
         id = "build_type",
@@ -268,7 +268,7 @@ settings.options = {
         name = "Also try Songo #5",
         type = "info",
         group = "about",
-        value = "the amazing music player!"
+        value = "the clean and fast music player!"
     },
     {
         id = "test_toast_top",

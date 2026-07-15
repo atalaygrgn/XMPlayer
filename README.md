@@ -121,7 +121,7 @@ More customization options are on the way!
 
 ## Roadmap
 
-### v0.1 (Legacy)
+### v0.1 Beta
 - [x] Mark/unmark videos as watched.
 - [x] Play videos from where you left off.
 - [x] Shuffle play: music (folder, album, artist)
@@ -131,15 +131,17 @@ More customization options are on the way!
 - [x] Continue playback while display turned off (+ lid closed for clamshells)
 - [x] Wallpaper and customization.
 
-### v0.2 (Current)
+### v0.2 Symphony
 - [x] Portmaster build target and test releases.
 - [x] Custom playlists for video and music.
-- [x] More visualizer options.
 - [x] VGM file support (.spc, .nsf, ...)
+- [x] One new visualizer.
 
-### v0.3
-- [ ] Audiobooks support with dedicated player (bookmarks, chapters, ...)
-- [ ] Web radio streaming
+### v0.3 Frontier (Planned)
+- [ ] Audiobooks support with dedicated player (bookmarks, chapters, ...).
+- [ ] Web radio streaming.
+- [ ] Media library search.
+- [ ] One new visualizer.
 
 ### Planned for Later Versions
 - [ ] Photo gallery.
