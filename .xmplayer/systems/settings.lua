@@ -264,13 +264,6 @@ settings.options = {
         value = "github.com/atalaygrgn/XMPlayer"
     },
     {
-        id = "songo",
-        name = "Also try Songo #5",
-        type = "info",
-        group = "about",
-        value = "the clean and fast music player!"
-    },
-    {
         id = "test_toast_top",
         name = "Test Top Center Toast",
         type = "action",

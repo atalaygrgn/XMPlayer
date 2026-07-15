@@ -7,10 +7,10 @@
 - **Content Indexing:** Content indexing allows handling large media libraries without slowing down the UI.
 - **System Integration:** Live battery percentage and clock display in the status bar.
 ### Video Player
-Integrated **MPV** support for high-performance video playback.
+Integrated **MPV** and **ffplay** support for high-performance video playback.
 
 ### Music Player
-A dedicated audio player interface with album art, track info, and playback controls. Most audio formats are supported.
+A dedicated audio player interface with album art, track info, and playback controls. Common audio formats are supported.
 
 ### Photo Viewer
 Browse and view your photo collection.
@@ -27,20 +27,20 @@ Fluid particle animations and customizable color themes to your liking. You can 
 
 ## Controls
 
-| Button | XMB Menu | Music Player | Video Player (MPV) | Photo Viewer |
-| :--- | :--- | :--- | :--- | :--- |
-| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek +-5s | Pan Left/Right |
-| **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s | Pan Up/Down |
-| **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Reset View |
-| **B** | Back / Cancel | Return to XMB | Skip Frames | Zoom Out |
-| **X** | Context Menu | Playback Options | Toggle Mute | Zoom In |
-| **Y** | - | (Hold) Hotkey Display | Show OSD | Rotate 90° |
-| **L1** | - | Previous Track | Previous Video | Previous Image |
-| **L2** | - | Seek -10s | Cycle Audio Tracks | - |
-| **R1** | - | Next Track | Next Video | Next Image |
-| **R2** | - | Seek +10s | Cycle Subtitles | - |
-| **Start** | - | - | Adjust Aspect Ratio | Toggle Info |
-| **Select** | - | - | Return to XMB | Return to XMB |
+| Button | XMB Menu | Music Player | Video Player (MPV) | Video Player (ffplay) | Photo Viewer |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek -+5s | Seek -+5s | Pan Left/Right |
+| **D-Pad Up/Down** | Navigate Menu Items | - | Seek -+60s |Seek -+60s | Pan Up/Down |
+| **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Play/Pause | Reset View |
+| **B** | Back / Cancel | Return to XMB | Skip Frames | Skip Frames |Zoom Out |
+| **X** | Context Menu | Playback Options | Toggle Mute | Toggle Mute | Zoom In |
+| **Y** | - | (Hold) Hotkey Display | Show OSD | - | Rotate 90° |
+| **L1** | - | Previous Track | Previous Video | - | Previous Image |
+| **L2** | - | Seek -10s | Cycle Audio Tracks | - | - |
+| **R1** | - | Next Track | Next Video | - | Next Image |
+| **R2** | - | Seek +10s | Cycle Subtitles | - | - |
+| **Start** | - | - | Adjust Aspect Ratio | - | Toggle Info |
+| **Select** | - | - | Return to XMB | Return to XMB | Return to XMB |
 ---
 
 ## Customization
@@ -61,7 +61,7 @@ More customization options are on the way!
 - Built with **Love2D**.
 - Icons provided by **Remix Icon** library.
 - simpleScale script from [tomlum's simpleScale](https://github.com/tomlum/simpleScale).
-- System information provided by **muOS** & **Knulli**.
+- System information provided by **muOS**, **Knulli**, **ROCKNIX**.
 - **PlayStation**, **XrossMediaBar**, and **XMB** are trademarks of Sony Interactive Entertainment Inc.
 
 ---
