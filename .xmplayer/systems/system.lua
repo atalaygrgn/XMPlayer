@@ -69,17 +69,7 @@ function system.get_default_base_dir()
     elseif cfw == "ROCKNIX" then
         return "/storage"
     else
-        if dir_has_entries("/userdata") then
-            return "/userdata"
-        elseif dir_has_entries("/storage") then
-            return "/storage"
-        elseif dir_has_entries("/roms") then
-            return "/roms"
-        elseif dir_has_entries("/mnt") then
-            return "/mnt"
-        else
-            return "/"
-        end
+        return "/"
     end
 end
 

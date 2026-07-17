@@ -211,7 +211,7 @@ end
 function settings_view.draw_folder_picker()
     if settings_view.picker_alpha <= 0 then return end
     local screen_w, screen_h = viewport.get()
-    local panel_w = screen_w * 0.70
+    local panel_w = screen_w * 0.75
     local panel_h = math.min(screen_h * 0.8, 420)
     local x = math.floor(screen_w / 2) - math.floor(panel_w / 2)
     local y = math.floor(screen_h / 2) - math.floor(panel_h / 2)

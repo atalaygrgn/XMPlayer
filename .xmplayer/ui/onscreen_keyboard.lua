@@ -287,14 +287,19 @@ function keyboard.draw()
     love.graphics.rectangle("line", input_x, input_y, input_w, input_h, 10, 10)
 
     local shown_value = keyboard.value
+    local placeholder = "(enter playlist name)"
+    if keyboard.title and string.find(keyboard.title:lower(), "watchlist") then
+        placeholder = "(enter watchlist name)"
+    end
+
     if shown_value == "" then
-        shown_value = "(enter playlist name)"
+        shown_value = placeholder
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.45 * fade)
     else
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.95 * fade)
     end
     ui.print_text(shown_value, input_x + 14, input_y + 15, assets.fonts.small,
-        shown_value == "(enter playlist name)" and { theme.text[1], theme.text[2], theme.text[3], 0.45 * fade } or
+        shown_value == placeholder and { theme.text[1], theme.text[2], theme.text[3], 0.45 * fade } or
         { theme.text[1], theme.text[2], theme.text[3], 0.95 * fade })
 
     -- Blinking cursor

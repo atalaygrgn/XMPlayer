@@ -5,7 +5,7 @@ assets.images = {}
 assets.fonts = {}
 assets.sfx = {}
 
-local path_eurostile = "assets/font/Eurostile-Bold.ttf"
+local path_figtree = "assets/font/Figtree-SemiBold.otf"
 local path_oswald = "assets/font/Oswald-SemiBold.ttf"
 
 local font_sizes = {
@@ -84,7 +84,7 @@ function assets.update_font_scales(scale)
     scale = scale or 1
     for font_key, original_size in pairs(font_sizes) do
         local scaled_size = math.max(1, math.floor(original_size * scale + 0.5))
-        local main_font = love.graphics.newFont(path_eurostile, scaled_size)
+        local main_font = love.graphics.newFont(path_figtree, scaled_size)
         local oswald_fallback = love.graphics.newFont(path_oswald, scaled_size)
         local system_fallback = love.graphics.newFont(scaled_size)
 
@@ -92,7 +92,6 @@ function assets.update_font_scales(scale)
         assets.fonts[font_key] = wrap_font(main_font, scale)
     end
 end
-
 
 function assets.load(categories)
     -- Load generic icons
