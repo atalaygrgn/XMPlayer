@@ -270,7 +270,7 @@ function keyboard.draw()
     love.graphics.rectangle("line", panel_x, panel_y, panel_w, panel_h, 16, 16)
 
     local title_font = assets.fonts.main
-    ui.draw_glow_text(keyboard.title, panel_x + 26, panel_y + 20, title_font,
+    ui.draw_glow_text(keyboard.title, panel_x + 26, panel_y + 18, title_font,
         { theme.text[1], theme.text[2], theme.text[3], 0.95 * fade }, nil)
 
     local input_x = panel_x + 26
@@ -298,7 +298,7 @@ function keyboard.draw()
     else
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.95 * fade)
     end
-    ui.print_text(shown_value, input_x + 14, input_y + 15, assets.fonts.small,
+    ui.print_text(shown_value, input_x + 14, input_y + 14, assets.fonts.small,
         shown_value == placeholder and { theme.text[1], theme.text[2], theme.text[3], 0.45 * fade } or
         { theme.text[1], theme.text[2], theme.text[3], 0.95 * fade })
 
@@ -354,7 +354,7 @@ function keyboard.draw()
             end
 
             love.graphics.setColor(0.19, 0.41, 0.58, label_alpha)
-            ui.printf_text(label, x, y + 10, key_w, "center", assets.fonts.keyboardkey, { 0.19, 0.41, 0.58, label_alpha })
+            ui.printf_text(label, x, y + 8, key_w, "center", assets.fonts.keyboardkey, { 0.19, 0.41, 0.58, label_alpha })
 
             x = x + key_w + key_gap
         end

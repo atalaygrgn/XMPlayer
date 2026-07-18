@@ -79,6 +79,56 @@ local function visualizer_label()
     return "Wave"
 end
 
+local function draw_header_level_overlay(screen_w, alpha)
+    local icon_size = 24
+    local spacing = 8
+    local max_bar_w = 180
+
+    -- Compute bar width and ensure it fits comfortably on screen
+    local bar_w = math.min(max_bar_w, math.max(40, screen_w * 0.45))
+
+    local overlay_y = 12
+    local overlay_h = 18
+    local bar_h = 8
+
+    -- Group width (icon + gap + bar)
+    local group_w = icon_size + spacing + bar_w
+    local group_x = (screen_w - group_w) / 2
+
+    local icon_cx = group_x + icon_size / 2
+    local bar_x = group_x + icon_size + spacing
+
+    for _, t in ipairs(ui.active_toasts) do
+        if (t.type == "volume" or t.type == "brightness") and t.alpha > 0 then
+            local toast_alpha = t.alpha * alpha
+            local level = t.display_level or t.target_level or 0
+            local max_level = (t.type == "brightness") and 255 or 100
+            local progress = math.max(0, math.min(1, level / max_level))
+            local icon_img
+
+            if t.type == "volume" then
+                if (t.target_level or 0) == 0 then
+                    icon_img = assets.get_image("volume_mute")
+                elseif (t.target_level or 0) < 50 then
+                    icon_img = assets.get_image("volume_down")
+                else
+                    icon_img = assets.get_image("volume_up")
+                end
+            else
+                icon_img = assets.get_image("brightness")
+            end
+
+            if icon_img then
+                ui.draw_icon(icon_img, icon_cx, overlay_y + overlay_h / 2, icon_size, { 1, 1, 1 }, toast_alpha)
+            end
+
+            ui.draw_progress_bar(bar_x, overlay_y + (overlay_h - bar_h) / 2, bar_w, bar_h, progress,
+                { 1, 1, 1, 0.8 * toast_alpha },
+                { 1, 1, 1, 0.14 * toast_alpha })
+        end
+    end
+end
+
 local function cycle_current_option(direction)
     local selected = music_view.context_menu.items[music_view.context_menu.selected_idx]
     if selected == "display_sleep" then
@@ -266,13 +316,15 @@ function music_view.draw()
 
     -- Header
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha)
-    ui.printf_text("XMPlayer", 20, 10, w, "left", assets.fonts.small,
+    ui.printf_text("XMPlayer", 20, 6, w, "left", assets.fonts.small,
         { theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha })
 
     if #music.playlist > 0 then
-        ui.printf_text(music.current_index .. " of " .. #music.playlist, 0, 10, w - 16, "right", assets.fonts.small,
+        ui.printf_text(music.current_index .. " of " .. #music.playlist, 0, 6, w - 16, "right", assets.fonts.small,
             { theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha })
     end
+
+    draw_header_level_overlay(w, alpha)
 
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
     love.graphics.rectangle("fill", 20, 40, w - 40, 1)
@@ -332,8 +384,8 @@ function music_view.draw()
         -- Title
         set_clip()
         local track_name = music.tags.title or utils.get_track_name(music.current_track.name)
-        ui.draw_marquee(music.marquees.title, track_name, info_x + music.slide_x, info_y, assets.fonts.title,
-            { theme.text[1], theme.text[2], theme.text[3], alpha }, info_x, info_y)
+        ui.draw_marquee(music.marquees.title, track_name, info_x + music.slide_x, info_y - 2, assets.fonts.title,
+            { theme.text[1], theme.text[2], theme.text[3], alpha }, info_x, info_y - 2)
 
         love.graphics.setScissor()
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
@@ -349,8 +401,8 @@ function music_view.draw()
             -- Album
             set_clip()
             local album_name = music.tags.album or "Unknown Album"
-            ui.draw_marquee(music.marquees.album, album_name, info_x + music.slide_x, info_y + 74, assets.fonts.album,
-                { theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha }, info_x, info_y + 74)
+            ui.draw_marquee(music.marquees.album, album_name, info_x + music.slide_x, info_y + 76, assets.fonts.album,
+                { theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha }, info_x, info_y + 76)
         end
 
         -- Next Track Info
@@ -366,6 +418,7 @@ function music_view.draw()
                 { theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha })
         end
 
+        -- Track Extension
         local ext = utils.get_extension(music.current_track.path)
         if ext then
             love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.3 * alpha)
@@ -391,7 +444,7 @@ function music_view.draw()
     local bar_w, bar_h               = w * 0.4, 6
     local bar_x, bar_y               = w - bar_w - 30, h - 30
     local progress                   = music.duration > 0 and (music.elapsed / music.duration) or 0
-    local track_info_background_mode = settings.track_info_background_mode or 1
+--[[     local track_info_background_mode = settings.track_info_background_mode or 1
 
     if track_info_background_mode > 1 then
         local panel_x = bar_x + bar_w - 152
@@ -406,10 +459,10 @@ function music_view.draw()
 
         love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], panel_border_alpha * alpha)
         love.graphics.rectangle("line", panel_x, panel_y, panel_w, panel_h, 14, 14)
-    end
+    end ]]
 
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.9 * alpha)
-    ui.print_text(utils.format_time(music.elapsed), bar_x + bar_w - 140, bar_y - 40, assets.fonts.time_elapsed,
+    ui.print_text(utils.format_time(music.elapsed), bar_x + bar_w - 135, bar_y - 42, assets.fonts.time_elapsed,
         { theme.text[1], theme.text[2], theme.text[3], 0.9 * alpha })
 
     ui.printf_text("/ " .. utils.format_time(music.duration), 0, bar_y - 38, bar_x + bar_w, "right",

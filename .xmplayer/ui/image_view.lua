@@ -30,7 +30,12 @@ function image_view.draw()
         love.graphics.rectangle("fill", 0, h - 50, w, 50)
 
         love.graphics.setColor(1, 1, 1, 0.8 * viewer.fade_alpha)
-        local info_str = string.format("[%d/%d] %s", viewer.current_index, #viewer.playlist, item.name)
+        local prefix = string.format("[%d/%d] ", viewer.current_index, #viewer.playlist)
+        local max_w = w - 40
+        local name_w = max_w - ui.measure_text_width(assets.fonts.xs, prefix)
+        if name_w < 20 then name_w = math.max(0, max_w - 20) end
+        local display_name = require("utils").truncate_text(item.name, assets.fonts.xs, name_w)
+        local info_str = prefix .. display_name
         ui.printf_text(info_str, 20, h - 35, w - 40, "left", assets.fonts.xs, { 1, 1, 1, 0.8 * viewer.fade_alpha })
     end
 end

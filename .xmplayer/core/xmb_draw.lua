@@ -39,7 +39,7 @@ function xmb_draw.draw(state)
 
         if is_focused then
             ui.draw_glow_icon(img, x, 0, theme.icon_size * 1.1, theme.text, alpha)
-            ui.draw_glow_text(cat.name, x - 100, theme.icon_size / 2 + 12, assets.fonts.main,
+            ui.draw_glow_text(cat.name, x - 100, theme.icon_size / 2 + 6, assets.fonts.main,
                 { theme.text[1], theme.text[2], theme.text[3], alpha }, nil, 200, "center")
         else
             love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], alpha)
@@ -175,11 +175,11 @@ function xmb_draw.draw(state)
             -- Draw text
             if is_focused then
                 if item.description then
-                    ui.draw_marquee(xmb.item_marquee, item.name, 0, y - 8, assets.fonts.main,
+                    ui.draw_marquee(xmb.item_marquee, item.name, 0, y - 12, assets.fonts.main,
                         { theme.text[1], theme.text[2], theme.text[3], final_alpha },
                         list_x + xmb.list_slide_x, screen_y - 8)
                 else
-                    ui.draw_marquee(xmb.item_marquee, item.name, 0, y, assets.fonts.main,
+                    ui.draw_marquee(xmb.item_marquee, item.name, 0, y - 3, assets.fonts.main,
                         { theme.text[1], theme.text[2], theme.text[3], final_alpha },
                         list_x + xmb.list_slide_x, screen_y)
                 end
@@ -196,7 +196,7 @@ function xmb_draw.draw(state)
                 end
             else
                 love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha)
-                ui.print_text(item.display_name or item.name, 0, y + 4, assets.fonts.small,
+                ui.print_text(item.display_name or item.name, 0, y, assets.fonts.small,
                     { theme.text[1], theme.text[2], theme.text[3], final_alpha })
             end
         end

@@ -2,6 +2,7 @@ local theme = require("theme")
 local assets = require("assets")
 local utils = require("utils")
 local viewport = require("viewport")
+local runtime_state = require("runtime_state")
 local ui = {}
 
 ui.active_toasts = {}
@@ -190,8 +191,8 @@ function ui.draw_indexing_popup(progress_text, final_message)
     ui.draw_glow_text("XMPlayer", 0, screen_h * 0.5 - ui.measure_text_height(title_font) * 0.5, title_font,
         { 1, 1, 1, 1 }, accent, screen_w, "center")
 
-    -- Bottom-left version tag
-    ui.print_text("v0.2.0 Symphony", 20, screen_h - 36, assets.fonts.small, { 1, 1, 1, 0.75 })
+    -- Top-left version tag
+    ui.print_text("v0.2.0 Symphony", 20, 20, assets.fonts.xs, { accent[1], accent[2], accent[3], 0.75 })
 
     -- Bottom-right indexing status with subtle pulse
     local status = progress_text or "Scanning media..."
@@ -439,51 +440,53 @@ function ui.draw_toasts()
         local x, y
 
         if t.type == "volume" or t.type == "brightness" then
-            box_w = 260
-            box_h = 45
-            x = (sw - box_w) / 2
-            y = 4 + (1 - t.alpha) * -20
+            if runtime_state.current_view ~= "music" then
+                box_w = 260
+                box_h = 45
+                x = (sw - box_w) / 2
+                y = 4 + (1 - t.alpha) * -20
 
-            -- Background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.85 * t.alpha)
-            love.graphics.rectangle("fill", x, y, box_w, box_h, 12, 12)
+                -- Background
+                love.graphics.setColor(0.1, 0.1, 0.15, 0.85 * t.alpha)
+                love.graphics.rectangle("fill", x, y, box_w, box_h, 12, 12)
 
-            -- Border
-            local ac = theme.accent
-            love.graphics.setColor(ac[1], ac[2], ac[3], 0.5 * t.alpha)
-            love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", x, y, box_w, box_h, 12, 12)
+                -- Border
+                local ac = theme.accent
+                love.graphics.setColor(ac[1], ac[2], ac[3], 0.5 * t.alpha)
+                love.graphics.setLineWidth(2)
+                love.graphics.rectangle("line", x, y, box_w, box_h, 12, 12)
 
-            -- Icon on left
-            local icon_img
-            local level = t.display_level or 0
-            local max_level = (t.type == "brightness") and 255 or 100
+                -- Icon on left
+                local icon_img
+                local level = t.display_level or 0
+                local max_level = (t.type == "brightness") and 255 or 100
 
-            if t.type == "volume" then
-                if t.target_level == 0 then
-                    icon_img = assets.get_image("volume_mute")
-                elseif t.target_level < 50 then
-                    icon_img = assets.get_image("volume_down")
+                if t.type == "volume" then
+                    if t.target_level == 0 then
+                        icon_img = assets.get_image("volume_mute")
+                    elseif t.target_level < 50 then
+                        icon_img = assets.get_image("volume_down")
+                    else
+                        icon_img = assets.get_image("volume_up")
+                    end
                 else
-                    icon_img = assets.get_image("volume_up")
+                    icon_img = assets.get_image("brightness")
                 end
-            else
-                icon_img = assets.get_image("brightness")
+
+                if icon_img then
+                    ui.draw_icon(icon_img, x + padding + icon_size / 2, y + box_h / 2, icon_size, { 1, 1, 1 }, t.alpha)
+                end
+
+                -- Progress Bar
+                local bar_x = x + padding + icon_size + 15
+                local bar_w = box_w - (padding * 2 + icon_size + 15)
+                local bar_h = 8
+                local bar_y = y + (box_h - bar_h) / 2
+
+                local progress = math.max(0, math.min(1, level / max_level))
+                ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress, { 1, 1, 1, 0.9 * t.alpha },
+                    { 1, 1, 1, 0.2 * t.alpha })
             end
-
-            if icon_img then
-                ui.draw_icon(icon_img, x + padding + icon_size / 2, y + box_h / 2, icon_size, { 1, 1, 1 }, t.alpha)
-            end
-
-            -- Progress Bar
-            local bar_x = x + padding + icon_size + 15
-            local bar_w = box_w - (padding * 2 + icon_size + 15)
-            local bar_h = 8
-            local bar_y = y + (box_h - bar_h) / 2
-
-            local progress = math.max(0, math.min(1, level / max_level))
-            ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress, { 1, 1, 1, 0.9 * t.alpha },
-                { 1, 1, 1, 0.2 * t.alpha })
         else
             local tw = ui.measure_text_width(font, t.text or "")
             local th = ui.measure_text_height(font)

@@ -86,11 +86,11 @@ settings.options = {
     },
     {
         id = "custom_bg",
-        name = "Wallpaper",
+        name = "Background",
         type = "choice",
         group = "theme_settings",
-        choices = { "On", "Off" },
-        value = 2
+        choices = { "Waves", "???", "Wallpaper" },
+        value = 1
     },
     {
         id = "custom_bg_path",
@@ -417,13 +417,13 @@ function settings.apply()
         settings.show_particles = (opt_particles.value == 1)
     end
 
-    -- Update custom background
+    -- Update background mode and wallpaper
     local opt_custom_bg = settings.get_option("custom_bg")
     local opt_custom_bg_path = settings.get_option("custom_bg_path")
     if opt_custom_bg then
         local background = require("background")
         background.set_custom_bg_path(opt_custom_bg_path and opt_custom_bg_path.value or nil)
-        background.set_custom_bg(opt_custom_bg.value == 1)
+        background.set_background_mode(opt_custom_bg.value)
     end
 
     -- Update wallpaper effects
