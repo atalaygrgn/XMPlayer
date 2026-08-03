@@ -89,7 +89,7 @@ settings.options = {
         name = "Background",
         type = "choice",
         group = "theme_settings",
-        choices = { "Waves", "???", "Wallpaper" },
+        choices = { "Waves", "Ribbon", "Wallpaper" },
         value = 1
     },
     {
@@ -232,7 +232,7 @@ settings.options = {
     },
     {
         id = "repeat_folder",
-        name = "Repeat Folder (mpv)",
+        name = "Loop Folder (mpv)",
         type = "choice",
         group = "video_settings",
         choices = { "No", "Yes" },
@@ -240,7 +240,7 @@ settings.options = {
     },
     {
         id = "repeat_watchlist",
-        name = "Repeat Watchlist (mpv)",
+        name = "Loop Watchlist (mpv)",
         type = "choice",
         group = "video_settings",
         choices = { "No", "Yes" },

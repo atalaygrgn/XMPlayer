@@ -13,7 +13,7 @@ local screen_w, screen_h
 local speed = 1.0
 local target_speed = 1.0
 local gradient_mesh
-local background_mode = 1    -- 1: Waves, 2: ???, 3: Wallpaper
+local background_mode = 1 -- 1: Waves, 2: Ribbon, 3: Wallpaper
 local custom_bg_image = nil
 local custom_bg_path = nil
 local wallpaper_blur_enabled = true
@@ -579,12 +579,78 @@ local function draw_psp_waves()
     end
 end
 
-local function draw_new_background()
-    -- TODO: Implement new background
+local function draw_ribbon_layer(time, base_y, amplitude, base_thickness, variation_thick, opacity, speed_t, freq_x,
+                                 seed_offset)
+    local w, h = screen_w, screen_h
+    local segments = 60
+
+    local r, g, b = theme.accent[1], theme.accent[2], theme.accent[3]
+
+    if theme.current_mode == "Light" then
+        local tint_factor = 0.3
+        r = r * (1 - tint_factor) + tint_factor
+        g = g * (1 - tint_factor) + tint_factor
+        b = b * (1 - tint_factor) + tint_factor
+        opacity = math.min(1.0, opacity * 1.3)
+    end
+
+    local color_center = { r, g, b, opacity }
+    local color_edge = { r, g, b, 0 }
+
+    local vertices_top = {}
+    local vertices_bottom = {}
+
+    for i = 0, segments do
+        local u = i / segments
+        local x = u * w
+
+        -- High quality noise-based movement: combining a main wave and a secondary harmonic
+        local noise_val1 = love.math.noise(u * freq_x + time * speed_t, seed_offset)
+        local noise_val2 = love.math.noise(u * freq_x * 2.5 - time * speed_t * 1.5, seed_offset + 10)
+        local combined_noise = (noise_val1 * 2 - 1) + 0.3 * (noise_val2 * 2 - 1)
+
+        local y = base_y + combined_noise * amplitude
+
+        -- Thickness modulation using noise
+        local thick_noise = love.math.noise(u * (freq_x * 0.5) + time * (speed_t * 0.5), seed_offset + 20)
+        local half_thick = (base_thickness + thick_noise * variation_thick) * 0.5
+
+        -- Top half vertices (strip zig-zag: edge, center, edge, center...)
+        table.insert(vertices_top,
+            { x, y - half_thick, 0, 0, color_edge[1], color_edge[2], color_edge[3], color_edge[4] })
+        table.insert(vertices_top,
+            { x, y, 0, 0, color_center[1], color_center[2], color_center[3], color_center[4] })
+
+        -- Bottom half vertices
+        table.insert(vertices_bottom,
+            { x, y, 0, 0, color_center[1], color_center[2], color_center[3], color_center[4] })
+        table.insert(vertices_bottom,
+            { x, y + half_thick, 0, 0, color_edge[1], color_edge[2], color_edge[3], color_edge[4] })
+    end
+
+    local mesh_top = love.graphics.newMesh(vertices_top, "strip", "stream")
+    local mesh_bottom = love.graphics.newMesh(vertices_bottom, "strip", "stream")
+
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(mesh_top)
+    love.graphics.draw(mesh_bottom)
+end
+
+local function draw_ribbon_background()
+    local h = screen_h
+    local time = love.timer.getTime()
+
+    -- Ribbons
+    -- Background layer
+    draw_ribbon_layer(time, h * 0.58, h * 0.09, 80, 40, 0.45, 0.04, 0.6, 1.0)
+    -- Middle layer
+    draw_ribbon_layer(time, h * 0.58, h * 0.10, 60, 30, 0.4, -0.07, 1.0, 5.0)
+    -- Foreground layer
+    draw_ribbon_layer(time, h * 0.58, h * 0.08, 60, 20, 0.35, 0.10, 1.4, 10.0)
 end
 
 function background.set_background_mode(mode)
-    -- mode: 1 = Waves, 2 = ???, 3 = Wallpaper
+    -- mode: 1 = Waves, 2 = Ribbon, 3 = Wallpaper
     background_mode = math.max(1, math.min(3, math.floor(mode)))
     if background_mode == 3 then
         custom_bg_image = load_wallpaper_image(custom_bg_path)
@@ -738,7 +804,7 @@ function background.draw(music)
         if background_mode == 1 then
             draw_psp_waves()
         elseif background_mode == 2 then
-            draw_new_background()
+            draw_ribbon_background()
         end
     end
 
