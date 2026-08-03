@@ -150,6 +150,7 @@ function love.update(dt)
     local was_music_active = runtime_state.was_music_active
 
     if music.active then
+        runtime_state.current_view = "music"
         if not was_music_active then
             music_view.on_music_opened()
         end
@@ -159,9 +160,11 @@ function love.update(dt)
         end
         is_paused = music.paused
     elseif image_viewer.active then
+        runtime_state.current_view = "image"
         image_viewer.update(dt)
         is_paused = true
     elseif indexing.is_scanning then
+        runtime_state.current_view = "indexing"
         if runtime_state.scan_co then
             local ok, err = coroutine.resume(runtime_state.scan_co)
             if not ok then
@@ -193,6 +196,7 @@ function love.update(dt)
         end
         return
     else
+        runtime_state.current_view = "xmb"
         xmb.update(dt)
     end
 
@@ -247,13 +251,17 @@ function love.draw()
     background.draw(music)
 
     if music.active then
+        runtime_state.current_view = "music"
         music_view.draw()
     elseif image_viewer.active then
+        runtime_state.current_view = "image"
         image_view.draw()
     elseif indexing.is_scanning or runtime_state.launch_status_timer > 0 then
+        runtime_state.current_view = "indexing"
         ui.draw_indexing_popup(runtime_state.launch_status_message or indexing.scan_progress,
             runtime_state.launch_status_timer > 0)
     else
+        runtime_state.current_view = "xmb"
         xmb_draw.draw(xmb)
 
         -- Clock and info

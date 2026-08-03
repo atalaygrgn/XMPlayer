@@ -2,6 +2,8 @@ local theme = require("theme")
 local assets = require("assets")
 local utils = require("utils")
 local viewport = require("viewport")
+local runtime_state = require("runtime_state")
+local settings = require("settings")
 local ui = {}
 
 ui.active_toasts = {}
@@ -190,8 +192,10 @@ function ui.draw_indexing_popup(progress_text, final_message)
     ui.draw_glow_text("XMPlayer", 0, screen_h * 0.5 - ui.measure_text_height(title_font) * 0.5, title_font,
         { 1, 1, 1, 1 }, accent, screen_w, "center")
 
-    -- Bottom-left version tag
-    ui.print_text("v0.2.0 Symphony", 20, screen_h - 36, assets.fonts.small, { 1, 1, 1, 0.75 })
+    -- Top-left version tag
+    local version_opt = settings.get_option("version")
+    local version_str = version_opt and version_opt.value or "v0.2.1 Sage Symphony"
+    ui.print_text(version_str, 20, 20, assets.fonts.xs, { accent[1], accent[2], accent[3], 0.75 })
 
     -- Bottom-right indexing status with subtle pulse
     local status = progress_text or "Scanning media..."
@@ -210,7 +214,7 @@ function ui.draw_indexing_popup(progress_text, final_message)
     ui.print_text(status_text, screen_w - sw - 20, screen_h - 36, status_font)
 end
 
-function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail, rotation)
+function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail, rotation, no_tint)
     if not icon and not thumbnail then return end
     rotation = rotation or 0
 
@@ -224,10 +228,14 @@ function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail, rotation)
         love.graphics.draw(thumbnail, x, y, rotation, scale, scale, iw / 2, ih / 2)
     elseif icon then
         -- Apply Gloss Shader for monochrome/theme-tinted icons only.
-        if ui.gloss_shader:hasUniform("accent_color") and theme and theme.accent then
-            ui.gloss_shader:send("accent_color", { theme.accent[1], theme.accent[2], theme.accent[3] })
+        if not no_tint then
+            if ui.gloss_shader:hasUniform("accent_color") and theme and theme.accent then
+                ui.gloss_shader:send("accent_color", { theme.accent[1], theme.accent[2], theme.accent[3] })
+            end
+            love.graphics.setShader(ui.gloss_shader)
+        else
+            love.graphics.setShader()
         end
-        love.graphics.setShader(ui.gloss_shader)
         local img_w = icon:getWidth()
         local img_h = icon:getHeight()
         local scale = size / math.max(img_w, img_h)
@@ -291,7 +299,7 @@ function ui.draw_glow_text(text, x, y, font, color, glow_color, limit, align)
 end
 
 -- Draw icon/thumbnail with a soft glow effect
-function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail, rotation)
+function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail, rotation, no_tint)
     local img = (thumbnail and type(thumbnail) ~= "string") and thumbnail or icon
     if not img then return end
 
@@ -335,10 +343,14 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
         end
 
         -- Main image
-        if ui.gloss_shader:hasUniform("accent_color") and theme and theme.accent then
-            ui.gloss_shader:send("accent_color", { theme.accent[1], theme.accent[2], theme.accent[3] })
+        if not no_tint then
+            if ui.gloss_shader:hasUniform("accent_color") and theme and theme.accent then
+                ui.gloss_shader:send("accent_color", { theme.accent[1], theme.accent[2], theme.accent[3] })
+            end
+            love.graphics.setShader(ui.gloss_shader)
+        else
+            love.graphics.setShader()
         end
-        love.graphics.setShader(ui.gloss_shader)
         love.graphics.setColor(color[1], color[2], color[3], a)
     end
     love.graphics.draw(img, x, y, rotation, base_scale, base_scale, img_w / 2, img_h / 2)
@@ -439,30 +451,31 @@ function ui.draw_toasts()
         local x, y
 
         if t.type == "volume" or t.type == "brightness" then
-            box_w = 260
-            box_h = 45
-            x = (sw - box_w) / 2
-            y = 4 + (1 - t.alpha) * -20
+            local icon_size = (runtime_state.current_view == "music") and 24 or 28
+            local spacing = 8
+            local max_bar_w = 180
+            local bar_w = math.min(max_bar_w, math.max(40, sw * 0.45))
 
-            -- Background
-            love.graphics.setColor(0.1, 0.1, 0.15, 0.85 * t.alpha)
-            love.graphics.rectangle("fill", x, y, box_w, box_h, 12, 12)
+            local overlay_y = (runtime_state.current_view == "music") and 12 or 26
+            local overlay_h = 18
+            local bar_h = 8
 
-            -- Border
-            local ac = theme.accent
-            love.graphics.setColor(ac[1], ac[2], ac[3], 0.5 * t.alpha)
-            love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", x, y, box_w, box_h, 12, 12)
+            -- Group width (icon + gap + bar)
+            local group_w = icon_size + spacing + bar_w
+            local group_x = (sw - group_w) / 2
 
-            -- Icon on left
-            local icon_img
-            local level = t.display_level or 0
+            local icon_cx = group_x + icon_size / 2
+            local bar_x = group_x + icon_size + spacing
+
+            local level = t.display_level or t.target_level or 0
             local max_level = (t.type == "brightness") and 255 or 100
+            local progress = math.max(0, math.min(1, level / max_level))
+            local icon_img
 
             if t.type == "volume" then
-                if t.target_level == 0 then
+                if (t.target_level or 0) == 0 then
                     icon_img = assets.get_image("volume_mute")
-                elseif t.target_level < 50 then
+                elseif (t.target_level or 0) < 50 then
                     icon_img = assets.get_image("volume_down")
                 else
                     icon_img = assets.get_image("volume_up")
@@ -472,18 +485,13 @@ function ui.draw_toasts()
             end
 
             if icon_img then
-                ui.draw_icon(icon_img, x + padding + icon_size / 2, y + box_h / 2, icon_size, { 1, 1, 1 }, t.alpha)
+                ui.draw_icon(icon_img, icon_cx, overlay_y + overlay_h / 2, icon_size, { 1, 1, 1 }, t.alpha, nil, nil,
+                    true)
             end
 
-            -- Progress Bar
-            local bar_x = x + padding + icon_size + 15
-            local bar_w = box_w - (padding * 2 + icon_size + 15)
-            local bar_h = 8
-            local bar_y = y + (box_h - bar_h) / 2
-
-            local progress = math.max(0, math.min(1, level / max_level))
-            ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress, { 1, 1, 1, 0.9 * t.alpha },
-                { 1, 1, 1, 0.2 * t.alpha })
+            ui.draw_progress_bar(bar_x, overlay_y + (overlay_h - bar_h) / 2, bar_w, bar_h, progress,
+                { 1, 1, 1, 0.8 * t.alpha },
+                { 1, 1, 1, 0.14 * t.alpha })
         else
             local tw = ui.measure_text_width(font, t.text or "")
             local th = ui.measure_text_height(font)

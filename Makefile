@@ -58,6 +58,7 @@ portmaster:
 	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\README.md' -Destination '$(BUILD_DIR)\portmaster\xmplayer\' -Force"
 	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\screenshot.png' -Destination '$(BUILD_DIR)\portmaster\xmplayer\' -Force"
 	@$(POWERSHELL) "Copy-Item -Path '.\.xmplayer\config\xmplayer.gptk' -Destination '$(BUILD_DIR)\portmaster\xmplayer\xmplayer.gptk' -Force"
+	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\license' -Destination '$(BUILD_DIR)\portmaster\xmplayer\license' -Recurse -Force"
 	
 	@echo "Creating Portmaster package..."
 	@$(POWERSHELL) "tar -a -c -f '$(BUILD_DIR)/XMPlayer-PortMaster.zip' -C '$(BUILD_DIR)/portmaster' *"

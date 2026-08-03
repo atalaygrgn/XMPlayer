@@ -1,5 +1,6 @@
 local history = require("history")
 local system = require("system")
+local utils = require("utils")
 local player = {}
 
 -- Flag to signal main.lua to do a hard refresh
@@ -46,10 +47,18 @@ local function get_saved_playback_position(filepath, watch_later_dir)
     return position
 end
 
-function player.play_video(filepath, resume)
+function player.play_video(filepath, resume, options)
     if not filepath or filepath == "" then return end
 
     local paths = {}
+    local loop = false
+    local shuffle = false
+
+    if type(options) == "table" then
+        loop = options.loop
+        shuffle = options.shuffle
+    end
+
     if type(filepath) == "table" then
         paths = filepath
     else
@@ -93,11 +102,11 @@ function player.play_video(filepath, resume)
     end
 
     if settings.video_player_mode == "mpv" then
-        print("Launching MPV for " .. #paths .. " files")
-
         local storage_path = love.filesystem.getSource()
         local watch_later_dir = storage_path .. "/config/mpv/watch_later"
+        local mpv_config_dir = storage_path .. "/config/mpv"
         os.execute("mkdir -p " .. watch_later_dir)
+        os.execute("mkdir -p " .. mpv_config_dir)
 
         -- Switch gptokeyb to MPV controls (only on muOS)
         if cfw == "muOS" then
@@ -105,19 +114,43 @@ function player.play_video(filepath, resume)
             os.execute(gptokeyb_exe .. " mpv -c ./config/mpvplayer.gptk &")
         end
 
-        -- Launch MPV (blocks until MPV exits)
-        local paths_str = ""
-        for _, p in ipairs(paths) do
-            paths_str = paths_str .. " \"" .. p .. "\""
+        local resume_flag = resume and "--resume-playback=yes" or "--start=0"
+        local loop_flag = loop and "--loop-playlist=inf" or ""
+
+        local target_src = ""
+        local temp_playlist_path = nil
+
+        if #paths > 1 then
+            if shuffle then
+                utils.shuffle(paths)
+            end
+
+            temp_playlist_path = mpv_config_dir .. "/temp_playlist.m3u"
+            local f = io.open(temp_playlist_path, "w")
+            if f then
+                for _, p in ipairs(paths) do
+                    f:write(p .. "\n")
+                end
+                f:close()
+            end
+            target_src = " --playlist=\"" .. temp_playlist_path .. "\""
+            print("Launching MPV with playlist containing " .. #paths .. " files")
+        else
+            target_src = " \"" .. paths[1] .. "\""
+            print("Launching MPV for single file: " .. paths[1])
         end
 
-        local resume_flag = resume and "--resume-playback=yes" or "--start=0"
         local command = string.format(
-            "mpv %s --save-position-on-quit --watch-later-directory=%q --write-filename-in-watch-later-config=yes %s --input-conf=./config/input.conf --config-dir=./config",
-            paths_str, watch_later_dir, resume_flag)
+            "mpv %s %s --save-position-on-quit --watch-later-directory=%q --write-filename-in-watch-later-config=yes %s --input-conf=./config/input.conf --config-dir=./config",
+            target_src, loop_flag, watch_later_dir, resume_flag)
 
         print("Executing: " .. command)
         os.execute(command)
+
+        -- Delete the temporary playlist file if it was created
+        if temp_playlist_path then
+            os.remove(temp_playlist_path)
+        end
 
         print("MPV exited, returning to XMPlayer")
 
@@ -130,6 +163,7 @@ function player.play_video(filepath, resume)
             os.execute(gptokeyb_exe .. " " .. love_gptk .. " -c ./config/xmplayer.gptk &")
         end
     elseif settings.video_player_mode == "ffplay" then
+        if #paths == 0 then return end
         print("Launching FFplay for " .. #paths .. " files")
 
         local storage_path = love.filesystem.getSource()

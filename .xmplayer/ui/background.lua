@@ -13,7 +13,7 @@ local screen_w, screen_h
 local speed = 1.0
 local target_speed = 1.0
 local gradient_mesh
-local custom_bg_enabled = false
+local background_mode = 1    -- 1: Waves, 2: ???, 3: Wallpaper
 local custom_bg_image = nil
 local custom_bg_path = nil
 local wallpaper_blur_enabled = true
@@ -467,7 +467,7 @@ local function draw_waveform(music)
             local audio_sample = music.sound_data:getSample(s_idx)
 
             local y_offset = math.sin(i * 0.1 * layer_freq + love.timer.getTime() * layer_speed) * 10
-            local y = (h * 0.6) + (audio_sample * reactive_amp) + y_offset
+            local y = (h * 0.65) + (audio_sample * reactive_amp) + y_offset
 
             table.insert(points, x)
             table.insert(points, y)
@@ -579,9 +579,25 @@ local function draw_psp_waves()
     end
 end
 
+local function draw_new_background()
+    -- TODO: Implement new background
+end
+
+function background.set_background_mode(mode)
+    -- mode: 1 = Waves, 2 = ???, 3 = Wallpaper
+    background_mode = math.max(1, math.min(3, math.floor(mode)))
+    if background_mode == 3 then
+        custom_bg_image = load_wallpaper_image(custom_bg_path)
+    else
+        custom_bg_image = nil
+    end
+end
+
 function background.set_custom_bg(enabled)
-    custom_bg_enabled = enabled
-    if custom_bg_enabled then
+    -- Deprecated: kept for backwards compatibility
+    -- Now use set_background_mode() instead
+    background_mode = enabled and 3 or 1
+    if background_mode == 3 then
         custom_bg_image = load_wallpaper_image(custom_bg_path)
     else
         custom_bg_image = nil
@@ -595,7 +611,7 @@ function background.set_custom_bg_path(path)
         custom_bg_path = nil
     end
 
-    if custom_bg_enabled then
+    if background_mode == 3 then
         custom_bg_image = load_wallpaper_image(custom_bg_path)
     end
 end
@@ -617,7 +633,7 @@ function background.set_wallpaper_brightness(mode_index)
 end
 
 function background.has_custom_wallpaper()
-    return custom_bg_enabled and custom_bg_image ~= nil
+    return background_mode == 3 and custom_bg_image ~= nil
 end
 
 function background.draw(music)
@@ -645,8 +661,9 @@ function background.draw(music)
         love.graphics.draw(gradient_mesh)
     end
 
-    -- Draw custom background if enabled
-    if custom_bg_enabled and custom_bg_image then
+    -- Draw background based on selected mode
+    if background_mode == 3 and custom_bg_image then
+        -- Wallpaper mode
         local sw, sh = custom_bg_image:getDimensions()
         local scale = math.max(screen_w / sw, screen_h / sh)
 
@@ -716,9 +733,13 @@ function background.draw(music)
         love.graphics.setShader()
     end
 
-    -- Draw PSP waves only if music player is NOT active and custom background is NOT enabled
-    if not (music and music.active) and not custom_bg_enabled then
-        draw_psp_waves()
+    -- Draw background waves based on selected mode
+    if not (music and music.active) then
+        if background_mode == 1 then
+            draw_psp_waves()
+        elseif background_mode == 2 then
+            draw_new_background()
+        end
     end
 
     -- Draw music visualizer based on selected mode
