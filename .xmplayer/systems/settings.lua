@@ -231,6 +231,22 @@ settings.options = {
         value = 1
     },
     {
+        id = "repeat_folder",
+        name = "Repeat Folder (mpv)",
+        type = "choice",
+        group = "video_settings",
+        choices = { "No", "Yes" },
+        value = 1
+    },
+    {
+        id = "repeat_watchlist",
+        name = "Repeat Watchlist (mpv)",
+        type = "choice",
+        group = "video_settings",
+        choices = { "No", "Yes" },
+        value = 1
+    },
+    {
         id = "clear_history",
         name = "Clear Watch History",
         type = "action",
@@ -247,7 +263,7 @@ settings.options = {
         name = "Version",
         type = "info",
         group = "about",
-        value = "v0.2.0 Symphony"
+        value = "v0.2.1 Sage Symphony"
     },
     {
         id = "build_type",
@@ -306,7 +322,7 @@ end
 function settings.save()
     local data_str = "return {\n"
     for _, opt in ipairs(settings.options) do
-        if opt.value ~= nil then
+        if opt.value ~= nil and opt.type ~= "info" then
             if type(opt.value) == "string" then
                 data_str = data_str .. string.format("  [\"%s\"] = %q,\n", opt.id, opt.value)
             else
@@ -332,7 +348,7 @@ function settings.load()
             if ok and type(data) == "table" then
                 for id, val in pairs(data) do
                     local opt = settings.get_option(id)
-                    if opt then
+                    if opt and opt.type ~= "info" then
                         opt.value = val
                     end
                 end
@@ -402,6 +418,20 @@ function settings.apply()
         settings.ffplay_aspect_ratio = opt_ffplay_aspect.choices[opt_ffplay_aspect.value] or "Original"
     else
         settings.ffplay_aspect_ratio = "Original"
+    end
+
+    local opt_repeat_folder = settings.get_option("repeat_folder")
+    if opt_repeat_folder then
+        settings.repeat_folder = opt_repeat_folder.choices[opt_repeat_folder.value] or "No"
+    else
+        settings.repeat_folder = "No"
+    end
+
+    local opt_repeat_watchlist = settings.get_option("repeat_watchlist")
+    if opt_repeat_watchlist then
+        settings.repeat_watchlist = opt_repeat_watchlist.choices[opt_repeat_watchlist.value] or "No"
+    else
+        settings.repeat_watchlist = "No"
     end
 
     local opt_track_info_background = settings.get_option("track_info_background")

@@ -79,55 +79,6 @@ local function visualizer_label()
     return "Wave"
 end
 
-local function draw_header_level_overlay(screen_w, alpha)
-    local icon_size = 24
-    local spacing = 8
-    local max_bar_w = 180
-
-    -- Compute bar width and ensure it fits comfortably on screen
-    local bar_w = math.min(max_bar_w, math.max(40, screen_w * 0.45))
-
-    local overlay_y = 12
-    local overlay_h = 18
-    local bar_h = 8
-
-    -- Group width (icon + gap + bar)
-    local group_w = icon_size + spacing + bar_w
-    local group_x = (screen_w - group_w) / 2
-
-    local icon_cx = group_x + icon_size / 2
-    local bar_x = group_x + icon_size + spacing
-
-    for _, t in ipairs(ui.active_toasts) do
-        if (t.type == "volume" or t.type == "brightness") and t.alpha > 0 then
-            local toast_alpha = t.alpha * alpha
-            local level = t.display_level or t.target_level or 0
-            local max_level = (t.type == "brightness") and 255 or 100
-            local progress = math.max(0, math.min(1, level / max_level))
-            local icon_img
-
-            if t.type == "volume" then
-                if (t.target_level or 0) == 0 then
-                    icon_img = assets.get_image("volume_mute")
-                elseif (t.target_level or 0) < 50 then
-                    icon_img = assets.get_image("volume_down")
-                else
-                    icon_img = assets.get_image("volume_up")
-                end
-            else
-                icon_img = assets.get_image("brightness")
-            end
-
-            if icon_img then
-                ui.draw_icon(icon_img, icon_cx, overlay_y + overlay_h / 2, icon_size, { 1, 1, 1 }, toast_alpha)
-            end
-
-            ui.draw_progress_bar(bar_x, overlay_y + (overlay_h - bar_h) / 2, bar_w, bar_h, progress,
-                { 1, 1, 1, 0.8 * toast_alpha },
-                { 1, 1, 1, 0.14 * toast_alpha })
-        end
-    end
-end
 
 local function cycle_current_option(direction)
     local selected = music_view.context_menu.items[music_view.context_menu.selected_idx]
@@ -324,7 +275,6 @@ function music_view.draw()
             { theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha })
     end
 
-    draw_header_level_overlay(w, alpha)
 
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
     love.graphics.rectangle("fill", 20, 40, w - 40, 1)
@@ -444,12 +394,19 @@ function music_view.draw()
     local bar_w, bar_h               = w * 0.4, 6
     local bar_x, bar_y               = w - bar_w - 30, h - 30
     local progress                   = music.duration > 0 and (music.elapsed / music.duration) or 0
+
+    local elapsed_str                = utils.format_time(music.elapsed)
+    local duration_str               = " / " .. utils.format_time(music.duration)
+    local w_elapsed                  = ui.measure_text_width(assets.fonts.time_elapsed, elapsed_str)
+    local w_duration                 = ui.measure_text_width(assets.fonts.time_dur, duration_str)
+    local total_time_w               = w_elapsed + w_duration
+
 --[[     local track_info_background_mode = settings.track_info_background_mode or 1
 
     if track_info_background_mode > 1 then
-        local panel_x = bar_x + bar_w - 152
+        local panel_w = math.max(160, total_time_w + 24)
+        local panel_x = bar_x + bar_w - panel_w + 8
         local panel_y = bar_y - 46
-        local panel_w = 160
         local panel_h = 40
         local panel_fill_alpha = (track_info_background_mode == 3) and 0.95 or 0.42
         local panel_border_alpha = (track_info_background_mode == 3) and 0.16 or 0.08
@@ -462,11 +419,15 @@ function music_view.draw()
     end ]]
 
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.9 * alpha)
-    ui.print_text(utils.format_time(music.elapsed), bar_x + bar_w - 135, bar_y - 42, assets.fonts.time_elapsed,
+    local right_x = bar_x + bar_w
+    local dur_x = right_x - w_duration
+    local elapsed_x = dur_x - w_elapsed
+
+    ui.print_text(elapsed_str, elapsed_x, bar_y - 42, assets.fonts.time_elapsed,
         { theme.text[1], theme.text[2], theme.text[3], 0.9 * alpha })
 
-    ui.printf_text("/ " .. utils.format_time(music.duration), 0, bar_y - 38, bar_x + bar_w, "right",
-        assets.fonts.time_dur, { theme.text[1], theme.text[2], theme.text[3], 0.9 * alpha })
+    ui.print_text(duration_str, dur_x, bar_y - 38, assets.fonts.time_dur,
+        { theme.text[1], theme.text[2], theme.text[3], 0.9 * alpha })
 
     ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress,
         { 0, 0.35, 0.65, 0.9 * alpha },
@@ -548,7 +509,7 @@ function music_view.draw()
 
         -- Draw D-pad icon
         if assets.images.dpad then
-            ui.draw_icon(assets.images.dpad, dpad_x, dpad_y, dpad_size, theme.text, popup_alpha * alpha)
+            ui.draw_icon(assets.images.dpad, dpad_x, dpad_y, dpad_size, theme.text, popup_alpha * alpha, nil, nil, true)
         end
 
         -- Color definitions

@@ -1992,7 +1992,18 @@ function xmb.keypressed(key, player, music, viewer)
                 else
                     local playlist = build_media_playlist_from_browser()
                     if #playlist > 0 then
-                        player.play_video(playlist)
+                        local loop = false
+                        if xmb.view_type == "watchlist_videos" then
+                            local opt = settings.get_option("repeat_watchlist")
+                            loop = opt and opt.choices[opt.value] == "Yes"
+                        else
+                            local opt = settings.get_option("repeat_folder")
+                            loop = opt and opt.choices[opt.value] == "Yes"
+                        end
+                        player.play_video(playlist, nil, {
+                            loop = loop,
+                            shuffle = false
+                        })
                     end
                 end
             elseif selected.type == "video_shuffle_play" then
@@ -2001,8 +2012,18 @@ function xmb.keypressed(key, player, music, viewer)
                 else
                     local playlist = build_media_playlist_from_browser()
                     if #playlist > 0 then
-                        utils.shuffle(playlist)
-                        player.play_video(playlist)
+                        local loop = false
+                        if xmb.view_type == "watchlist_videos" then
+                            local opt = settings.get_option("repeat_watchlist")
+                            loop = opt and opt.choices[opt.value] == "Yes"
+                        else
+                            local opt = settings.get_option("repeat_folder")
+                            loop = opt and opt.choices[opt.value] == "Yes"
+                        end
+                        player.play_video(playlist, nil, {
+                            loop = loop,
+                            shuffle = true
+                        })
                     end
                 end
             elseif selected.type == "playlist_create" then
