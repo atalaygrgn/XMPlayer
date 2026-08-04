@@ -113,7 +113,7 @@ You can personalize XMPlayer via **Settings** > **Theme Settings**:
 - **Wallpaper Effects:** Add blur, tint, brightness effects to better match your style.
 
 > ![XMPlayer Theme](assets/readme/wallpaper.png) <br>
-> i just wanna be part of your symphony 🐬
+> Frutiger Eco 🍏🌍🌿
 
 More customization options are on the way!
 
