@@ -89,9 +89,9 @@ The goal of this project is to address the multimedia playback shortcomings of g
 
 | Button | XMB Menu | Music Player | Video Player (MPV) | Video Player (ffplay) | Photo Viewer |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek -+5s | Seek -+5s | Pan Left/Right |
-| **D-Pad Up/Down** | Navigate Menu Items | - | Seek -+60s |Seek -+60s | Pan Up/Down |
-| **A** | Select / Open / Confirm | Play / Pause | Play / Pause | Play/Pause | Reset View |
+| **D-Pad Left/Right** | Change Tabs | Previous/Next Track | Seek -+5s<br>**Menu+Left/Right:** Seek Chapters | Seek -+5s | Pan Left/Right |
+| **D-Pad Up/Down** | Navigate Menu Items | - | Seek +-60s<br>**Menu+Up/Down:** Seek +-15min |Seek -+60s | Pan Up/Down |
+| **A** | Select / Open / Confirm | Play / Pause | Play / Pause<br>**Menu+A:** Take Screenshot | Play/Pause | Reset View |
 | **B** | Back / Cancel | Return to XMB | Skip Frames | Skip Frames |Zoom Out |
 | **X** | Context Menu | Playback Options | Toggle Mute | Toggle Mute | Zoom In |
 | **Y** | - | (Hold) Hotkey Display | Show OSD<br>**Menu+Y:** Toggle OSD | - | Rotate 90° |

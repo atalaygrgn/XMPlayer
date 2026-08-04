@@ -247,6 +247,22 @@ settings.options = {
         value = 1
     },
     {
+        id = "sub_position",
+        name = "Subtitle Position (mpv)",
+        type = "choice",
+        group = "video_settings",
+        choices = { "Top", "Center", "Bottom" },
+        value = 3
+    },
+    {
+        id = "sub_font_size",
+        name = "Subtitle Font Size (mpv)",
+        type = "choice",
+        group = "video_settings",
+        choices = { "%50", "%75", "%100", "%125", "%150" },
+        value = 3
+    },
+    {
         id = "clear_history",
         name = "Clear Watch History",
         type = "action",
@@ -432,6 +448,20 @@ function settings.apply()
         settings.repeat_watchlist = opt_repeat_watchlist.choices[opt_repeat_watchlist.value] or "No"
     else
         settings.repeat_watchlist = "No"
+    end
+
+    local opt_sub_position = settings.get_option("sub_position")
+    if opt_sub_position then
+        settings.sub_position = opt_sub_position.choices[opt_sub_position.value] or "Bottom"
+    else
+        settings.sub_position = "Bottom"
+    end
+
+    local opt_sub_font_size = settings.get_option("sub_font_size")
+    if opt_sub_font_size then
+        settings.sub_font_size = opt_sub_font_size.choices[opt_sub_font_size.value] or "%100"
+    else
+        settings.sub_font_size = "%100"
     end
 
     local opt_track_info_background = settings.get_option("track_info_background")

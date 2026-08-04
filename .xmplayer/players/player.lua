@@ -108,6 +108,11 @@ function player.play_video(filepath, resume, options)
         os.execute("mkdir -p " .. watch_later_dir)
         os.execute("mkdir -p " .. mpv_config_dir)
 
+        local screenshot_dir = system.get_screenshot_dir()
+        if screenshot_dir and screenshot_dir ~= "" then
+            os.execute("mkdir -p \"" .. screenshot_dir .. "\"")
+        end
+
         -- Switch gptokeyb to MPV controls (only on muOS)
         if cfw == "muOS" then
             os.execute(kill_cmd)
@@ -140,9 +145,30 @@ function player.play_video(filepath, resume, options)
             print("Launching MPV for single file: " .. paths[1])
         end
 
+        local screenshot_arg = ""
+        if screenshot_dir and screenshot_dir ~= "" then
+            screenshot_arg = string.format(" --screenshot-directory=%q", screenshot_dir)
+        end
+
+        local sub_pos_map = {
+            Top = 0,
+            Center = 60,
+            Bottom = 100
+        }
+        local sub_pos_val = sub_pos_map[settings.sub_position] or 100
+
+        local sub_scale_val = 1.0
+        if settings.sub_font_size then
+            local pct = settings.sub_font_size:match("%%(%d+)")
+            if pct then
+                sub_scale_val = tonumber(pct) / 100
+            end
+        end
+        local sub_arg = string.format(" --sub-pos=%d --sub-scale=%.2f", sub_pos_val, sub_scale_val)
+
         local command = string.format(
-            "mpv %s %s --save-position-on-quit --watch-later-directory=%q --write-filename-in-watch-later-config=yes %s --input-conf=./config/input.conf --config-dir=./config",
-            target_src, loop_flag, watch_later_dir, resume_flag)
+            "mpv %s %s%s%s --save-position-on-quit --watch-later-directory=%q --write-filename-in-watch-later-config=yes %s --input-conf=./config/input.conf --config-dir=./config",
+            target_src, loop_flag, screenshot_arg, sub_arg, watch_later_dir, resume_flag)
 
         print("Executing: " .. command)
         os.execute(command)

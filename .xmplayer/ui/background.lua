@@ -644,7 +644,7 @@ local function draw_ribbon_background()
     -- Background layer
     draw_ribbon_layer(time, h * 0.58, h * 0.09, 80, 40, 0.45, 0.04, 0.6, 1.0)
     -- Middle layer
-    draw_ribbon_layer(time, h * 0.58, h * 0.10, 60, 30, 0.4, -0.07, 1.0, 5.0)
+    draw_ribbon_layer(time, h * 0.55, h * 0.10, 60, 30, 0.4, -0.07, 1.0, 5.0)
     -- Foreground layer
     draw_ribbon_layer(time, h * 0.58, h * 0.08, 60, 20, 0.35, 0.10, 1.4, 10.0)
 end
