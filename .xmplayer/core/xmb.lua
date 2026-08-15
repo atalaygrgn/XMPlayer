@@ -827,7 +827,7 @@ local function apply_context_action(action_id)
             opt_path.value = path
         end
         if opt_enabled then
-            opt_enabled.value = 1
+            opt_enabled.value = 3 -- 3 = Wallpaper mode
         end
         settings.apply()
         settings.save()
@@ -1906,7 +1906,7 @@ function xmb.keypressed(key, player, music, viewer)
                         local opt_custom_bg_path = settings.get_option("custom_bg_path")
 
                         if opt_custom_bg then
-                            opt_custom_bg.value = 1
+                            opt_custom_bg.value = 3 -- 3 = Wallpaper mode
                         end
                         if opt_custom_bg_path then
                             opt_custom_bg_path.value = "assets/background/bg.jpg"
@@ -1987,7 +1987,7 @@ function xmb.keypressed(key, player, music, viewer)
                     music.play(playlist[1].path, playlist)
                 end
             elseif selected.type == "video_play_all" then
-                if settings.video_player_mode == "ffplay" then
+                if settings.video_player_mode:sub(1, 6) == "ffplay" then
                     ui.show_toast("ffplay is not compatible with Play All.", "info", "bottom_right")
                 else
                     local playlist = build_media_playlist_from_browser()
@@ -1996,7 +1996,7 @@ function xmb.keypressed(key, player, music, viewer)
                     end
                 end
             elseif selected.type == "video_shuffle_play" then
-                if settings.video_player_mode == "ffplay" then
+                if settings.video_player_mode:sub(1, 6) == "ffplay" then
                     ui.show_toast("ffplay is not compatible with Shuffle Play.", "info", "bottom_right")
                 else
                     local playlist = build_media_playlist_from_browser()

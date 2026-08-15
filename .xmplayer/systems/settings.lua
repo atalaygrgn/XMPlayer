@@ -399,7 +399,11 @@ function settings.apply()
 
     local opt_video_player = settings.get_option("video_player")
     if opt_video_player then
-        settings.video_player_mode = opt_video_player.choices[opt_video_player.value] or "mpv"
+        local mode = opt_video_player.choices[opt_video_player.value] or "mpv"
+        if mode == "ffplay-system" or mode == "ffplay-xmplayer" then
+            mode = "ffplay"
+        end
+        settings.video_player_mode = mode
     else
         settings.video_player_mode = "mpv"
     end

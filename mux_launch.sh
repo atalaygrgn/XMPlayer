@@ -83,6 +83,8 @@ export XM_BUILD_TYPE="muOS App"
 chmod +x "$APP_DIR/bin/love"
 chmod +x "$APP_DIR/bin/gptokeyb2"
 chmod +x "$APP_DIR/bin/ffmpeg"
+[ -f "$APP_DIR/bin/ffplay" ] && chmod +x "$APP_DIR/bin/ffplay"
+chmod +x "$APP_DIR/bin/ffprobe"
 
 # Launch Application
 cd "$APP_DIR" || exit

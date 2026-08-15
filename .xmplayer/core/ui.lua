@@ -7,7 +7,7 @@ local ui = {}
 ui.active_toasts = {}
 
 function ui.measure_text_width(font, text)
-    return font:getWidth(text or "")
+    return font:getWidth(utils.ensure_utf8(text))
 end
 
 function ui.measure_text_height(font)
@@ -15,6 +15,7 @@ function ui.measure_text_height(font)
 end
 
 function ui.print_text(text, x, y, font, color)
+    local safe_text = utils.ensure_utf8(text)
     if font then
         love.graphics.setFont(font)
     end
@@ -26,14 +27,15 @@ function ui.print_text(text, x, y, font, color)
         love.graphics.push()
         love.graphics.translate(x, y)
         love.graphics.scale(1 / scale, 1 / scale)
-        love.graphics.print(text or "", 0, 0)
+        love.graphics.print(safe_text, 0, 0)
         love.graphics.pop()
     else
-        love.graphics.print(text or "", x, y)
+        love.graphics.print(safe_text, x, y)
     end
 end
 
 function ui.printf_text(text, x, y, limit, align, font, color)
+    local safe_text = utils.ensure_utf8(text)
     if font then
         love.graphics.setFont(font)
     end
@@ -45,10 +47,10 @@ function ui.printf_text(text, x, y, limit, align, font, color)
         love.graphics.push()
         love.graphics.translate(x, y)
         love.graphics.scale(1 / scale, 1 / scale)
-        love.graphics.printf(text or "", 0, 0, (limit or 0) * scale, align)
+        love.graphics.printf(safe_text, 0, 0, (limit or 0) * scale, align)
         love.graphics.pop()
     else
-        love.graphics.printf(text or "", x, y, limit or 0, align)
+        love.graphics.printf(safe_text, x, y, limit or 0, align)
     end
 end
 
@@ -190,8 +192,10 @@ function ui.draw_indexing_popup(progress_text, final_message)
     ui.draw_glow_text("XMPlayer", 0, screen_h * 0.5 - ui.measure_text_height(title_font) * 0.5, title_font,
         { 1, 1, 1, 1 }, accent, screen_w, "center")
 
-    -- Bottom-left version tag
-    ui.print_text("v0.2.0 Beta", 20, screen_h - 36, assets.fonts.small, { 1, 1, 1, 0.75 })
+    -- Top-left version tag
+    local version_opt = settings.get_option("version")
+    local version_str = "v0.2.1 Sage Symphony | TEST BUILD, EXPECT BUGS!"
+    ui.print_text(version_str, 20, 20, assets.fonts.xs, { accent[1], accent[2], accent[3], 0.75 })
 
     -- Bottom-right indexing status with subtle pulse
     local status = progress_text or "Scanning media..."

@@ -68,9 +68,19 @@ function player.play_video(filepath, resume)
             ui.show_toast("mpv not available", "info", "top_center")
             return false
         end
-    elseif settings.video_player_mode == "ffplay" then
-        local ok = os.execute("command -v ffplay >/dev/null 2>&1")
-        if not (ok == true or ok == 0) then
+    else
+        local storage_path = love.filesystem.getSource()
+        local builtin_exe = storage_path .. "/bin/ffplay"
+        local f = io.open(builtin_exe, "r")
+        local has_builtin = false
+        if f then
+            f:close()
+            has_builtin = true
+        end
+        local ok_sys = os.execute("command -v ffplay >/dev/null 2>&1")
+        local has_system = (ok_sys == true or ok_sys == 0)
+
+        if not has_builtin and not has_system then
             ui.show_toast("ffplay not available", "info", "top_center")
             return false
         end
@@ -129,16 +139,40 @@ function player.play_video(filepath, resume)
             local love_gptk = os.getenv("LOVE_GPTK") or "love"
             os.execute(gptokeyb_exe .. " " .. love_gptk .. " -c ./config/xmplayer.gptk &")
         end
-    elseif settings.video_player_mode == "ffplay" then
-        print("Launching FFplay for " .. #paths .. " files")
+    elseif settings.video_player_mode:sub(1, 6) == "ffplay" then
+        if #paths == 0 then return end
+        print("Launching ffplay for " .. #paths .. " files")
 
         local storage_path = love.filesystem.getSource()
         local watch_later_dir = storage_path .. "/config/mpv/watch_later"
+
+        local ffplay_bin = "ffplay"
+        local is_builtin = false
+        local builtin_exe = storage_path .. "/bin/ffplay"
+        local f = io.open(builtin_exe, "r")
+        if f then
+            f:close()
+            ffplay_bin = "./bin/ffplay"
+            is_builtin = true
+        end
 
         local vf_arg = ""
         if settings.ffplay_aspect_ratio and settings.ffplay_aspect_ratio ~= "Original" then
             local ratio = settings.ffplay_aspect_ratio:gsub(":", "/")
             vf_arg = string.format(' -vf "setdar=%s"', ratio)
+        end
+
+        local env_prefix = ""
+        if is_builtin then
+            local wayland = os.getenv("WAYLAND_DISPLAY")
+            local session = os.getenv("XDG_SESSION_TYPE")
+            local display = os.getenv("DISPLAY")
+
+            if wayland or (session and session == "wayland") then
+                env_prefix = "SDL_VIDEODRIVER=wayland "
+            elseif display and display ~= "" then
+                env_prefix = "SDL_VIDEODRIVER=x11 "
+            end
         end
 
         -- Launch FFplay sequentially
@@ -155,7 +189,8 @@ function player.play_video(filepath, resume)
                 end
             end
 
-            local command = string.format('ffplay -fs -autoexit -noborder%s%s "%s"', vf_arg, ss_arg, p)
+            local command = string.format('%s%s -fs -autoexit -noborder%s%s "%s"', env_prefix, ffplay_bin, vf_arg, ss_arg,
+                p)
             print("Executing: " .. command)
             os.execute(command)
         end

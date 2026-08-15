@@ -4,6 +4,52 @@ function utils.trim(s)
     return (s:gsub("^%s*(.-)%s*$", "%1"))
 end
 
+function utils.ensure_utf8(str)
+    if not str or type(str) ~= "string" then return "" end
+    local clean = str:gsub("%z", "")
+    local buf = {}
+    local len = #clean
+    local i = 1
+    while i <= len do
+        local c = str:byte(i)
+        if c < 0x80 then
+            table.insert(buf, string.char(c))
+            i = i + 1
+        elseif c >= 0xC0 and c <= 0xDF and i + 1 <= len then
+            local c2 = str:byte(i + 1)
+            if c2 >= 0x80 and c2 <= 0xBF then
+                table.insert(buf, str:sub(i, i + 1))
+                i = i + 2
+            else
+                table.insert(buf, string.char(0xC0 + math.floor(c / 64), 0x80 + (c % 64)))
+                i = i + 1
+            end
+        elseif c >= 0xE0 and c <= 0xEF and i + 2 <= len then
+            local c2, c3 = str:byte(i + 1), str:byte(i + 2)
+            if c2 >= 0x80 and c2 <= 0xBF and c3 >= 0x80 and c3 <= 0xBF then
+                table.insert(buf, str:sub(i, i + 2))
+                i = i + 3
+            else
+                table.insert(buf, string.char(0xC0 + math.floor(c / 64), 0x80 + (c % 64)))
+                i = i + 1
+            end
+        elseif c >= 0xF0 and c <= 0xF7 and i + 3 <= len then
+            local c2, c3, c4 = str:byte(i + 1), str:byte(i + 2), str:byte(i + 3)
+            if c2 >= 0x80 and c2 <= 0xBF and c3 >= 0x80 and c3 <= 0xBF and c4 >= 0x80 and c4 <= 0xBF then
+                table.insert(buf, str:sub(i, i + 3))
+                i = i + 4
+            else
+                table.insert(buf, string.char(0xC0 + math.floor(c / 64), 0x80 + (c % 64)))
+                i = i + 1
+            end
+        else
+            table.insert(buf, string.char(0xC0 + math.floor(c / 64), 0x80 + (c % 64)))
+            i = i + 1
+        end
+    end
+    return table.concat(buf)
+end
+
 function utils.split(str, sep)
     local result = {}
     for part in str:gmatch("([^" .. sep .. "]+)") do

@@ -174,12 +174,12 @@ local function sort_music_collections()
     end
 end
 
-local function add_music_file(path)
+local function add_music_file_with_tags(path, tags)
     if indexing.data.music.files[path] then
         return false
     end
 
-    local tags = metadata.get_tags(path)
+    tags = tags or metadata.get_tags(path)
     local title = normalize_label(tags.title, utils.get_track_name(path))
     local artist_str = normalize_label(tags.artist, "Unknown Artist")
     local album = normalize_label(tags.album, "Unknown Album")
@@ -221,6 +221,94 @@ local function add_music_file(path)
     end
 
     return true
+end
+
+local function add_music_file(path)
+    return add_music_file_with_tags(path, nil)
+end
+
+local function process_music_files_threaded(music_files, progress_prefix)
+    if not music_files or #music_files == 0 then return 0 end
+
+    -- Check if love.thread is available
+    if not (love and love.thread and love.thread.newThread) then
+        local count = 0
+        for i, path in ipairs(music_files) do
+            indexing.scan_progress = string.format("%s (%d/%d)", progress_prefix, i, #music_files)
+            if i % 5 == 0 then coroutine.yield() end
+            if add_music_file(path) then count = count + 1 end
+        end
+        return count
+    end
+
+    local in_chan_name = "idx_meta_in_" .. tostring(os.time())
+    local out_chan_name = "idx_meta_out_" .. tostring(os.time())
+    local in_chan = love.thread.getChannel(in_chan_name)
+    local out_chan = love.thread.getChannel(out_chan_name)
+
+    -- Filter out already indexed files
+    local pending = {}
+    for _, path in ipairs(music_files) do
+        if not indexing.data.music.files[path] then
+            table.insert(pending, path)
+        end
+    end
+
+    if #pending == 0 then return 0 end
+
+    -- Spawn 2 background worker threads for parallel extraction
+    local num_workers = 2
+    local threads = {}
+    for w = 1, num_workers do
+        local ok, t = pcall(love.thread.newThread, "metadata_worker.lua")
+        if not ok or not t then
+            ok, t = pcall(love.thread.newThread, ".xmplayer/metadata_worker.lua")
+        end
+        if ok and t then
+            t:start(in_chan_name, out_chan_name)
+            table.insert(threads, t)
+        end
+    end
+
+    if #threads == 0 then
+        -- Fallback if thread creation failed
+        local count = 0
+        for i, path in ipairs(pending) do
+            indexing.scan_progress = string.format("%s (%d/%d)", progress_prefix, i, #pending)
+            if i % 5 == 0 then coroutine.yield() end
+            if add_music_file(path) then count = count + 1 end
+        end
+        return count
+    end
+
+    -- Push pending files to thread queue
+    for i, path in ipairs(pending) do
+        in_chan:push({ type = "extract_file", path = path, id = i })
+    end
+
+    local processed = 0
+    local added_count = 0
+    local total = #pending
+
+    while processed < total do
+        local res = out_chan:pop()
+        if res and res.type == "file_tags" then
+            processed = processed + 1
+            indexing.scan_progress = string.format("%s (%d/%d)", progress_prefix, processed, total)
+            if add_music_file_with_tags(res.path, res.tags) then
+                added_count = added_count + 1
+            end
+        else
+            coroutine.yield()
+        end
+    end
+
+    -- Stop worker threads
+    for w = 1, #threads do
+        in_chan:push({ type = "stop" })
+    end
+
+    return added_count
 end
 
 local function rebuild_music_collections_from_files()
@@ -321,26 +409,15 @@ function indexing.generate_thumbnail(image_path)
     if ext and (ext:lower() == "jpg" or ext:lower() == "jpeg") then
         local parsed_orientation, thumb_bytes = utils.get_jpeg_metadata(image_path, true)
         orientation = parsed_orientation or 1
-        if thumb_bytes and #thumb_bytes > 4 and thumb_bytes:byte(1) == 0xFF and thumb_bytes:byte(2) == 0xD8 then
-            -- Verify if LÖVE can load these bytes successfully
-            local test_fd, test_id
-            local test_ok = pcall(function()
-                test_fd = love.filesystem.newFileData(thumb_bytes, "test_thumb.jpg")
-                test_id = love.image.newImageData(test_fd)
-            end)
-            if test_id then test_id:release() end
-            if test_fd then test_fd:release() end
-
-            if test_ok then
-                local safe_name = image_path:gsub("[^%w]", "_")
-                local thumb_path = indexing.thumb_dir .. "/" .. safe_name .. ".jpg"
-                ensure_thumb_dir()
-                local f = io.open(thumb_path, "wb")
-                if f then
-                    f:write(thumb_bytes)
-                    f:close()
-                    return thumb_path, orientation
-                end
+        if thumb_bytes and #thumb_bytes > 100 and thumb_bytes:byte(1) == 0xFF and thumb_bytes:byte(2) == 0xD8 then
+            local safe_name = image_path:gsub("[^%w]", "_")
+            local thumb_path = indexing.thumb_dir .. "/" .. safe_name .. ".jpg"
+            ensure_thumb_dir()
+            local f = io.open(thumb_path, "wb")
+            if f then
+                f:write(thumb_bytes)
+                f:close()
+                return thumb_path, orientation
             end
         end
     end
@@ -556,11 +633,7 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     local music_files = get_files_recursive(music_dir, music_exts)
     coroutine.yield()
 
-    for i, path in ipairs(music_files) do
-        indexing.scan_progress = string.format("Indexing Music (%d/%d)", i, #music_files)
-        if i % 5 == 0 then coroutine.yield() end -- Yield every 5 files to speed up but keep UI responsive
-        add_music_file(path)
-    end
+    process_music_files_threaded(music_files, "Indexing Music")
 
     sort_music_collections()
 
@@ -576,10 +649,7 @@ function indexing.scan(photo_dir, music_dir, video_dir)
     local new_photos = {}
     for i, path in ipairs(photo_files) do
         indexing.scan_progress = string.format("Indexing Photos (%d/%d)", i, #photo_files)
-        if i % 10 == 0 then
-            coroutine.yield(indexing.scan_progress)
-            collectgarbage("collect")
-        end
+        coroutine.yield(indexing.scan_progress)
 
         local photo_info = indexing.data.photos[path] or { thumb_path = nil, orientation = nil }
         if not photo_info.thumb_path or not photo_info.orientation then
@@ -670,16 +740,9 @@ function indexing.scan_for_new_media(photo_dir, music_dir, video_dir)
     indexing.scan_progress = "Checking for new music..."
     coroutine.yield(indexing.scan_progress)
     local music_files = get_files_recursive(music_dir, music_exts)
-    local music_added = 0
-    for i, path in ipairs(music_files) do
-        if i % 10 == 0 then
-            indexing.scan_progress = string.format("Checking Music (%d/%d)", i, #music_files)
-            coroutine.yield(indexing.scan_progress)
-        end
-        if add_music_file(path) then
-            new_count = new_count + 1
-            music_added = music_added + 1
-        end
+    local music_added = process_music_files_threaded(music_files, "Checking Music")
+    if music_added > 0 then
+        new_count = new_count + music_added
     end
 
     if music_added > 0 then
@@ -707,11 +770,8 @@ function indexing.scan_for_new_media(photo_dir, music_dir, video_dir)
     coroutine.yield(indexing.scan_progress)
     local photo_files = get_files_recursive(photo_dir, photo_exts)
     for i, path in ipairs(photo_files) do
-        if i % 10 == 0 then
-            indexing.scan_progress = string.format("Checking Photos (%d/%d)", i, #photo_files)
-            coroutine.yield(indexing.scan_progress)
-            collectgarbage("collect")
-        end
+        indexing.scan_progress = string.format("Checking Photos (%d/%d)", i, #photo_files)
+        coroutine.yield(indexing.scan_progress)
         local photo_info = indexing.data.photos[path]
         if not photo_info then
             local thumb_path, orientation = indexing.generate_thumbnail(path)
