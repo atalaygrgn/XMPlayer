@@ -96,37 +96,34 @@ function xmb_draw.draw(state)
             local thumb = nil
 
             local rot = 0
-            if item.type == "file" and (cat_id == "photo" or item.icon == "photo") then
+            if item.type == "file" and (cat_id == "photo" or item.icon == "photo" or (utils.is_photo_file and utils.is_photo_file(item.path))) then
                 icon = assets.images.photo
-                local info = indexing.data.photos[item.path]
-                
-                -- Fast parse EXIF orientation on the fly if not in index
+                local info = indexing.data.photos and indexing.data.photos[item.path]
+
+                local thumb_key = (info and info.thumb_path) or item.path
                 local orientation = 1
-                if info and info.orientation then
+                if info and info.orientation and info.orientation > 1 then
                     orientation = info.orientation
-                else
-                    orientation = utils.get_jpeg_orientation(item.path)
+                elseif xmb.orientations then
+                    orientation = xmb.orientations[thumb_key] or xmb.orientations[item.path] or 1
                 end
-                if orientation == 3 then
+
+                if orientation == 3 or orientation == 4 then
                     rot = math.pi
-                elseif orientation == 6 then
+                elseif orientation == 6 or orientation == 7 then
                     rot = math.pi / 2
-                elseif orientation == 8 then
+                elseif orientation == 8 or orientation == 5 then
                     rot = 3 * math.pi / 2
                 end
 
-                if info and info.thumb_path then
-                    local thumb_path = info.thumb_path
-                    if not xmb.thumbs[thumb_path] then
-                        xmb.thumbs[thumb_path] = utils.load_image(thumb_path)
-                    end
-                    thumb = xmb.thumbs[thumb_path]
+                if xmb.thumbs and xmb.thumbs[thumb_key] then
+                    thumb = xmb.thumbs[thumb_key]
+                elseif xmb.request_async_thumb then
+                    xmb.request_async_thumb(thumb_key, (info and info.thumb_path) or item.path, true, item.path)
                 end
-                if not thumb and item.path then
-                    if not xmb.thumbs[item.path] then
-                        xmb.thumbs[item.path] = utils.load_image_thumb(item.path)
-                    end
-                    thumb = xmb.thumbs[item.path]
+
+                if not thumb then
+                    rot = 0
                 end
             elseif item.icon and assets.images[item.icon] then
                 icon = assets.images[item.icon]
@@ -135,12 +132,13 @@ function xmb_draw.draw(state)
             elseif item.type == "album" then
                 icon = assets.images.album
                 local album = item.data
-                local thumb_path = album and album.name ~= "Unknown Album" and album.thumb_path
+                local thumb_path = album and album.name ~= "Unknown Album" and (album.thumb_path_small or album.thumb_path)
                 if thumb_path and thumb_path ~= "" then
-                    if not xmb.thumbs[thumb_path] then
-                        xmb.thumbs[thumb_path] = utils.load_image(thumb_path)
+                    if xmb.thumbs and xmb.thumbs[thumb_path] then
+                        thumb = xmb.thumbs[thumb_path]
+                    elseif xmb.request_async_thumb then
+                        xmb.request_async_thumb(thumb_path, thumb_path, false)
                     end
-                    thumb = xmb.thumbs[thumb_path]
                 end
             elseif item.type == "artist" then
                 icon = assets.images.artist
@@ -190,9 +188,9 @@ function xmb_draw.draw(state)
                     local line_w = screen_w * 0.7
                     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha * 0.3)
                     love.graphics.line(0, desc_y, line_w, desc_y)
-                    love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha * 0.8)
-                    ui.print_text(item.description, 0, desc_y + 5, assets.fonts.xs,
-                        { theme.text[1], theme.text[2], theme.text[3], final_alpha * 0.8 })
+                    ui.draw_marquee(xmb.desc_marquee, item.description, 0, desc_y + 5, assets.fonts.xs,
+                        { theme.text[1], theme.text[2], theme.text[3], final_alpha * 0.8 },
+                        list_x + xmb.list_slide_x, screen_y + 29, nil, true)
                 end
             else
                 love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], final_alpha)

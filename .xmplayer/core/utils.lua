@@ -4,6 +4,52 @@ function utils.trim(s)
     return (s:gsub("^%s*(.-)%s*$", "%1"))
 end
 
+function utils.ensure_utf8(str)
+    if not str or type(str) ~= "string" then return "" end
+    local clean = str:gsub("%z", "")
+    local buf = {}
+    local len = #clean
+    local i = 1
+    while i <= len do
+        local c = clean:byte(i)
+        if c < 0x80 then
+            table.insert(buf, string.char(c))
+            i = i + 1
+        elseif c >= 0xC0 and c <= 0xDF and i + 1 <= len then
+            local c2 = clean:byte(i + 1)
+            if c2 >= 0x80 and c2 <= 0xBF then
+                table.insert(buf, clean:sub(i, i + 1))
+                i = i + 2
+            else
+                table.insert(buf, string.char(0xC0 + math.floor(c / 64), 0x80 + (c % 64)))
+                i = i + 1
+            end
+        elseif c >= 0xE0 and c <= 0xEF and i + 2 <= len then
+            local c2, c3 = clean:byte(i + 1), clean:byte(i + 2)
+            if c2 >= 0x80 and c2 <= 0xBF and c3 >= 0x80 and c3 <= 0xBF then
+                table.insert(buf, clean:sub(i, i + 2))
+                i = i + 3
+            else
+                table.insert(buf, string.char(0xC0 + math.floor(c / 64), 0x80 + (c % 64)))
+                i = i + 1
+            end
+        elseif c >= 0xF0 and c <= 0xF7 and i + 3 <= len then
+            local c2, c3, c4 = clean:byte(i + 1), clean:byte(i + 2), clean:byte(i + 3)
+            if c2 >= 0x80 and c2 <= 0xBF and c3 >= 0x80 and c3 <= 0xBF and c4 >= 0x80 and c4 <= 0xBF then
+                table.insert(buf, clean:sub(i, i + 3))
+                i = i + 4
+            else
+                table.insert(buf, string.char(0xC0 + math.floor(c / 64), 0x80 + (c % 64)))
+                i = i + 1
+            end
+        else
+            table.insert(buf, string.char(0xC0 + math.floor(c / 64), 0x80 + (c % 64)))
+            i = i + 1
+        end
+    end
+    return table.concat(buf)
+end
+
 function utils.split(str, sep)
     local result = {}
     for part in str:gmatch("([^" .. sep .. "]+)") do
@@ -31,6 +77,19 @@ function utils.format_time(seconds)
     return string.format("%d:%02d", mins, secs)
 end
 
+function utils.format_size(bytes)
+    if not bytes or type(bytes) ~= "number" then return "0 B" end
+    if bytes >= 1073741824 then
+        return string.format("%.2f GB", bytes / 1073741824)
+    elseif bytes >= 1048576 then
+        return string.format("%.1f MB", bytes / 1048576)
+    elseif bytes >= 1024 then
+        return string.format("%.0f KB", bytes / 1024)
+    else
+        return string.format("%d B", bytes)
+    end
+end
+
 function utils.get_filename(path)
     if type(path) ~= "string" then return nil end
     return path:match("([^/]+)$") or path
@@ -41,6 +100,17 @@ function utils.get_extension(path)
     local ext = path:match("%.([^%.]+)$")
     if ext then return "." .. ext:lower() end
     return nil
+end
+
+function utils.is_photo_file(path)
+    if type(path) ~= "string" then return false end
+    local ext = utils.get_extension(path)
+    if not ext then return false end
+    local photo_exts = { ".jpg", ".jpeg", ".png", ".bmp" }
+    for _, e in ipairs(photo_exts) do
+        if ext == e then return true end
+    end
+    return false
 end
 
 function utils.get_dirname(path)
@@ -72,6 +142,25 @@ function utils.get_track_name(filename)
     local name = utils.get_filename(filename)
     local n = name:match("(.+)%.[^%.]+$")
     return n or name
+end
+
+function utils.is_music_file(path)
+    if not path or type(path) ~= "string" then return false end
+    local ext = utils.get_extension(path)
+    if not ext then return false end
+    ext = ext:lower()
+    local ok, indexing = pcall(require, "indexing")
+    if ok and indexing and indexing.compatible_extensions and indexing.compatible_extensions.music then
+        for _, e in ipairs(indexing.compatible_extensions.music) do
+            if ext == e then return true end
+        end
+    end
+    local fallback = {
+        mp3 = true, flac = true, ogg = true, wav = true, m4a = true, aac = true, opus = true,
+        mod = true, s3m = true, xm = true, it = true, spc = true, nsf = true, nsfe = true,
+        vgm = true, vgz = true, gbs = true, hes = true, kss = true
+    }
+    return fallback[ext] == true
 end
 
 function utils.is_vgm_file(filepath)
@@ -162,13 +251,14 @@ end
 
 function utils.load_image(path)
     if not path or path == "" then return nil end
-    -- Try direct load first (works if path is relative to source or save, or valid absolute in some environments)
-    local ok, img = pcall(love.graphics.newImage, path)
-    if ok then return img end
-
-    -- Try reading via io if newImage failed (common issue for absolute paths in Love2D)
     local f = io.open(path, "rb")
     if f then
+        local size = f:seek("end")
+        if size and size > 5 * 1024 * 1024 then
+            f:close()
+            return nil
+        end
+        f:seek("set", 0)
         local data = f:read("*a")
         f:close()
         if data and #data > 0 then
@@ -187,7 +277,7 @@ function utils.load_image(path)
                     local limit = math.min(max_texture_size, 2048)
                     if w > limit or h > limit then
                         local scale = limit / math.max(w, h)
-                        local tw, th = math.floor(w * scale), math.floor(h * scale)
+                        local tw, th = math.max(1, math.floor(w * scale)), math.max(1, math.floor(h * scale))
                         local scaled_id = love.image.newImageData(tw, th)
                         for y = 0, th - 1 do
                             local sy = math.floor(y / scale)
@@ -226,7 +316,7 @@ end
 function utils.get_jpeg_metadata(filepath, need_thumb)
     local f = io.open(filepath, "rb")
     if not f then return nil end
-    local data = f:read(128 * 1024) -- Read first 128KB
+    local data = f:read(256 * 1024) -- Read first 256KB
     f:close()
     if not data or #data < 4 then return nil end
 
@@ -328,6 +418,7 @@ function utils.get_jpeg_metadata(filepath, need_thumb)
 
     local orientation = 1
     local ifd1_offset = 0
+    local subifd_offset = 0
 
     for i = 1, num_entries do
         if p + 12 > #exif_data then break end
@@ -340,9 +431,34 @@ function utils.get_jpeg_metadata(filepath, need_thumb)
             elseif type_code == 4 then
                 val = read_u32(exif_data, p + 8)
             end
-            if val then orientation = val end
+            if val and val >= 1 and val <= 8 then orientation = val end
+        elseif tag == 0x8769 then -- Exif SubIFD Pointer
+            subifd_offset = read_u32(exif_data, p + 8)
         end
         p = p + 12
+    end
+
+    -- If orientation tag wasn't found in IFD0, check Exif SubIFD
+    if orientation == 1 and subifd_offset > 0 and subifd_offset + 1 <= #exif_data then
+        local sp = subifd_offset + 1
+        local num_sub_entries = read_u16(exif_data, sp)
+        sp = sp + 2
+        for i = 1, num_sub_entries do
+            if sp + 12 > #exif_data then break end
+            local tag = read_u16(exif_data, sp)
+            local type_code = read_u16(exif_data, sp + 2)
+            if tag == 0x0112 then
+                local val
+                if type_code == 3 then
+                    val = read_u16(exif_data, sp + 8)
+                elseif type_code == 4 then
+                    val = read_u32(exif_data, sp + 8)
+                end
+                if val and val >= 1 and val <= 8 then orientation = val end
+                break
+            end
+            sp = sp + 12
+        end
     end
 
     if p + 4 <= #exif_data then
@@ -402,6 +518,14 @@ end
 
 function utils.load_image_thumb(path)
     if not path or path == "" then return nil end
+    local f_size = io.open(path, "rb")
+    if f_size then
+        local size = f_size:seek("end")
+        f_size:close()
+        if size and size > 5 * 1024 * 1024 then
+            return nil
+        end
+    end
     local ext = path:match("%.([^%.]+)$")
     if ext and (ext:lower() == "jpg" or ext:lower() == "jpeg") then
         local _, thumb_bytes = utils.get_jpeg_metadata(path, true)
@@ -410,7 +534,6 @@ function utils.load_image_thumb(path)
             if img then return img end
         end
     end
-    -- Fallback to loading full image
     return utils.load_image(path)
 end
 

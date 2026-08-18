@@ -62,6 +62,20 @@ local ringBufferSize = SAMPLE_RATE * 2 -- 2 seconds of samples for visualizer (u
 local currentSeekTime = 0
 local totalSamplesQueuedAtSeek = 0
 
+local function new_audio_worker()
+    local ok, t = pcall(love.thread.newThread, "workers/audio_worker.lua")
+    if not ok or not t then
+        ok, t = pcall(love.thread.newThread, ".xmplayer/workers/audio_worker.lua")
+    end
+    if not ok or not t then
+        ok, t = pcall(love.thread.newThread, "audio_worker.lua")
+    end
+    if not ok or not t then
+        t = love.thread.newThread(".xmplayer/audio_worker.lua")
+    end
+    return t
+end
+
 -- Initialize ring buffer (stores raw sample values for visualization)
 local function initRingBuffer()
     sampleRingBuffer = {}
@@ -180,13 +194,10 @@ function ffmpeg_audio.load(filepath)
 
     initRingBuffer()
 
-    if streamChannelName then
-        table.insert(terminatingChannels, streamChannelName)
-    end
-
+    currentFilePath = filepath
     currentGeneration = currentGeneration + 1
-    streamChannelName = "audio_stream_channel_" .. currentGeneration
-    controlChannelName = "audio_control_channel_" .. currentGeneration
+    streamChannelName = "audio_stream_" .. currentGeneration
+    controlChannelName = "audio_control_" .. currentGeneration
 
     audioChannel = love.thread.getChannel(streamChannelName)
     controlChannel = love.thread.getChannel(controlChannelName)
@@ -194,12 +205,12 @@ function ffmpeg_audio.load(filepath)
     -- Clear any pending messages from previous thread
     while audioChannel:pop() do end
 
-    -- Get duration
-    totalDuration = getDuration(filepath)
+    -- Reset total duration (will be populated asynchronously by worker thread)
+    totalDuration = 0
 
     -- Start FFmpeg background thread, passing the target sample rate so the worker
     -- can configure libgme synthesis rate and output -ar to match.
-    audioThread = love.thread.newThread("audio_worker.lua")
+    audioThread = new_audio_worker()
     audioThread:start(filepath, streamChannelName, controlChannelName, currentGeneration, nil, currentSampleRate)
 
     return true
@@ -348,6 +359,8 @@ function ffmpeg_audio.update()
                     else
                         print("Failed to create SoundData: " .. tostring(soundData))
                     end
+                elseif message.type == "duration" then
+                    totalDuration = message.duration or 0
                 elseif message.type == "end" or message.type == "thread_done" then
                     -- Stream ended or thread finishing
                     hasReachedEOF = true
@@ -461,7 +474,7 @@ function ffmpeg_audio.seek(time)
     while audioChannel:pop() do end
 
     -- Start new thread at targetTime
-    audioThread = love.thread.newThread("audio_worker.lua")
+    audioThread = new_audio_worker()
     audioThread:start(currentFilePath, streamChannelName, controlChannelName, currentGeneration, targetTime,
         currentSampleRate)
 

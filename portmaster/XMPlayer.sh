@@ -58,6 +58,7 @@ cd "$GAMEDIR/gamedata"
 
 # Ensure ffmpeg binary is executable
 chmod +x ./bin/ffmpeg
+chmod +x ./bin/ffplay
 
 # Start gptokeyb daemon mapping
 if [ "$CFW_NAME" = "muOS" ]; then

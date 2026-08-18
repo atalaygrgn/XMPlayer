@@ -30,6 +30,8 @@ function xmb_state.new()
         scroll_held_count = 0,
 
         thumbs = {},
+        orientations = {},
+        thumb_status = {},
 
         context_menu = {
             active = false,

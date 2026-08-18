@@ -77,9 +77,19 @@ function player.play_video(filepath, resume, options)
             ui.show_toast("mpv not available", "info", "top_center")
             return false
         end
-    elseif settings.video_player_mode == "ffplay" then
-        local ok = os.execute("command -v ffplay >/dev/null 2>&1")
-        if not (ok == true or ok == 0) then
+    else
+        local storage_path = love.filesystem.getSource()
+        local builtin_exe = storage_path .. "/bin/ffplay"
+        local f = io.open(builtin_exe, "r")
+        local has_builtin = false
+        if f then
+            f:close()
+            has_builtin = true
+        end
+        local ok_sys = os.execute("command -v ffplay >/dev/null 2>&1")
+        local has_system = (ok_sys == true or ok_sys == 0)
+
+        if not has_builtin and not has_system then
             ui.show_toast("ffplay not available", "info", "top_center")
             return false
         end
@@ -188,17 +198,40 @@ function player.play_video(filepath, resume, options)
             local love_gptk = os.getenv("LOVE_GPTK") or "love"
             os.execute(gptokeyb_exe .. " " .. love_gptk .. " -c ./config/xmplayer.gptk &")
         end
-    elseif settings.video_player_mode == "ffplay" then
+    elseif settings.video_player_mode:sub(1, 6) == "ffplay" then
         if #paths == 0 then return end
-        print("Launching FFplay for " .. #paths .. " files")
+        print("Launching ffplay for " .. #paths .. " files")
 
         local storage_path = love.filesystem.getSource()
         local watch_later_dir = storage_path .. "/config/mpv/watch_later"
+
+        local ffplay_bin = "ffplay"
+        local is_builtin = false
+        local builtin_exe = storage_path .. "/bin/ffplay"
+        local f = io.open(builtin_exe, "r")
+        if f then
+            f:close()
+            ffplay_bin = "./bin/ffplay"
+            is_builtin = true
+        end
 
         local vf_arg = ""
         if settings.ffplay_aspect_ratio and settings.ffplay_aspect_ratio ~= "Original" then
             local ratio = settings.ffplay_aspect_ratio:gsub(":", "/")
             vf_arg = string.format(' -vf "setdar=%s"', ratio)
+        end
+
+        local env_prefix = ""
+        if is_builtin then
+            local wayland = os.getenv("WAYLAND_DISPLAY")
+            local session = os.getenv("XDG_SESSION_TYPE")
+            local display = os.getenv("DISPLAY")
+
+            if wayland or (session and session == "wayland") then
+                env_prefix = "SDL_VIDEODRIVER=wayland "
+            elseif display and display ~= "" then
+                env_prefix = "SDL_VIDEODRIVER=x11 "
+            end
         end
 
         -- Launch FFplay sequentially
@@ -215,7 +248,8 @@ function player.play_video(filepath, resume, options)
                 end
             end
 
-            local command = string.format('ffplay -fs -autoexit -noborder%s%s "%s"', vf_arg, ss_arg, p)
+            local command = string.format('%s%s -fs -autoexit -noborder%s%s "%s"', env_prefix, ffplay_bin, vf_arg, ss_arg,
+                p)
             print("Executing: " .. command)
             os.execute(command)
         end
@@ -233,6 +267,96 @@ function player.play_video(filepath, resume, options)
     end
 
     -- Signal that we need a hard display refresh
+    player.needs_refresh = true
+end
+
+function player.play_slideshow(filepaths)
+    if not filepaths then return end
+
+    local paths = {}
+    if type(filepaths) == "string" then
+        if utils.is_photo_file(filepaths) then
+            table.insert(paths, filepaths)
+        end
+    elseif type(filepaths) == "table" then
+        for _, item in ipairs(filepaths) do
+            local p = (type(item) == "table") and item.path or item
+            if p and type(p) == "string" and utils.is_photo_file(p) then
+                table.insert(paths, p)
+            end
+        end
+    end
+
+    if #paths == 0 then return end
+
+    local ui = require("ui")
+    local settings = require("settings")
+
+    local ok = os.execute("command -v mpv >/dev/null 2>&1")
+    local is_windows = (package.config:sub(1,1) == '\\') or (love.system and love.system.getOS() == "Windows")
+    if not is_windows and not (ok == true or ok == 0) then
+        ui.show_toast("mpv not available", "info", "top_center")
+        return false
+    end
+
+    print("Launching mpv slideshow for " .. #paths .. " files")
+
+    local storage_path = love.filesystem.getSource()
+    local mpv_config_dir = storage_path .. "/config/mpv"
+    os.execute("mkdir -p " .. mpv_config_dir)
+
+    local temp_playlist_path = mpv_config_dir .. "/temp_slideshow.m3u"
+    local f = io.open(temp_playlist_path, "w")
+    if f then
+        for _, p in ipairs(paths) do
+            f:write(p .. "\n")
+        end
+        f:close()
+    end
+
+    local cfw = system.get_cfw_name()
+    local gptokeyb_exe = nil
+    local kill_cmd = nil
+
+    if cfw == "muOS" then
+        gptokeyb_exe = "./bin/gptokeyb2"
+        kill_cmd = "killall -9 gptokeyb2 2>/dev/null"
+    else
+        gptokeyb_exe = os.getenv("GPTOKEYB") or "gptokeyb"
+        kill_cmd = "killall -9 gptokeyb gptokeyb2 2>/dev/null"
+    end
+
+    -- Switch gptokeyb to MPV controls (only on muOS)
+    if cfw == "muOS" then
+        os.execute(kill_cmd)
+        os.execute(gptokeyb_exe .. " mpv -c ./config/mpvplayer.gptk &")
+    end
+
+    local duration = settings.slideshow_duration_seconds or 5
+    local loop_flag = settings.loop_slideshow_enabled and " --loop-playlist=inf" or ""
+
+    local command = string.format(
+        'mpv --image-display-duration=%d%s --fullscreen --playlist=%q --input-conf=./config/input.conf --config-dir=./config',
+        duration, loop_flag, temp_playlist_path)
+
+    print("Executing slideshow: " .. command)
+    os.execute(command)
+
+    if temp_playlist_path then
+        os.remove(temp_playlist_path)
+    end
+
+    print("MPV slideshow exited, returning to XMPlayer")
+
+    -- Switch gptokeyb back to XMPlayer controls
+    os.execute(kill_cmd)
+    if cfw == "muOS" then
+        os.execute("./bin/gptokeyb2 love -c ./config/xmplayer.gptk &")
+    else
+        local love_gptk = os.getenv("LOVE_GPTK") or "love"
+        os.execute(gptokeyb_exe .. " " .. love_gptk .. " -c ./config/xmplayer.gptk &")
+    end
+
     player.needs_refresh = true
 end
 

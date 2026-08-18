@@ -8,6 +8,7 @@ package.path = table.concat({
     source_root .. "/media/?.lua",
     source_root .. "/players/?.lua",
     source_root .. "/systems/?.lua",
+    source_root .. "/workers/?.lua",
     source_root .. "/data/?.lua",
 }, ";")
 local viewport = require("viewport")
@@ -38,10 +39,6 @@ local function build_valid_media_paths()
     local valid_paths = {}
 
     for path in pairs(indexing.data.music.files or {}) do
-        valid_paths[path] = true
-    end
-
-    for path in pairs(indexing.data.photos or {}) do
         valid_paths[path] = true
     end
 
@@ -301,6 +298,10 @@ function love.draw()
 end
 
 function love.keypressed(key)
+    if indexing and indexing.is_scanning then
+        return
+    end
+
     if music.active then
         music_view.keypressed(key)
         return

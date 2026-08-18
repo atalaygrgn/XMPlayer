@@ -649,36 +649,88 @@ local function draw_ribbon_background()
     draw_ribbon_layer(time, h * 0.58, h * 0.08, 60, 20, 0.35, 0.10, 1.4, 10.0)
 end
 
+local current_wallpaper_path = nil
+local is_loading_wallpaper = false
+
+function background.set_wallpaper_texture(img)
+    if custom_bg_image and custom_bg_image.release and custom_bg_image ~= img then
+        pcall(function() custom_bg_image:release() end)
+    end
+    custom_bg_image = img
+    is_loading_wallpaper = false
+end
+
+function background.ensure_wallpaper_worker()
+    if not background.wallpaper_in_chan then
+        background.wallpaper_in_chan = love.thread.getChannel("wallpaper_in")
+        background.wallpaper_out_chan = love.thread.getChannel("wallpaper_out")
+        background.wallpaper_thread = love.thread.newThread("workers/wallpaper_worker.lua")
+        background.wallpaper_thread:start("wallpaper_in", "wallpaper_out")
+    end
+end
+
+function background.load_wallpaper_async(path)
+    local resolved_path = (type(path) == "string" and path ~= "") and path or "assets/background/bg.jpg"
+    if current_wallpaper_path == resolved_path and (custom_bg_image ~= nil or is_loading_wallpaper) then
+        return
+    end
+
+    current_wallpaper_path = resolved_path
+    is_loading_wallpaper = true
+
+    background.ensure_wallpaper_worker()
+    if background.wallpaper_in_chan then
+        background.wallpaper_in_chan:push({
+            type = "load_wallpaper",
+            path = resolved_path
+        })
+    end
+end
+
 function background.set_background_mode(mode)
     -- mode: 1 = Waves, 2 = Ribbon, 3 = Wallpaper
-    background_mode = math.max(1, math.min(3, math.floor(mode)))
+    local new_mode = math.max(1, math.min(3, math.floor(mode)))
+    if new_mode == background_mode and (new_mode ~= 3 or custom_bg_image ~= nil or is_loading_wallpaper) then
+        return
+    end
+
+    background_mode = new_mode
     if background_mode == 3 then
-        custom_bg_image = load_wallpaper_image(custom_bg_path)
+        if not custom_bg_image then
+            if love.timer and love.timer.getTime() < 2.0 then
+                custom_bg_image = load_wallpaper_image(custom_bg_path)
+                current_wallpaper_path = custom_bg_path or "assets/background/bg.jpg"
+            else
+                background.load_wallpaper_async(custom_bg_path)
+            end
+        end
     else
+        if custom_bg_image and custom_bg_image.release then
+            pcall(function() custom_bg_image:release() end)
+        end
         custom_bg_image = nil
+        is_loading_wallpaper = false
     end
 end
 
 function background.set_custom_bg(enabled)
-    -- Deprecated: kept for backwards compatibility
-    -- Now use set_background_mode() instead
-    background_mode = enabled and 3 or 1
-    if background_mode == 3 then
-        custom_bg_image = load_wallpaper_image(custom_bg_path)
-    else
-        custom_bg_image = nil
-    end
+    background.set_background_mode(enabled and 3 or 1)
 end
 
 function background.set_custom_bg_path(path)
-    if type(path) == "string" and path ~= "" then
-        custom_bg_path = path
-    else
-        custom_bg_path = nil
+    local new_path = (type(path) == "string" and path ~= "") and path or nil
+    if new_path == custom_bg_path and (background_mode ~= 3 or custom_bg_image ~= nil or is_loading_wallpaper) then
+        return
     end
 
+    custom_bg_path = new_path
     if background_mode == 3 then
-        custom_bg_image = load_wallpaper_image(custom_bg_path)
+        if love.timer and love.timer.getTime() < 2.0 then
+            custom_bg_image = load_wallpaper_image(custom_bg_path)
+            current_wallpaper_path = custom_bg_path or "assets/background/bg.jpg"
+        else
+            background.load_wallpaper_async(custom_bg_path)
+        end
     end
 end
 
@@ -703,6 +755,21 @@ function background.has_custom_wallpaper()
 end
 
 function background.draw(music)
+    -- Poll dedicated wallpaper worker thread
+    if background.wallpaper_out_chan then
+        local res = background.wallpaper_out_chan:pop()
+        if res and res.type == "wallpaper_result" then
+            if res.img_data then
+                local ok, img = pcall(love.graphics.newImage, res.img_data)
+                res.img_data:release()
+                if ok and img then
+                    img:setFilter("linear", "linear")
+                    pcall(function() img:setWrap("repeat", "repeat") end)
+                    background.set_wallpaper_texture(img)
+                end
+            end
+        end
+    end
     -- Update gradient colors based on theme
     if gradient_mesh then
         local bg = theme.colors.background

@@ -14,71 +14,62 @@ local viewport = require("viewport")
 local xmb_state = require("xmb_state")
 local xmb_actions = require("xmb_actions")
 local system = require("system")
+local runtime_state = require("runtime_state")
 
 local xmb = xmb_state.new()
 xmb.item_marquee = ui.new_marquee(0, 50, 1.5, 1.0)
+xmb.desc_marquee = ui.new_marquee(0, 50, 1.5, 1.0)
 
 local REPEAT_DELAY = 0.4
 local REPEAT_INTERVAL = 0.08
 
--- Helper to precompute media counts for directories recursively
+xmb.cached_dir_counts = {}
+xmb.pending_dir_counts = {}
+
+function xmb.ensure_dir_count_worker()
+    if not xmb.dir_count_in_chan then
+        xmb.dir_count_in_chan = love.thread.getChannel("dir_count_in")
+        xmb.dir_count_out_chan = love.thread.getChannel("dir_count_out")
+        xmb.dir_count_thread = love.thread.newThread("workers/dir_count_worker.lua")
+        xmb.dir_count_thread:start("dir_count_in", "dir_count_out")
+    end
+end
+
+-- Helper to precompute media counts for directories recursively (threaded, non-blocking)
 local function precompute_dir_counts(current_dir, media_type)
-    local dir_counts = {}
-    local exts = indexing.compatible_extensions[media_type]
-    if not exts then return dir_counts end
+    if not current_dir or current_dir == "" then return {} end
+    local norm_current = utils.normalize_path(current_dir)
+    local key = media_type .. ":" .. norm_current
 
-    local has_indexed_data = false
-    local files_list = {}
-
-    -- 1. Try to use indexing data first
-    if indexing and indexing.data then
-        if media_type == "music" and indexing.data.music and next(indexing.data.music.files) then
-            has_indexed_data = true
-            for path, _ in pairs(indexing.data.music.files) do
-                table.insert(files_list, path)
-            end
-        elseif media_type == "photo" and indexing.data.photos and next(indexing.data.photos) then
-            has_indexed_data = true
-            for path, _ in pairs(indexing.data.photos) do
-                table.insert(files_list, path)
-            end
-        elseif media_type == "video" and indexing.data.videos and #indexing.data.videos > 0 then
-            has_indexed_data = true
-            for _, path in ipairs(indexing.data.videos) do
-                table.insert(files_list, path)
-            end
-        end
+    if xmb.cached_dir_counts and xmb.cached_dir_counts[key] then
+        return xmb.cached_dir_counts[key]
     end
 
-    -- 2. Fall back to a single find call if no indexing data is available
-    if not has_indexed_data then
-        local pattern_parts = {}
-        for _, ext in ipairs(exts) do
-            local e = ext:sub(2) -- remove leading dot
-            table.insert(pattern_parts, "-name '*." .. e .. "' -o -name '*." .. e:upper() .. "'")
-        end
-        local pattern_str = table.concat(pattern_parts, " ")
-        local cmd = [[find "]] .. current_dir .. [[" -type f \( ]] .. pattern_str .. [[ \) 2>/dev/null]]
-        local handle = io.popen(cmd)
-        if handle then
-            local output = handle:read("*a")
-            handle:close()
-            for line in output:gmatch("[^\r\n]+") do
-                table.insert(files_list, line)
+    xmb.ensure_dir_count_worker()
+
+    if not xmb.pending_dir_counts then xmb.pending_dir_counts = {} end
+    if not xmb.cached_dir_counts then xmb.cached_dir_counts = {} end
+
+    if not xmb.pending_dir_counts[key] then
+        xmb.pending_dir_counts[key] = true
+        local files_list = nil
+        if media_type == "music" and indexing and indexing.data and indexing.data.music and next(indexing.data.music.files) then
+            files_list = {}
+            for path in pairs(indexing.data.music.files) do
+                table.insert(files_list, utils.normalize_path(path))
             end
         end
+        xmb.dir_count_in_chan:push({
+            type = "compute_counts",
+            current_dir = current_dir,
+            media_type = media_type,
+            exts = indexing.compatible_extensions[media_type],
+            files_list = files_list,
+            key = key
+        })
     end
 
-    -- 3. Populate ancestor directory counts
-    for _, path in ipairs(files_list) do
-        local parent = utils.get_dirname(path)
-        while parent and parent ~= "" do
-            dir_counts[parent] = (dir_counts[parent] or 0) + 1
-            parent = utils.get_dirname(parent)
-        end
-    end
-
-    return dir_counts
+    return {}
 end
 
 -- Media type helpers (placed before use in prep_files)
@@ -528,6 +519,9 @@ local function reset_marquee()
     xmb.item_marquee.offset = 0
     xmb.item_marquee.timer = 0
     xmb.item_marquee.phase = "pause_start"
+    xmb.desc_marquee.offset = 0
+    xmb.desc_marquee.timer = 0
+    xmb.desc_marquee.phase = "pause_start"
 end
 
 local function clear_context_menu()
@@ -827,7 +821,7 @@ local function apply_context_action(action_id)
             opt_path.value = path
         end
         if opt_enabled then
-            opt_enabled.value = 3  -- 3 = Wallpaper mode
+            opt_enabled.value = 3 -- 3 = Wallpaper mode
         end
         settings.apply()
         settings.save()
@@ -1067,6 +1061,7 @@ function xmb.go_back()
 end
 
 function xmb.refresh_items()
+    xmb.clear_thumb_cache()
     local cat = categories[xmb.current_category_idx]
     browser.set_files({})
 
@@ -1159,7 +1154,14 @@ function xmb.refresh_items()
                 { name = "Shuffle Play", type = "shuffle_play", icon = "shuffle", tracks = xmb.view_data.tracks })
             for _, path in ipairs(xmb.view_data.tracks) do
                 local info = indexing.data.music.files[path]
-                table.insert(browser.files, { name = info.title or "Unknown", path = path, type = "file" })
+                local title = (info and info.title) or utils.get_track_name(path) or "Unknown"
+                local album = (info and info.album) or "Unknown Album"
+                table.insert(browser.files, {
+                    name = title,
+                    path = path,
+                    type = "file",
+                    description = album
+                })
             end
         elseif xmb.view_type == "playlist_tracks" then
             if xmb.view_data and xmb.view_data.tracks and #xmb.view_data.tracks > 0 then
@@ -1184,7 +1186,7 @@ function xmb.refresh_items()
                 if item.type == "file" and is_music_file(item.path) then
                     has_music = true
                 elseif item.type == "directory" then
-                    local count = counts[item.path] or 0
+                    local count = counts[utils.normalize_path(item.path)] or counts[item.path] or 0
                     item.description = count .. " tracks"
                 end
             end
@@ -1208,13 +1210,14 @@ function xmb.refresh_items()
                     target_view = "video_watchlists",
                     icon = "playlist_video",
                 })
+            local video_count = (indexing and indexing.ensure_video_count) and indexing.ensure_video_count(cat.path) or 0
             table.insert(browser.files,
                 {
                     name = "Video Files",
                     type = "directory_trigger",
                     path = cat.path,
                     icon = "folder_video",
-                    description = #indexing.data.videos .. " videos"
+                    description = video_count .. " videos"
                 })
 
             browser.set_state(cat.path, cat.path, cat.filter)
@@ -1267,7 +1270,7 @@ function xmb.refresh_items()
                 if item.type == "file" then
                     has_videos = true
                 elseif item.type == "directory" then
-                    local count = counts[item.path] or 0
+                    local count = counts[utils.normalize_path(item.path)] or counts[item.path] or 0
                     item.description = count .. " videos"
                 end
             end
@@ -1278,8 +1281,7 @@ function xmb.refresh_items()
         end
     elseif cat.id == "photo" then
         if xmb.view_type == "category_root" then
-            local photo_count = 0
-            for _ in pairs(indexing.data.photos) do photo_count = photo_count + 1 end
+            local photo_count = (indexing and indexing.ensure_photo_count) and indexing.ensure_photo_count(cat.path) or 0
             table.insert(browser.files,
                 {
                     name = "Photo Files",
@@ -1300,11 +1302,17 @@ function xmb.refresh_items()
         elseif xmb.view_type == "browser" then
             browser.scan()
             local counts = precompute_dir_counts(browser.current_dir, "photo")
+            local has_photos = false
             for _, item in ipairs(browser.files) do
-                if item.type == "directory" then
-                    local count = counts[item.path] or 0
+                if item.type == "file" and is_photo_file(item.path) then
+                    has_photos = true
+                elseif item.type == "directory" then
+                    local count = counts[utils.normalize_path(item.path)] or counts[item.path] or 0
                     item.description = count .. " photos"
                 end
+            end
+            if has_photos then
+                table.insert(browser.files, 1, { name = "Slideshow", type = "photo_slideshow", icon = "slideshow" })
             end
         end
     elseif cat.id == "settings" then
@@ -1504,9 +1512,7 @@ function xmb.navigate(dir, no_wrap)
             end
         end
         if old_idx ~= xmb.current_item_idx then
-            xmb.item_marquee.offset = 0
-            xmb.item_marquee.timer = 0
-            xmb.item_marquee.phase = "pause_start"
+            reset_marquee()
             moved = true
         end
     elseif dir == "up" then
@@ -1521,9 +1527,7 @@ function xmb.navigate(dir, no_wrap)
             end
         end
         if old_idx ~= xmb.current_item_idx then
-            xmb.item_marquee.offset = 0
-            xmb.item_marquee.timer = 0
-            xmb.item_marquee.phase = "pause_start"
+            reset_marquee()
             moved = true
         end
     end
@@ -1574,14 +1578,20 @@ function xmb.update(dt)
     local screen_w = viewport.get()
     local cat_base_x = screen_w * 0.25
     xmb.item_marquee.max_width = screen_w - cat_base_x - 40
+    xmb.desc_marquee.max_width = screen_w - cat_base_x - 40
 
     -- Update marquee
     if selected then
         ui.update_marquee(xmb.item_marquee, dt, ui.measure_text_width(assets.fonts.main, selected.name))
+        if selected.description then
+            ui.update_marquee(xmb.desc_marquee, dt, ui.measure_text_width(assets.fonts.xs, selected.description))
+        else
+            xmb.desc_marquee.offset = 0
+            xmb.desc_marquee.timer = 0
+            xmb.desc_marquee.phase = "pause_start"
+        end
     else
-        xmb.item_marquee.offset = 0
-        xmb.item_marquee.timer = 0
-        xmb.item_marquee.phase = "pause_start"
+        reset_marquee()
     end
 
     if keyboard.is_active() or xmb.playlist_sidebar_active then
@@ -1636,9 +1646,146 @@ function xmb.update(dt)
         xmb.repeat_timer = 0
         xmb.scroll_held_count = 0
     end
+
+    -- Process background thumbnail results for lists (max 2 texture uploads per frame to eliminate main-thread stutter)
+    if xmb.thumb_out_chan then
+        local processed = 0
+        while processed < 2 do
+            local res = xmb.thumb_out_chan:pop()
+            if not res then break end
+            if res.type == "thumb_result" and res.key then
+                processed = processed + 1
+                if res.img_data then
+                    local ok, img = pcall(love.graphics.newImage, res.img_data)
+                    res.img_data:release()
+                    if ok and img then
+                        local cache_count = 0
+                        for _ in pairs(xmb.thumbs) do cache_count = cache_count + 1 end
+                        if cache_count >= 60 then
+                            local removed = 0
+                            for k, old_img in pairs(xmb.thumbs) do
+                                if old_img and old_img.release then
+                                    pcall(function() old_img:release() end)
+                                end
+                                xmb.thumbs[k] = nil
+                                xmb.thumb_status[k] = nil
+                                xmb.orientations[k] = nil
+                                removed = removed + 1
+                                if removed >= 20 then break end
+                            end
+                            collectgarbage("collect")
+                        end
+
+                        xmb.thumbs[res.key] = img
+                        xmb.thumb_status[res.key] = "loaded"
+                    else
+                        xmb.thumb_status[res.key] = "failed"
+                    end
+                elseif res.bytes then
+                    local img = utils.load_image_bytes(res.bytes)
+                    if img then
+                        xmb.thumbs[res.key] = img
+                        xmb.thumb_status[res.key] = "loaded"
+                    else
+                        xmb.thumb_status[res.key] = "failed"
+                    end
+                else
+                    xmb.thumb_status[res.key] = "failed"
+                end
+                if res.orientation then
+                    xmb.orientations[res.key] = res.orientation
+                    if res.photo_path then
+                        xmb.orientations[res.photo_path] = res.orientation
+                    end
+                end
+            end
+        end
+    end
+
+    if xmb.dir_count_out_chan then
+        local processed = 0
+        while processed < 5 do
+            local res = xmb.dir_count_out_chan:pop()
+            if not res then break end
+            processed = processed + 1
+            if res.type == "dir_count_result" and res.key then
+                xmb.cached_dir_counts[res.key] = res.counts or {}
+                xmb.pending_dir_counts[res.key] = nil
+
+                if browser and browser.files then
+                    local suffix = (res.media_type == "video" and " videos") or
+                                   (res.media_type == "photo" and " photos") or " tracks"
+                    for _, item in ipairs(browser.files) do
+                        if item.type == "directory" then
+                            local count = res.counts[utils.normalize_path(item.path)] or 0
+                            item.description = count .. suffix
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+function xmb.clear_thumb_cache()
+    if xmb.thumbs then
+        for k, img in pairs(xmb.thumbs) do
+            if img and img.release then
+                pcall(function() img:release() end)
+            end
+        end
+    end
+    xmb.thumbs = {}
+    xmb.thumb_status = {}
+    xmb.orientations = {}
+    collectgarbage("collect")
+end
+
+function xmb.ensure_thumb_worker()
+    if not xmb.thumb_in_chan then
+        xmb.thumb_in_chan = love.thread.getChannel("list_thumb_in")
+        xmb.thumb_out_chan = love.thread.getChannel("list_thumb_out")
+    end
+    if not xmb.thumb_thread or not xmb.thumb_thread:isRunning() then
+        local ok, t = pcall(love.thread.newThread, "workers/list_thumb_worker.lua")
+        if not ok or not t then
+            ok, t = pcall(love.thread.newThread, ".xmplayer/workers/list_thumb_worker.lua")
+        end
+        if not ok or not t then
+            ok, t = pcall(love.thread.newThread, "list_thumb_worker.lua")
+        end
+        if not ok or not t then
+            ok, t = pcall(love.thread.newThread, ".xmplayer/list_thumb_worker.lua")
+        end
+        if ok and t then
+            t:start("list_thumb_in", "list_thumb_out")
+            xmb.thumb_thread = t
+        end
+    end
+end
+
+function xmb.request_async_thumb(key, path, is_photo, photo_path)
+    if not key or not path then return end
+    if xmb.thumb_status[key] then return end
+    xmb.thumb_status[key] = "pending"
+
+    xmb.ensure_thumb_worker()
+    if xmb.thumb_in_chan then
+        xmb.thumb_in_chan:push({
+            type = "load_thumb",
+            key = key,
+            path = path,
+            photo_path = photo_path or path,
+            is_photo = (is_photo == true)
+        })
+    end
 end
 
 function xmb.keypressed(key, player, music, viewer)
+    if indexing and indexing.is_scanning then
+        return
+    end
+
     if keyboard.is_active() then
         keyboard.keypressed(key)
         if settings.keytone_enabled then
@@ -1906,7 +2053,7 @@ function xmb.keypressed(key, player, music, viewer)
                         local opt_custom_bg_path = settings.get_option("custom_bg_path")
 
                         if opt_custom_bg then
-                            opt_custom_bg.value = 3  -- 3 = Wallpaper mode
+                            opt_custom_bg.value = 3 -- 3 = Wallpaper mode
                         end
                         if opt_custom_bg_path then
                             opt_custom_bg_path.value = "assets/background/bg.jpg"
@@ -1917,8 +2064,15 @@ function xmb.keypressed(key, player, music, viewer)
                         ui.show_toast("Default wallpaper restored", "theme", "bottom_right")
                         refresh_settings_items(false)
                     elseif opt.id == "reindex_media" then
-                        settings.request_reindex_on_restart()
-                        love.event.quit("restart")
+                        local photo_dir = settings.get_option("photo_dir").value
+                        local music_dir = settings.get_option("music_dir").value
+                        local video_dir = settings.get_option("video_dir").value
+                        runtime_state.begin_scan(coroutine.create(function()
+                            indexing.scan(photo_dir, music_dir, video_dir)
+                        end))
+                        indexing.is_scanning = true
+                        ui.show_toast("Indexing complete", "folder", "bottom_right")
+                        settings_view.active = false
                     elseif opt.id == "test_toast_top" then
                         ui.show_toast("Dev: Top Center Toast", "info", "top_center")
                     elseif opt.id == "test_toast_bottom" then
@@ -1983,11 +2137,11 @@ function xmb.keypressed(key, player, music, viewer)
                 end
 
                 if #playlist > 0 then
-                    utils.shuffle(playlist)
-                    music.play(playlist[1].path, playlist)
+                    local start_idx = love.math.random(1, #playlist)
+                    music.play(playlist[start_idx].path, playlist, { shuffle = true })
                 end
             elseif selected.type == "video_play_all" then
-                if settings.video_player_mode == "ffplay" then
+                if settings.video_player_mode:sub(1, 6) == "ffplay" then
                     ui.show_toast("ffplay is not compatible with Play All.", "info", "bottom_right")
                 else
                     local playlist = build_media_playlist_from_browser()
@@ -2007,7 +2161,7 @@ function xmb.keypressed(key, player, music, viewer)
                     end
                 end
             elseif selected.type == "video_shuffle_play" then
-                if settings.video_player_mode == "ffplay" then
+                if settings.video_player_mode:sub(1, 6) == "ffplay" then
                     ui.show_toast("ffplay is not compatible with Shuffle Play.", "info", "bottom_right")
                 else
                     local playlist = build_media_playlist_from_browser()
@@ -2025,6 +2179,16 @@ function xmb.keypressed(key, player, music, viewer)
                             shuffle = true
                         })
                     end
+                end
+            elseif selected.type == "photo_slideshow" then
+                local image_paths = {}
+                for _, item in ipairs(browser.files) do
+                    if item.type == "file" and is_photo_file(item.path) then
+                        table.insert(image_paths, item.path)
+                    end
+                end
+                if #image_paths > 0 then
+                    player.play_slideshow(image_paths)
                 end
             elseif selected.type == "playlist_create" then
                 keyboard.open({
@@ -2133,7 +2297,7 @@ function xmb.keypressed(key, player, music, viewer)
             if settings.keytone_enabled then
                 assets.play_sfx("nav")
             end
-        elseif selected and selected.type == "file" and (cat_id == "video" or cat_id == "folder") and is_video_file(selected.path) then
+        elseif selected and selected.type == "file" and cat_id == "video" and is_video_file(selected.path) then
             open_video_context_menu(selected.path)
             if settings.keytone_enabled then
                 assets.play_sfx("nav")

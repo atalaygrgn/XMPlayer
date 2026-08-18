@@ -1,8 +1,12 @@
 local assets = require("assets")
+local settings = require("settings")
 local theme = require("theme")
 local ui = require("ui")
 local utils = require("utils")
 local viewport = require("viewport")
+
+local REPEAT_DELAY = 0.35
+local REPEAT_INTERVAL = 0.08
 
 local keyboard = {
     active = false,
@@ -19,6 +23,9 @@ local keyboard = {
     on_submit = nil,
     on_cancel = nil,
     opened_at = 0,
+    last_key = nil,
+    repeat_timer = 0,
+    scroll_held_count = 0,
 }
 
 local rows = {
@@ -145,6 +152,39 @@ function keyboard.is_active()
     return keyboard.active
 end
 
+function keyboard.navigate(dir)
+    if dir == "left" then
+        keyboard.selected_col = keyboard.selected_col - 1
+        if keyboard.selected_col < 1 then
+            keyboard.selected_col = #rows[keyboard.selected_row]
+        end
+        clamp_selection()
+        return true
+    elseif dir == "right" then
+        keyboard.selected_col = keyboard.selected_col + 1
+        if keyboard.selected_col > #rows[keyboard.selected_row] then
+            keyboard.selected_col = 1
+        end
+        clamp_selection()
+        return true
+    elseif dir == "up" then
+        keyboard.selected_row = keyboard.selected_row - 1
+        if keyboard.selected_row < 1 then
+            keyboard.selected_row = #rows
+        end
+        clamp_selection()
+        return true
+    elseif dir == "down" then
+        keyboard.selected_row = keyboard.selected_row + 1
+        if keyboard.selected_row > #rows then
+            keyboard.selected_row = 1
+        end
+        clamp_selection()
+        return true
+    end
+    return false
+end
+
 function keyboard.update(dt)
     if not keyboard.active then return end
 
@@ -160,6 +200,50 @@ function keyboard.update(dt)
                 cb(args)
             end
         end
+        return
+    end
+
+    -- Continuous navigation repeat when holding D-pad / directional keys
+    local up = love.keyboard.isDown("up")
+    local down = love.keyboard.isDown("down")
+    local left = love.keyboard.isDown("left")
+    local right = love.keyboard.isDown("right")
+
+    local current_key = nil
+    if up then current_key = "up"
+    elseif down then current_key = "down"
+    elseif left then current_key = "left"
+    elseif right then current_key = "right"
+    end
+
+    if current_key then
+        if keyboard.last_key == current_key then
+            keyboard.repeat_timer = keyboard.repeat_timer - dt
+            if keyboard.repeat_timer <= 0 then
+                local moved = keyboard.navigate(current_key)
+                if moved then
+                    keyboard.scroll_held_count = keyboard.scroll_held_count + 1
+                    if settings and settings.keytone_enabled then
+                        assets.play_sfx("nav")
+                    end
+                end
+                local interval = REPEAT_INTERVAL
+                if keyboard.scroll_held_count > 15 then
+                    local extra = keyboard.scroll_held_count - 15
+                    local t = math.min(1, extra / 30)
+                    interval = REPEAT_INTERVAL * (1 - t * 0.5)
+                end
+                keyboard.repeat_timer = interval
+            end
+        else
+            keyboard.last_key = current_key
+            keyboard.repeat_timer = REPEAT_DELAY
+            keyboard.scroll_held_count = 0
+        end
+    else
+        keyboard.last_key = nil
+        keyboard.repeat_timer = 0
+        keyboard.scroll_held_count = 0
     end
 end
 
@@ -167,39 +251,11 @@ function keyboard.keypressed(key)
     if not keyboard.active then return false end
     if keyboard.closing then return true end
 
-    if key == "left" then
-        keyboard.selected_col = keyboard.selected_col - 1
-        if keyboard.selected_col < 1 then
-            keyboard.selected_col = #rows[keyboard.selected_row]
-        end
-        clamp_selection()
-        return true
-    end
-
-    if key == "right" then
-        keyboard.selected_col = keyboard.selected_col + 1
-        if keyboard.selected_col > #rows[keyboard.selected_row] then
-            keyboard.selected_col = 1
-        end
-        clamp_selection()
-        return true
-    end
-
-    if key == "up" then
-        keyboard.selected_row = keyboard.selected_row - 1
-        if keyboard.selected_row < 1 then
-            keyboard.selected_row = #rows
-        end
-        clamp_selection()
-        return true
-    end
-
-    if key == "down" then
-        keyboard.selected_row = keyboard.selected_row + 1
-        if keyboard.selected_row > #rows then
-            keyboard.selected_row = 1
-        end
-        clamp_selection()
+    if key == "left" or key == "right" or key == "up" or key == "down" then
+        keyboard.navigate(key)
+        keyboard.last_key = key
+        keyboard.repeat_timer = REPEAT_DELAY
+        keyboard.scroll_held_count = 0
         return true
     end
 

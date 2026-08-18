@@ -11,8 +11,8 @@ x = x
 y = y
 
 l1 = pageup
-r1 = pagedown
 l2 = l
+r1 = pagedown
 r2 = e
 
 start = z

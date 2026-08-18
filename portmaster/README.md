@@ -38,8 +38,8 @@ Fluid particle animations and customizable color themes to your liking. You can 
 | **L1** | - | Previous Track | Previous Video | - | Previous Image |
 | **L2** | - | Seek -10s | Cycle Audio Tracks | - | - |
 | **R1** | - | Next Track | Next Video | - | Next Image |
-| **R2** | - | Seek +10s | Cycle Subtitles | - | - |
-| **Start** | - | - | Adjust Aspect Ratio | - | Toggle Info |
+| **R2** | - | Seek +10s | Cycle Subtitles | - | Show Properties |
+| **Start** | - | - | Adjust Aspect Ratio | Cycle Show Mode | Toggle Info |
 | **Select** | - | - | Return to XMB | Return to XMB | Return to XMB |
 ---
 
@@ -61,6 +61,7 @@ More customization options are on the way!
 - Built with **Love2D**.
 - Icons provided by **Remix Icon** library.
 - simpleScale script from [tomlum's simpleScale](https://github.com/tomlum/simpleScale).
+- binser serialization library by [Calvin Rose (bakpakin)](https://github.com/bakpakin/binser).
 - System information provided by **muOS**, **Knulli**, **ROCKNIX**.
 - **PlayStation**, **XrossMediaBar**, and **XMB** are trademarks of Sony Interactive Entertainment Inc.
 

@@ -9,6 +9,10 @@ settings.power_save_sleep_enabled = true
 settings.video_player_mode = "mpv"
 settings.ffplay_aspect_ratio = "Original"
 settings.track_info_background_mode = 1
+settings.soft_button_lock = "Off"
+settings.max_texture_size = 2048
+settings.slideshow_duration_seconds = 5
+settings.loop_slideshow_enabled = false
 local storage_path = love.filesystem.getSource()
 settings.file_path = storage_path .. "/settings.cfg"
 
@@ -36,6 +40,11 @@ settings.groups = {
         id = "video_settings",
         name = "Video Settings",
         icon = "video",
+    },
+    {
+        id = "photo_settings",
+        name = "Photo Settings",
+        icon = "photo",
     },
     {
         id = "theme_settings",
@@ -105,7 +114,8 @@ settings.options = {
         type = "choice",
         group = "theme_settings",
         choices = { "Static", "Scrolling", "Seamless" },
-        value = 1
+        value = 1,
+        description = "Set wallpaper animation mode. Scrolling: Moves horizontally as you navigate between tabs on the XMB menu. Seamless: Repeats itself and moves slowly on its own, giving an infinite scrolling effect."
     },
     {
         id = "blur_wallpaper",
@@ -158,6 +168,7 @@ settings.options = {
         type = "action",
         group = "media_dirs",
         icon = "repeat",
+        description = "Scan all media directories from scratch and rebuild library index."
     },
     {
         id = "keytone",
@@ -165,7 +176,8 @@ settings.options = {
         type = "choice",
         group = "general",
         choices = { "On", "Off" },
-        value = 1
+        value = 1,
+        description = "Play navigation sound effect when moving through the menu."
     },
     {
         id = "startup_sound",
@@ -181,7 +193,8 @@ settings.options = {
         type = "choice",
         group = "general",
         choices = { "Show", "Hide" },
-        value = 1
+        value = 1,
+        description = "Display live volume / brightness indicator bars."
     },
     {
         id = "force_reindex_once",
@@ -196,7 +209,8 @@ settings.options = {
         type = "choice",
         group = "music_settings",
         choices = { "Off", "5s", "10s", "15s", "30s", "1m", "3m" },
-        value = 1
+        value = 1,
+        description = "Automatically fade off screen to black after idle timeout during music playback."
     },
     {
         id = "power_save_sleep",
@@ -204,7 +218,17 @@ settings.options = {
         type = "choice",
         group = "music_settings",
         choices = { "On", "Off" },
-        value = 1
+        value = 1,
+        description = "Turn off backlight automatically when idle during music playback. Set to [Off] if CFW's own display sleep setting causes problems."
+    },
+    {
+        id = "soft_button_lock",
+        name = "Soft Button Lock",
+        type = "choice",
+        group = "music_settings",
+        choices = { "Off", "L/R Skip", "L/R Skip+Pause" },
+        value = 1,
+        description = "Allows track switching (and pausing) using shoulder buttons even when button lock is active. On [Skip+Pause], L2 & R2 buttons will be for pause/play when active, great for clamshells."
     },
     {
         id = "track_info_background",
@@ -212,6 +236,32 @@ settings.options = {
         type = "choice",
         group = "music_settings",
         choices = { "Hide", "Clear", "Opaque" },
+        value = 1,
+        description = "Set background for track information in music player for increased visibility. Recommended when using a wallpaper."
+    },
+    {
+        id = "full_res_photo",
+        name = "Full-Res Photo Viewing",
+        type = "choice",
+        group = "photo_settings",
+        choices = { "Off", "On" },
+        value = 1,
+        description = "View hi-res photos in their full resolution. May cause issues on lower-end hardware. Does not affect slideshows."
+    },
+    {
+        id = "slideshow_duration",
+        name = "Slideshow Image Duration",
+        type = "choice",
+        group = "photo_settings",
+        choices = { "3s", "5s", "10s", "30s", "1m" },
+        value = 2
+    },
+    {
+        id = "loop_slideshow",
+        name = "Loop Slideshow",
+        type = "choice",
+        group = "photo_settings",
+        choices = { "Off", "On" },
         value = 1
     },
     {
@@ -220,7 +270,8 @@ settings.options = {
         type = "choice",
         group = "video_settings",
         choices = { "mpv", "ffplay" },
-        value = 1
+        value = 1,
+        description = "ffplay is lighter and can offer better performance compared to mpv. However, some features of XMPlayer are not supported with ffplay."
     },
     {
         id = "ffplay_aspect_ratio",
@@ -228,7 +279,8 @@ settings.options = {
         type = "choice",
         group = "video_settings",
         choices = { "Original", "4:3", "16:9", "3:2", "1:1" },
-        value = 1
+        value = 1,
+        description = "Aspect ratio override for ffplay."
     },
     {
         id = "repeat_folder",
@@ -236,7 +288,8 @@ settings.options = {
         type = "choice",
         group = "video_settings",
         choices = { "No", "Yes" },
-        value = 1
+        value = 1,
+        description = "Automatically repeat all video files in current folder continuously (mpv only)."
     },
     {
         id = "repeat_watchlist",
@@ -244,7 +297,8 @@ settings.options = {
         type = "choice",
         group = "video_settings",
         choices = { "No", "Yes" },
-        value = 1
+        value = 1,
+        description = "Automatically repeat all videos in active watchlist continuously (mpv only)."
     },
     {
         id = "sub_position",
@@ -267,6 +321,7 @@ settings.options = {
         name = "Clear Watch History",
         type = "action",
         group = "video_settings",
+        description = "Clear all video resume positions."
     },
     {
         id = "restore_default_wallpaper",
@@ -279,7 +334,7 @@ settings.options = {
         name = "Version",
         type = "info",
         group = "about",
-        value = "v0.2.1 Sage Symphony"
+        value = "v0.2.2 Spearmint Symphony"
     },
     {
         id = "build_type",
@@ -424,7 +479,11 @@ function settings.apply()
 
     local opt_video_player = settings.get_option("video_player")
     if opt_video_player then
-        settings.video_player_mode = opt_video_player.choices[opt_video_player.value] or "mpv"
+        local mode = opt_video_player.choices[opt_video_player.value] or "mpv"
+        if mode == "ffplay-system" or mode == "ffplay-xmplayer" then
+            mode = "ffplay"
+        end
+        settings.video_player_mode = mode
     else
         settings.video_player_mode = "mpv"
     end
@@ -471,6 +530,13 @@ function settings.apply()
         settings.track_info_background_mode = 1
     end
 
+    local opt_soft_button_lock = settings.get_option("soft_button_lock")
+    if opt_soft_button_lock then
+        settings.soft_button_lock = opt_soft_button_lock.choices[opt_soft_button_lock.value] or "Off"
+    else
+        settings.soft_button_lock = "Off"
+    end
+
     -- Update particles visibility
     local opt_particles = settings.get_option("particles")
     if opt_particles then
@@ -509,6 +575,29 @@ function settings.apply()
     if opt_wallpaper_type then
         background.set_wallpaper_type(opt_wallpaper_type.value)
     end
+
+    -- Update photo settings
+    local opt_full_res = settings.get_option("full_res_photo")
+    if opt_full_res then
+        settings.max_texture_size = (opt_full_res.value == 2) and 4096 or 2048
+    else
+        settings.max_texture_size = 2048
+    end
+
+    local opt_slideshow_dur = settings.get_option("slideshow_duration")
+    if opt_slideshow_dur then
+        local dur_map = { 3, 5, 10, 30, 60 }
+        settings.slideshow_duration_seconds = dur_map[opt_slideshow_dur.value] or 5
+    else
+        settings.slideshow_duration_seconds = 5
+    end
+
+    local opt_loop_slideshow = settings.get_option("loop_slideshow")
+    if opt_loop_slideshow then
+        settings.loop_slideshow_enabled = (opt_loop_slideshow.value == 2)
+    else
+        settings.loop_slideshow_enabled = false
+    end
 end
 
 function settings.get_browser_items()
@@ -534,7 +623,8 @@ function settings.get_browser_items()
                     name = opt.name .. display_value,
                     type = (opt.type == "info") and "info_text" or "setting",
                     setting_idx = i,
-                    icon = icon
+                    icon = icon,
+                    description = opt.description
                 })
             end
         end

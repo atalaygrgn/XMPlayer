@@ -11,9 +11,9 @@ x = m
 y = shift
 
 l1 = shift
-r1 = shift
 l2 = a
+r1 = shift
 r2 = t
 
-start = shift
+start = w
 back = q

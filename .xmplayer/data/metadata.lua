@@ -54,8 +54,6 @@ local function utf16_to_utf8(text, big_endian)
             codepoint = b2 * 256 + b1
         end
 
-        if codepoint == 0 then break end
-
         if codepoint < 0x80 then
             table.insert(chars, string.char(codepoint))
         elseif codepoint < 0x800 then
@@ -97,9 +95,7 @@ local function decode_id3_text(frame_data)
     elseif encoding == 2 then
         text = utf16_to_utf8(text, true)
     elseif encoding == 0 then
-        text = iso_to_utf8(text:gsub("%z+$", ""))
-    else
-        text = text:gsub("%z+$", "")
+        text = iso_to_utf8(text)
     end
 
     if text ~= "" then
@@ -109,21 +105,39 @@ local function decode_id3_text(frame_data)
     return nil
 end
 
+local function split_multi_values(text)
+    if not text or text == "" then return {} end
+    local values = {}
+    local s = text:gsub("[%z\r\n\t]+", "\0"):gsub("%s*\\\\%s*", "\0")
+    for val in (s .. "\0"):gmatch("(.-)%z") do
+        local trimmed = utils.trim(val)
+        trimmed = trimmed:gsub("^\xEF\xBB\xBF", ""):gsub("^\xFE\xFF", ""):gsub("^\xFF\xFE", "")
+        trimmed = utils.trim(trimmed)
+        if trimmed ~= "" then
+            table.insert(values, trimmed)
+        end
+    end
+    return values
+end
+
 local function join_unique(values)
     if not values or #values == 0 then return nil end
     local unique = {}
     local seen = {}
 
     for _, value in ipairs(values) do
-        local trimmed = utils.trim(value or "")
-        if trimmed ~= "" and not seen[trimmed] then
-            seen[trimmed] = true
-            table.insert(unique, trimmed)
+        local sub_vals = split_multi_values(value)
+        for _, sub in ipairs(sub_vals) do
+            local trimmed = utils.trim(sub or "")
+            if trimmed ~= "" and not seen[trimmed] then
+                seen[trimmed] = true
+                table.insert(unique, trimmed)
+            end
         end
     end
 
     if #unique == 0 then return nil end
-    return table.concat(unique, "; ")
+    return table.concat(unique, ", ")
 end
 
 local function detect_image_ext(mime, data)
@@ -321,12 +335,9 @@ local function parse_id3_frames(data)
             local text = decode_id3_text(frame_data)
             if text then
                 result.text_frames[id] = result.text_frames[id] or {}
-                -- Handle null-delimited multi-values within a single frame (ID3v2.4)
-                for val in (text .. "\0"):gmatch("(.-)%z") do
-                    local trimmed = utils.trim(val)
-                    if trimmed ~= "" then
-                        table.insert(result.text_frames[id], trimmed)
-                    end
+                local vals = split_multi_values(text)
+                for _, val in ipairs(vals) do
+                    table.insert(result.text_frames[id], val)
                 end
             end
         elseif id == "APIC" then
@@ -466,7 +477,7 @@ function metadata.find_folder_cover(track_path)
     return nil
 end
 
-function metadata.get_tags(filepath)
+function metadata.get_tags_native(filepath, skip_cover)
     local tags = {}
     local f = io.open(filepath, "rb")
     if f then
@@ -487,7 +498,7 @@ function metadata.get_tags(filepath)
                 tags.track_number = parsed.text_frames.TRCK and parsed.text_frames.TRCK[1] or nil
                 tags.disc_number = parsed.text_frames.TPOS and parsed.text_frames.TPOS[1] or nil
 
-                if parsed.cover_data then
+                if not skip_cover and parsed.cover_data then
                     tags.cover_data = parsed.cover_data
                     tags.cover_ext = parsed.cover_ext
                 end
@@ -513,6 +524,10 @@ function metadata.get_tags(filepath)
             f:close()
             local raw_data = table.concat(blocks)
             tags = extract_flac_metadata(raw_data)
+            if skip_cover then
+                tags.cover_data = nil
+                tags.cover_ext = nil
+            end
         else
             f:seek("set", 0)
             local raw_data = f:read(256 * 1024)
@@ -525,16 +540,23 @@ function metadata.get_tags(filepath)
                 tags.track_number = metadata.extract_id3_text(raw_data, "TRCK")
                 tags.disc_number = metadata.extract_id3_text(raw_data, "TPOS")
 
-                local img_data, img_ext = metadata.extract_cover_art(raw_data)
-                if img_data then
-                    tags.cover_data = img_data
-                    tags.cover_ext = img_ext
+                if not skip_cover then
+                    local img_data, img_ext = metadata.extract_cover_art(raw_data)
+                    if img_data then
+                        tags.cover_data = img_data
+                        tags.cover_ext = img_ext
+                    end
                 end
             end
         end
     end
+    return tags
+end
 
-    if not tags.cover_data then
+function metadata.get_tags(filepath, skip_cover)
+    local tags = metadata.get_tags_native(filepath, skip_cover)
+
+    if not skip_cover and not tags.cover_data then
         local img_data, img_ext = metadata.find_folder_cover(filepath)
         if img_data then
             tags.cover_data = img_data

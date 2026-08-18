@@ -385,8 +385,14 @@ function music_view.draw()
             ui.draw_icon(assets.images.lock, 48, h - 100, 48, theme.text, 0.95 * alpha)
         end
 
+        local icon_x = 100
+        if music.shuffle and assets.images.shuffle then
+            ui.draw_icon(assets.images.shuffle, icon_x, h - 42, 36, theme.text, 0.8 * alpha)
+            icon_x = icon_x + 45
+        end
+
         if music.repeat_one and assets.images.repeat_one then
-            ui.draw_icon(assets.images.repeat_one, 100, h - 42, 36, theme.text, 0.8 * alpha)
+            ui.draw_icon(assets.images.repeat_one, icon_x, h - 42, 36, theme.text, 0.8 * alpha)
         end
     end
 
@@ -540,6 +546,16 @@ function music_view.draw()
         if right_icon then
             ui.draw_icon(right_icon, cx + 65, dpad_y, 36, right_color, popup_alpha * alpha)
         end
+
+        -- Left Icon (Shuffle)
+        local left_held = love.keyboard.isDown("left")
+        local left_icon = music.shuffle and assets.images.shuffle or assets.images.order_down
+        local left_color = left_held and
+            { theme.accent[1], theme.accent[2], theme.accent[3], 1.0 * popup_alpha * alpha } or
+            (music.shuffle and color_assigned or color_unassigned)
+        if left_icon then
+            ui.draw_icon(left_icon, cx - 65, dpad_y, 36, left_color, popup_alpha * alpha)
+        end
     end
 
     if music_view.display_sleep_alpha > 0 then
@@ -604,6 +620,22 @@ function music_view.keypressed(key)
     end
 
     if music_view.buttons_locked then
+        local mode = settings.soft_button_lock or "Off"
+        if mode == "L/R Skip" or mode == "L/R Skip+Pause" then
+            if key == "pageup" then
+                music.prev_track()
+                return true
+            elseif key == "pagedown" then
+                music.next_track()
+                return true
+            end
+        end
+        if mode == "L/R Skip+Pause" then
+            if key == "l" or key == "e" then
+                music.toggle_pause()
+                return true
+            end
+        end
         return true
     end
 
@@ -634,6 +666,16 @@ function music_view.keypressed(key)
 
     if repeat_combo_pressed then
         music.set_repeat_one(not music.repeat_one)
+        return true
+    end
+
+    local shuffle_combo_pressed = not music_view.context_menu.active and (
+        (key == "y" and love.keyboard.isDown("left"))
+        or (key == "left" and love.keyboard.isDown("y"))
+    )
+
+    if shuffle_combo_pressed then
+        music.set_shuffle(not music.shuffle)
         return true
     end
 

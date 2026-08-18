@@ -17,7 +17,7 @@
 - **Content Indexing:** Content indexing allows handling large media libraries without slowing down the UI.
 - **System Integration:** Live battery percentage and clock display in the status bar.
 ### Video Player
-Provides special configurations to CFW's built-in **MPV** and **ffplay** for high-performance video playback.<br>
+Provides special configurations to CFW's built-in **MPV** and **ffplay** for high-performance video playback. The PortMaster build brings its own **ffplay** build, enabling lightweight video playback on low-end devices!<br>
 
 ![XMPlayer Video Player](assets/readme/resume.png)<br>
 
@@ -27,7 +27,7 @@ A dedicated audio player interface with album art, track info, and playback cont
 ![XMPlayer Music Player](assets/readme/player.png)
 
 ### Photo Viewer
-Browse and view your photo collection.
+Browse and view your photo collection. You can even set up a slideshow too!
 
 ![XMPlayer Photo Viewer](assets/readme/photo.png)
 
@@ -98,8 +98,8 @@ The goal of this project is to address the multimedia playback shortcomings of g
 | **L1** | - | Previous Track | Previous Video | - | Previous Image |
 | **L2** | - | Seek -10s | Cycle Audio Tracks | - | - |
 | **R1** | - | Next Track | Next Video | - | Next Image |
-| **R2** | - | Seek +10s | Cycle Subtitles | - | - |
-| **Start** | - | - | Adjust Aspect Ratio<br>**Menu+Start:** Adjust Video Zoom (Panscan) | - | Toggle Info |
+| **R2** | - | Seek +10s | Cycle Subtitles | - | Show Properties |
+| **Start** | - | - | Adjust Aspect Ratio<br>**Menu+Start:** Adjust Video Zoom (Panscan) | Cycle Show Mode | Toggle Info |
 | **Select** | - | - | Return to XMB | Return to XMB | Return to XMB |
 ---
 
@@ -136,6 +136,7 @@ More customization options are on the way!
 - [x] Custom playlists for video and music.
 - [x] VGM file support (.spc, .nsf, ...)
 - [x] One new visualizer.
+- [x] Image slideshows.
 
 ### v0.3 Frontier (Planned)
 - [ ] Audiobooks support with dedicated player (bookmarks, chapters, ...).
@@ -144,8 +145,6 @@ More customization options are on the way!
 - [ ] One new visualizer.
 
 ### Planned for Later Versions
-- [ ] Photo gallery.
-- [ ] Image slideshows.
 - [ ] Custom icon sets.
 - [ ] Add support for other media formats?
 
@@ -154,6 +153,7 @@ More customization options are on the way!
 - Built with **Love2D**.
 - Icons provided by **Remix Icon** library.
 - simpleScale script from [tomlum's simpleScale](https://github.com/tomlum/simpleScale).
+- binser serialization library by [Calvin Rose (bakpakin)](https://github.com/bakpakin/binser).
 - System information provided by **muOS**, **Knulli**, **ROCKNIX**.
 - **PlayStation**, **XrossMediaBar**, and **XMB** are trademarks of Sony Interactive Entertainment Inc.
 

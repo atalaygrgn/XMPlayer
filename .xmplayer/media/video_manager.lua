@@ -92,7 +92,10 @@ function video_manager.prune_stale_state(valid_paths)
     local changed = false
 
     for path in pairs(video_manager.watched_data) do
-        if not valid_paths[path] then
+        local f = io.open(path, "r")
+        if f then
+            f:close()
+        elseif not valid_paths[path] then
             video_manager.watched_data[path] = nil
             changed = true
         end
@@ -112,7 +115,15 @@ function video_manager.prune_stale_state(valid_paths)
             if filename ~= "" and filename ~= "." and filename ~= ".." then
                 local full_watch_path = dir .. "/" .. filename
                 local path = read_resume_path(full_watch_path)
-                if not path or not valid_paths[path] then
+                local exists_on_disk = false
+                if path then
+                    local f = io.open(path, "r")
+                    if f then
+                        f:close()
+                        exists_on_disk = true
+                    end
+                end
+                if not path or (not valid_paths[path] and not exists_on_disk) then
                     os.remove(full_watch_path)
                     changed = true
                 end
