@@ -7,11 +7,11 @@
 | Volume & Brightness Tracking | ✅ | ✅ | ❌ | ❎ | ❎ | ❌ |
 | Battery Level Display | ✅ | ✅ | ✅ | ✅ | ❎ | ❌ |
 | Power-Saving Display Sleep | ✅ | ✅ | ✅ | ✅ | ❎ | ❌ |
-| Video Playback | ✅ mpv & ffplay | ✅ mpv & ffplay | ✅ mpv | ✅ mpv | ✅ mpv | ❌ ffplay |
+| Video Playback | ✅ mpv & ffplay | ✅ mpv & ffplay | ✅ mpv | ✅ mpv | ✅ mpv | ⚠️ ffplay |
 | Music Playback | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Photo Viewing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-✅: Implemented, ❎: Not necessary to implement, ❌: Not implemented yet,❓: Should work, but untested
+✅: Implemented, ⚠️: Partially implemented with issues ❎: Not necessary to implement, ❌: Not implemented yet,❓: Should work, but untested
 
 ### Features in the muOS App (.muxapp) build, but NOT in the PortMaster build
 
@@ -23,4 +23,4 @@
 
 ### About dArkOS Compatibility
 
-- **FFplay Video Playback**: Launching `ffplay` from XMPlayer on dArkOS fails with a missing `libvulkan.so.1` error because the Love2D runtime overrides `LD_LIBRARY_PATH` with its own bundled library directory, which interferes with the system paths containing Vulkan libraries.
+- **FFplay Video Playback**: XMPlayer's own `ffplay` core has audio issues on dArkOS. Some users have reported no audio playing in video. This issue is being investigated.

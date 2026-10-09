@@ -135,6 +135,7 @@ function assets.load(categories)
     assets.images.playlist_video = love.graphics.newImage("assets/icons/playlist-video.png")
     assets.images.playlist_add = love.graphics.newImage("assets/icons/playlist-add.png")
     assets.images.walker = love.graphics.newImage("assets/icons/walker.png")
+    assets.images.muos = love.graphics.newImage("assets/icons/muos.png")
 
 
     -- Load volume icons
@@ -155,6 +156,7 @@ function assets.load(categories)
 
     -- Load SFX
     assets.sfx.nav = love.audio.newSource("assets/sfx/keytone.wav", "static")
+    assets.sfx.nav:setVolume(0.5)
     assets.sfx.startup = love.audio.newSource("assets/sfx/startup.wav", "static")
 end
 

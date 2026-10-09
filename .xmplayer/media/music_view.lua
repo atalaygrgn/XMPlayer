@@ -51,6 +51,8 @@ local function auto_sleep_label()
         return "Off"
     elseif mins == 60 then
         return "1h"
+    elseif mins == 90 then
+        return "1h30m"
     elseif mins == 120 then
         return "2h"
     elseif mins >= 60 then
@@ -93,7 +95,7 @@ local function cycle_current_option(direction)
             settings.save()
         end
     elseif selected == "auto_sleep" then
-        local choices = { 0, 1, 2, 3, 5, 10, 20, 30, 60, 120 }
+        local choices = { 0, 5, 10, 15, 30, 45, 60, 90, 120 }
         local idx = 1
         for i, val in ipairs(choices) do
             if val == music.auto_sleep_minutes then
@@ -401,8 +403,9 @@ function music_view.draw()
     local bar_x, bar_y               = w - bar_w - 30, h - 30
     local progress                   = music.duration > 0 and (music.elapsed / music.duration) or 0
 
-    local elapsed_str                = utils.format_time(music.elapsed)
-    local duration_str               = " / " .. utils.format_time(music.duration)
+    local has_hours                  = (music.duration or 0) >= 3600
+    local elapsed_str                = utils.format_time(music.elapsed, has_hours)
+    local duration_str               = " / " .. utils.format_time(music.duration, has_hours)
     local w_elapsed                  = ui.measure_text_width(assets.fonts.time_elapsed, elapsed_str)
     local w_duration                 = ui.measure_text_width(assets.fonts.time_dur, duration_str)
     local total_time_w               = w_elapsed + w_duration
@@ -692,10 +695,18 @@ function music_view.keypressed(key)
         music.prev_track()
         return true
     elseif key == "l" then
-        music.seek(-10)
+        if love.keyboard.isDown("lshift") then
+            music.seek(-60)
+        else
+            music.seek(-10)
+        end
         return true
     elseif key == "e" then
-        music.seek(10)
+        if love.keyboard.isDown("lshift") then
+            music.seek(60)
+        else
+            music.seek(10)
+        end
         return true
     elseif key == "b" or key == "backspace" then
         music.close()

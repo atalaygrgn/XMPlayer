@@ -1326,7 +1326,7 @@ function xmb.refresh_items()
                     name = "Primary Storage",
                     type = "directory_trigger",
                     path = "/mnt/mmc",
-                    icon = "drive",
+                    icon = "muos",
                     description = "/mnt/mmc"
                 })
                 if dir_has_entries("/mnt/sdcard") then
@@ -1336,6 +1336,15 @@ function xmb.refresh_items()
                         path = "/mnt/sdcard",
                         icon = "sdcard",
                         description = "/mnt/sdcard"
+                    })
+                end
+                if dir_has_entries("/mnt/usb") then
+                    table.insert(paths, {
+                        name = "External Storage",
+                        type = "directory_trigger",
+                        path = "/mnt/usb",
+                        icon = "drive",
+                        description = "/mnt/usb"
                     })
                 end
             else

@@ -32,7 +32,7 @@ Browse and view your photo collection. You can even set up a slideshow too!
 ![XMPlayer Photo Viewer](assets/readme/photo.png)
 
 ### File Browser
-Browse your handheld's file system and access media files outside the main directories. Both single and dual SD card setups are supported.
+Browse your handheld's file system and access media files outside the main directories. Both single and dual SD card setups, and mounted USB drives are supported.
 
 ### Customizable Themes
 Fluid particle animations and customizable color themes to your liking. You can set a (dynamic) wallpaper too!<br>

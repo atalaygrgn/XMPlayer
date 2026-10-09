@@ -198,7 +198,7 @@ function ui.draw_indexing_popup(progress_text, final_message)
 
     -- Top-left version tag
     local version_opt = settings.get_option("version")
-    local version_str = "v0.2.2 Spearmint Symphony | Pre-release"
+    local version_str = "v0.2.2 Spearmint Symphony"
     ui.print_text(version_str, 20, 20, assets.fonts.xs, { accent[1], accent[2], accent[3], 0.75 })
 
     -- Bottom-right indexing status with subtle pulse

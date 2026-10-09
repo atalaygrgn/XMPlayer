@@ -70,11 +70,16 @@ function utils.smooth(a, b, dt, speed)
     return a + (b - a) * t
 end
 
-function utils.format_time(seconds)
+function utils.format_time(seconds, force_hours)
     if not seconds or seconds < 0 then seconds = 0 end
-    local mins = math.floor(seconds / 60)
+    local hours = math.floor(seconds / 3600)
+    local mins = math.floor((seconds % 3600) / 60)
     local secs = math.floor(seconds % 60)
-    return string.format("%d:%02d", mins, secs)
+    if hours > 0 or force_hours then
+        return string.format("%d:%02d:%02d", hours, mins, secs)
+    else
+        return string.format("%d:%02d", mins, secs)
+    end
 end
 
 function utils.format_size(bytes)
