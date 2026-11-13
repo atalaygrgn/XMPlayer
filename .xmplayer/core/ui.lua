@@ -86,6 +86,21 @@ ui.gloss_shader = love.graphics.newShader [[
     }
 ]]
 
+local last_accent_r, last_accent_g, last_accent_b = -1, -1, -1
+local cached_accent_tbl = { 0, 0, 0 }
+
+local function sync_gloss_accent()
+    if not (theme and theme.accent) then return end
+    local r, g, b = theme.accent[1], theme.accent[2], theme.accent[3]
+    if r ~= last_accent_r or g ~= last_accent_g or b ~= last_accent_b then
+        last_accent_r, last_accent_g, last_accent_b = r, g, b
+        cached_accent_tbl[1], cached_accent_tbl[2], cached_accent_tbl[3] = r, g, b
+        if ui.gloss_shader:hasUniform("accent_color") then
+            ui.gloss_shader:send("accent_color", cached_accent_tbl)
+        end
+    end
+end
+
 -- Marquee component state management and rendering
 function ui.new_marquee(max_width, speed, pause_start, pause_end)
     return {
@@ -233,9 +248,7 @@ function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail, rotation, no_ti
     elseif icon then
         -- Apply Gloss Shader for monochrome/theme-tinted icons only.
         if not no_tint then
-            if ui.gloss_shader:hasUniform("accent_color") and theme and theme.accent then
-                ui.gloss_shader:send("accent_color", { theme.accent[1], theme.accent[2], theme.accent[3] })
-            end
+            sync_gloss_accent()
             love.graphics.setShader(ui.gloss_shader)
         else
             love.graphics.setShader()
@@ -348,9 +361,7 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
 
         -- Main image
         if not no_tint then
-            if ui.gloss_shader:hasUniform("accent_color") and theme and theme.accent then
-                ui.gloss_shader:send("accent_color", { theme.accent[1], theme.accent[2], theme.accent[3] })
-            end
+            sync_gloss_accent()
             love.graphics.setShader(ui.gloss_shader)
         else
             love.graphics.setShader()

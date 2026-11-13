@@ -2,11 +2,19 @@
 -- Manages FFmpeg audio playback via background thread
 -- Provides QueueableSource interface for LÖVE audio system
 
+local utils = require("utils")
 local ffmpeg_audio = {}
 
 -- Try to load FFI for faster memory operations
 local ffi = nil
 local hasFFI = pcall(function() ffi = require("ffi") end)
+local int16_t_ptr_type = nil
+if hasFFI and ffi then
+    local ok, t = pcall(function() return ffi.typeof("const int16_t*") end)
+    if ok and t then
+        int16_t_ptr_type = t
+    end
+end
 
 -- Audio configuration
 local SAMPLE_RATE = 44100 -- hardware/default
@@ -63,17 +71,7 @@ local currentSeekTime = 0
 local totalSamplesQueuedAtSeek = 0
 
 local function new_audio_worker()
-    local ok, t = pcall(love.thread.newThread, "workers/audio_worker.lua")
-    if not ok or not t then
-        ok, t = pcall(love.thread.newThread, ".xmplayer/workers/audio_worker.lua")
-    end
-    if not ok or not t then
-        ok, t = pcall(love.thread.newThread, "audio_worker.lua")
-    end
-    if not ok or not t then
-        t = love.thread.newThread(".xmplayer/audio_worker.lua")
-    end
-    return t
+    return utils.new_worker_thread("audio_worker.lua")
 end
 
 -- Initialize ring buffer (stores raw sample values for visualization)
@@ -88,7 +86,19 @@ end
 local function processPCMChunk(rawBytes)
     if not rawBytes or #rawBytes < 2 then return 0 end
 
-    local sampleCount = #rawBytes / BYTES_PER_SAMPLE
+    local sampleCount = math.floor(#rawBytes / BYTES_PER_SAMPLE)
+
+    -- Fast path using LuaJIT FFI if available
+    if int16_t_ptr_type then
+        local int16_ptr = ffi.cast(int16_t_ptr_type, rawBytes)
+        local num_samples = math.floor(#rawBytes / 2)
+        for i = 0, num_samples - 1 do
+            local ringIdx = (totalSamplesQueued % ringBufferSize) + 1
+            sampleRingBuffer[ringIdx] = int16_ptr[i] / 32768.0
+            totalSamplesQueued = totalSamplesQueued + 1
+        end
+        return sampleCount
+    end
 
     -- Parse 16-bit signed little-endian PCM samples
     for i = 1, #rawBytes, 2 do

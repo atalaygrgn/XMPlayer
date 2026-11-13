@@ -31,53 +31,53 @@ function love.graphics.setFont(font)
     end
 end
 
+local FontWrapper = {}
+
+function FontWrapper:getWidth(text)
+    return self._raw:getWidth(text or "") / self._scale
+end
+
+function FontWrapper:getHeight()
+    return self._raw:getHeight() / self._scale
+end
+
+function FontWrapper:getWrap(text, width)
+    local width_limit = (width or 0) * self._scale
+    local w, lines = self._raw:getWrap(text or "", width_limit)
+    return w / self._scale, lines
+end
+
+function FontWrapper:getAscent()
+    return self._raw:getAscent() / self._scale
+end
+
+function FontWrapper:getDescent()
+    return self._raw:getDescent() / self._scale
+end
+
+function FontWrapper:getBaseline()
+    return self._raw:getBaseline() / self._scale
+end
+
+FontWrapper.__index = function(self, key)
+    local method = FontWrapper[key]
+    if method ~= nil then
+        return method
+    end
+    local val = self._raw[key]
+    if type(val) == "function" then
+        return function(_, ...)
+            return val(self._raw, ...)
+        end
+    end
+    return val
+end
+
 local function wrap_font(raw_font, scale)
-    local wrapped = {
+    return setmetatable({
         _raw = raw_font,
         _scale = scale or 1
-    }
-    setmetatable(wrapped, {
-        __index = function(t, key)
-            if key == "getWidth" then
-                return function(self, text)
-                    return self._raw:getWidth(text or "") / self._scale
-                end
-            elseif key == "getHeight" then
-                return function(self)
-                    return self._raw:getHeight() / self._scale
-                end
-            elseif key == "getWrap" then
-                return function(self, text, width)
-                    local width_limit = (width or 0) * self._scale
-                    local w, lines = self._raw:getWrap(text or "", width_limit)
-                    return w / self._scale, lines
-                end
-            elseif key == "getAscent" then
-                return function(self)
-                    return self._raw:getAscent() / self._scale
-                end
-            elseif key == "getDescent" then
-                return function(self)
-                    return self._raw:getDescent() / self._scale
-                end
-            elseif key == "getBaseline" then
-                return function(self)
-                    return self._raw:getBaseline() / self._scale
-                end
-            else
-                -- Forward other methods or properties to the raw font
-                local val = raw_font[key]
-                if type(val) == "function" then
-                    return function(self, ...)
-                        return val(self._raw, ...)
-                    end
-                else
-                    return val
-                end
-            end
-        end
-    })
-    return wrapped
+    }, FontWrapper)
 end
 
 function assets.update_font_scales(scale)

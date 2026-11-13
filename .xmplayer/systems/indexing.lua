@@ -171,10 +171,13 @@ local function file_exists(path)
 end
 
 
+local thumb_dir_ensured = false
 local function ensure_thumb_dir()
+    if thumb_dir_ensured then return end
     if os.execute("test -d \"" .. indexing.thumb_dir .. "\"") ~= 0 then
         os.execute("mkdir -p \"" .. indexing.thumb_dir .. "\"")
     end
+    thumb_dir_ensured = true
 end
 
 local function sort_music_collections()
@@ -297,17 +300,8 @@ local function process_music_files_threaded(music_files, progress_prefix)
     local num_workers = 2
     local threads = {}
     for w = 1, num_workers do
-        local ok, t = pcall(love.thread.newThread, "workers/metadata_worker.lua")
-        if not ok or not t then
-            ok, t = pcall(love.thread.newThread, ".xmplayer/workers/metadata_worker.lua")
-        end
-        if not ok or not t then
-            ok, t = pcall(love.thread.newThread, "metadata_worker.lua")
-        end
-        if not ok or not t then
-            ok, t = pcall(love.thread.newThread, ".xmplayer/metadata_worker.lua")
-        end
-        if ok and t then
+        local t = utils.new_worker_thread("metadata_worker.lua")
+        if t then
             t:start(in_chan_name, out_chan_name)
             table.insert(threads, t)
         end

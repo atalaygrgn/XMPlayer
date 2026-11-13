@@ -1,3 +1,4 @@
+local utf8 = require("utf8")
 local utils = {}
 
 function utils.trim(s)
@@ -6,6 +7,8 @@ end
 
 function utils.ensure_utf8(str)
     if not str or type(str) ~= "string" then return "" end
+    -- Fast path: pure ASCII strings without NUL bytes are already valid UTF-8
+    if not str:find("[\128-\255%z]") then return str end
     local clean = str:gsub("%z", "")
     local buf = {}
     local len = #clean
@@ -107,16 +110,59 @@ function utils.get_extension(path)
     return nil
 end
 
-function utils.is_photo_file(path)
-    if type(path) ~= "string" then return false end
-    local ext = utils.get_extension(path)
-    if not ext then return false end
-    local photo_exts = { ".jpg", ".jpeg", ".png", ".bmp" }
-    for _, e in ipairs(photo_exts) do
-        if ext == e then return true end
-    end
-    return false
-end
+local PHOTO_EXTS = {
+    [".jpg"] = true,
+    [".jpeg"] = true,
+    [".png"] = true,
+    [".bmp"] = true,
+}
+
+local VIDEO_EXTS = {
+    [".mp4"] = true,
+    [".mkv"] = true,
+    [".avi"] = true,
+    [".mov"] = true,
+    [".wmv"] = true,
+    [".m4v"] = true,
+    [".flv"] = true,
+}
+
+local VGM_EXTS = {
+    [".spc"] = true,
+    [".nsf"] = true,
+    [".nsfe"] = true,
+    [".vgm"] = true,
+    [".vgz"] = true,
+    [".gbs"] = true,
+    [".hes"] = true,
+    [".kss"] = true,
+}
+
+local MUSIC_EXTS = {
+    [".mp3"] = true,
+    [".wav"] = true,
+    [".flac"] = true,
+    [".ogg"] = true,
+    [".m4a"] = true,
+    [".aac"] = true,
+    [".opus"] = true,
+    [".wma"] = true,
+    [".alac"] = true,
+    [".aif"] = true,
+    [".aiff"] = true,
+    [".mod"] = true,
+    [".s3m"] = true,
+    [".xm"] = true,
+    [".it"] = true,
+    [".spc"] = true,
+    [".nsf"] = true,
+    [".nsfe"] = true,
+    [".vgm"] = true,
+    [".vgz"] = true,
+    [".gbs"] = true,
+    [".hes"] = true,
+    [".kss"] = true,
+}
 
 function utils.get_dirname(path)
     if type(path) ~= "string" then return "" end
@@ -149,45 +195,57 @@ function utils.get_track_name(filename)
     return n or name
 end
 
-function utils.is_music_file(path)
-    if not path or type(path) ~= "string" then return false end
+function utils.is_photo_file(path)
+    if type(path) ~= "string" then return false end
     local ext = utils.get_extension(path)
-    if not ext then return false end
-    ext = ext:lower()
-    local ok, indexing = pcall(require, "indexing")
-    if ok and indexing and indexing.compatible_extensions and indexing.compatible_extensions.music then
-        for _, e in ipairs(indexing.compatible_extensions.music) do
-            if ext == e then return true end
-        end
-    end
-    local fallback = {
-        mp3 = true, flac = true, ogg = true, wav = true, m4a = true, aac = true, opus = true,
-        mod = true, s3m = true, xm = true, it = true, spc = true, nsf = true, nsfe = true,
-        vgm = true, vgz = true, gbs = true, hes = true, kss = true
-    }
-    return fallback[ext] == true
+    return ext ~= nil and PHOTO_EXTS[ext] == true
+end
+
+function utils.is_video_file(path)
+    if type(path) ~= "string" then return false end
+    local ext = utils.get_extension(path)
+    return ext ~= nil and VIDEO_EXTS[ext] == true
 end
 
 function utils.is_vgm_file(filepath)
     if type(filepath) ~= "string" then return false end
     local ext = utils.get_extension(filepath)
-    if not ext then return false end
-    ext = ext:lower()
-    local vgm_exts = {
-        [".spc"] = true,
-        [".nsf"] = true,
-        [".nsfe"] = true,
-        [".vgm"] = true,
-        [".vgz"] = true,
-        [".gbs"] = true,
-        [".hes"] = true,
-        [".kss"] = true
+    return ext ~= nil and VGM_EXTS[ext] == true
+end
+
+function utils.is_music_file(path)
+    if type(path) ~= "string" then return false end
+    local ext = utils.get_extension(path)
+    return ext ~= nil and MUSIC_EXTS[ext] == true
+end
+
+function utils.new_worker_thread(worker_name)
+    if not (love and love.thread and love.thread.newThread) then
+        return nil
+    end
+
+    local candidate_paths = {
+        "workers/" .. worker_name,
+        ".xmplayer/workers/" .. worker_name,
+        worker_name,
+        ".xmplayer/" .. worker_name,
     }
-    return vgm_exts[ext] == true
+
+    for _, path in ipairs(candidate_paths) do
+        local ok, thread = pcall(love.thread.newThread, path)
+        if ok and thread then
+            return thread
+        end
+    end
+
+    return nil
 end
 
 function utils.clean_utf8(str)
     if not str then return "" end
+    if type(str) ~= "string" then return "" end
+    -- Fast path: pure ASCII strings are already valid UTF-8
+    if not str:find("[\128-\255]") then return str end
     -- Replace invalid UTF-8 bytes with '?'
     local clean = {}
     local i = 1
@@ -238,7 +296,6 @@ function utils.truncate_text(text, font, max_w)
     text = utils.clean_utf8(text or "")
     if font:getWidth(text) <= max_w then return text end
 
-    local utf8 = require("utf8")
     local last_pos = 0
     for i, _ in utf8.codes(text) do
         -- Get the byte position where the NEXT character starts

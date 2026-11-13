@@ -8,11 +8,20 @@ browser.current_dir = browser.base_dir
 browser.files = {}
 browser.selected_index = 1
 browser.filter = nil
+browser.filter_set = nil
 
 local extensions = indexing.compatible_extensions
 
 function browser.set_filter(type)
     browser.filter = extensions[type]
+    if browser.filter then
+        browser.filter_set = {}
+        for _, fext in ipairs(browser.filter) do
+            browser.filter_set[fext] = true
+        end
+    else
+        browser.filter_set = nil
+    end
 end
 
 function browser.scan(path)
@@ -50,16 +59,9 @@ function browser.scan(path)
                 table.insert(dirs, { name = filename, path = line, type = "directory" })
             else
                 local match = false
-                if browser.filter then
+                if browser.filter_set then
                     local ext = utils.get_extension(filename)
-                    if ext then
-                        for _, fext in ipairs(browser.filter) do
-                            if ext == fext then
-                                match = true
-                                break
-                            end
-                        end
-                    end
+                    match = (ext and browser.filter_set[ext] == true)
                 else
                     match = true -- No filter means show everything
                 end

@@ -6,6 +6,8 @@
 local system = {}
 
 local cfw_name = nil
+local cached_screenshot_dir = nil
+local cached_rocknix_backlight = nil
 
 -- Helper to check if a directory contains any entries
 local function dir_has_entries(path)
@@ -74,24 +76,27 @@ function system.get_default_base_dir()
 end
 
 function system.get_screenshot_dir()
+    if cached_screenshot_dir then return cached_screenshot_dir end
+
     local cfw = system.get_cfw_name()
     if cfw == "muOS" then
-        return "/run/muos/storage/screenshot"
+        cached_screenshot_dir = "/run/muos/storage/screenshot"
     elseif cfw == "knulli" then
-        return "/userdata/screenshots"
+        cached_screenshot_dir = "/userdata/screenshots"
     elseif cfw == "ROCKNIX" then
-        return "/storage/roms/screenshots"
+        cached_screenshot_dir = "/storage/roms/screenshots"
     else
         if dir_has_entries("/userdata/screenshots") then
-            return "/userdata/screenshots"
+            cached_screenshot_dir = "/userdata/screenshots"
         elseif dir_has_entries("/storage/roms/screenshots") then
-            return "/storage/roms/screenshots"
+            cached_screenshot_dir = "/storage/roms/screenshots"
         elseif dir_has_entries("/run/muos/storage/screenshot") then
-            return "/run/muos/storage/screenshot"
+            cached_screenshot_dir = "/run/muos/storage/screenshot"
         else
-            return "/userdata/screenshots"
+            cached_screenshot_dir = "/userdata/screenshots"
         end
     end
+    return cached_screenshot_dir
 end
 
 function system.get_battery_percentage()
@@ -211,32 +216,38 @@ function system.get_brightness()
         end
     elseif cfw == "ROCKNIX" then
         -- Read Rocknix backlight value and calculate percentage
-        local p = io.popen("ls -d /sys/class/backlight/* 2>/dev/null")
-        if p then
-            for line in p:lines() do
-                line = line:match("^%s*(.-)%s*$")
-                if line ~= "" then
-                    local b_file = line .. "/brightness"
-                    local m_file = line .. "/max_brightness"
-                    local fb = io.open(b_file, "r")
-                    local fm = io.open(m_file, "r")
-                    if fb and fm then
-                        local b_content = fb:read("*a")
-                        local m_content = fm:read("*a")
-                        fb:close()
-                        fm:close()
-                        local b_val = tonumber(b_content:match("(%d+)"))
-                        local m_val = tonumber(m_content:match("(%d+)"))
-                        if b_val and m_val and m_val > 0 then
-                            p:close()
-                            return math.floor((b_val / m_val) * 100 + 0.5)
-                        end
-                    elseif fb then
-                        fb:close()
+        if not cached_rocknix_backlight then
+            local p = io.popen("ls -d /sys/class/backlight/* 2>/dev/null")
+            if p then
+                for line in p:lines() do
+                    line = line:match("^%s*(.-)%s*$")
+                    if line ~= "" then
+                        cached_rocknix_backlight = line
+                        break
                     end
                 end
+                p:close()
             end
-            p:close()
+        end
+
+        if cached_rocknix_backlight then
+            local b_file = cached_rocknix_backlight .. "/brightness"
+            local m_file = cached_rocknix_backlight .. "/max_brightness"
+            local fb = io.open(b_file, "r")
+            local fm = io.open(m_file, "r")
+            if fb and fm then
+                local b_content = fb:read("*a")
+                local m_content = fm:read("*a")
+                fb:close()
+                fm:close()
+                local b_val = tonumber(b_content:match("(%d+)"))
+                local m_val = tonumber(m_content:match("(%d+)"))
+                if b_val and m_val and m_val > 0 then
+                    return math.floor((b_val / m_val) * 100 + 0.5)
+                end
+            elseif fb then
+                fb:close()
+            end
         end
     end
     return nil

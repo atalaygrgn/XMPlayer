@@ -45,17 +45,8 @@ local function ensure_meta_worker()
         music.meta_out_chan = love.thread.getChannel("music_metadata_out")
     end
     if not music.meta_thread or not music.meta_thread:isRunning() then
-        local ok, t = pcall(love.thread.newThread, "workers/metadata_worker.lua")
-        if not ok or not t then
-            ok, t = pcall(love.thread.newThread, ".xmplayer/workers/metadata_worker.lua")
-        end
-        if not ok or not t then
-            ok, t = pcall(love.thread.newThread, "metadata_worker.lua")
-        end
-        if not ok or not t then
-            ok, t = pcall(love.thread.newThread, ".xmplayer/metadata_worker.lua")
-        end
-        if ok and t then
+        local t = utils.new_worker_thread("metadata_worker.lua")
+        if t then
             t:start("music_metadata_in", "music_metadata_out")
             music.meta_thread = t
         end

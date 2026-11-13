@@ -55,6 +55,64 @@ local function cleanup_stale_media_state()
     history.prune_missing(valid_paths)
 end
 
+local function update_indexing_coroutine()
+    if not runtime_state.scan_co then return end
+
+    local ok, err = coroutine.resume(runtime_state.scan_co)
+    if not ok then
+        print("Indexing error: " .. tostring(err))
+        indexing.is_scanning = false
+        runtime_state.clear_scan()
+        xmb.refresh_browser()
+        runtime_state.set_launch_status("Indexing Error")
+    elseif coroutine.status(runtime_state.scan_co) == "dead" then
+        indexing.is_scanning = false
+        runtime_state.clear_scan()
+        cleanup_stale_media_state()
+        xmb.refresh_browser()
+        runtime_state.set_launch_status("Indexing Complete")
+        -- Startup sound
+        local opt_startup = settings.get_option("startup_sound")
+        if (not opt_startup) or opt_startup.value == 1 then
+            if assets and assets.play_sfx then
+                assets.play_sfx("startup")
+            end
+        end
+    end
+end
+
+local function update_system_hardware_status(dt)
+    -- Update battery status
+    runtime_state.battery_timer = runtime_state.battery_timer + dt
+    if runtime_state.battery_timer >= runtime_state.battery_update_interval then
+        runtime_state.battery_timer = 0
+        runtime_state.battery_percentage = system.get_battery_percentage()
+        runtime_state.is_charging = system.is_charging()
+    end
+
+    -- Update volume & brightness status (only on muOS to prevent lag on other CFWs)
+    runtime_state.ui_timer = runtime_state.ui_timer + dt
+    if runtime_state.ui_timer >= runtime_state.ui_check_interval then
+        runtime_state.ui_timer = 0
+
+        if system.get_cfw_name() == "muOS" then
+            -- Volume
+            local current_volume = system.get_volume()
+            if settings.vol_bright_enabled and runtime_state.last_volume ~= nil and current_volume ~= nil and current_volume ~= runtime_state.last_volume then
+                ui.show_volume_toast(current_volume)
+            end
+            runtime_state.last_volume = current_volume
+
+            -- Brightness
+            local current_brightness = system.get_brightness()
+            if settings.vol_bright_enabled and runtime_state.last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= runtime_state.last_brightness then
+                ui.show_brightness_toast(current_brightness)
+            end
+            runtime_state.last_brightness = current_brightness
+        end
+    end
+end
+
 
 function love.load()
     math.randomseed(os.time())
@@ -162,29 +220,7 @@ function love.update(dt)
         is_paused = true
     elseif indexing.is_scanning then
         runtime_state.current_view = "indexing"
-        if runtime_state.scan_co then
-            local ok, err = coroutine.resume(runtime_state.scan_co)
-            if not ok then
-                print("Indexing error: " .. tostring(err))
-                indexing.is_scanning = false
-                runtime_state.clear_scan()
-                xmb.refresh_browser()
-                runtime_state.set_launch_status("Indexing Error")
-            elseif coroutine.status(runtime_state.scan_co) == "dead" then
-                indexing.is_scanning = false
-                runtime_state.clear_scan()
-                cleanup_stale_media_state()
-                xmb.refresh_browser()
-                runtime_state.set_launch_status("Indexing Complete")
-                -- Startup sound
-                local opt_startup = settings.get_option("startup_sound")
-                if (not opt_startup) or opt_startup.value == 1 then
-                    if assets and assets.play_sfx then
-                        assets.play_sfx("startup")
-                    end
-                end
-            end
-        end
+        update_indexing_coroutine()
         return
     elseif runtime_state.launch_status_timer > 0 then
         runtime_state.launch_status_timer = math.max(0, runtime_state.launch_status_timer - dt)
@@ -203,35 +239,7 @@ function love.update(dt)
 
     runtime_state.was_music_active = music.active
 
-    -- Update battery status
-    runtime_state.battery_timer = runtime_state.battery_timer + dt
-    if runtime_state.battery_timer >= runtime_state.battery_update_interval then
-        runtime_state.battery_timer = 0
-        runtime_state.battery_percentage = system.get_battery_percentage()
-        runtime_state.is_charging = system.is_charging()
-    end
-
-    -- Update volume & brightness status (only on muOS to prevent lag on other CFWs)
-    runtime_state.ui_timer = runtime_state.ui_timer + dt
-    if runtime_state.ui_timer >= runtime_state.ui_check_interval then
-        runtime_state.ui_timer = 0
-
-        if system.get_cfw_name() == "muOS" then
-            -- Volume
-            local current_volume = system.get_volume()
-            if settings.vol_bright_enabled and runtime_state.last_volume ~= nil and current_volume ~= nil and current_volume ~= runtime_state.last_volume then
-                ui.show_volume_toast(current_volume)
-            end
-            runtime_state.last_volume = current_volume
-
-            -- Brightness
-            local current_brightness = system.get_brightness()
-            if settings.vol_bright_enabled and runtime_state.last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= runtime_state.last_brightness then
-                ui.show_brightness_toast(current_brightness)
-            end
-            runtime_state.last_brightness = current_brightness
-        end
-    end
+    update_system_hardware_status(dt)
 
     background.update(dt, is_paused)
     ui.update_toasts(dt)

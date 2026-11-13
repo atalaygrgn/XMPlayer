@@ -5,11 +5,13 @@ local xmb = require("xmb")
 local categories = require("categories")
 local viewport = require("viewport")
 local assets = require("assets")
+local music_player = require("music_player")
 
 local background = {}
 
 local particles = {}
 local screen_w, screen_h
+local cached_canvas_size = { 0, 0 }
 local speed = 1.0
 local target_speed = 1.0
 local gradient_mesh
@@ -26,7 +28,6 @@ local walk_state
 local update_walk, draw_walk
 
 local function load_wallpaper_image(path)
-    local utils = require("utils")
     local resolved_path = path or "assets/background/bg.jpg"
     local img = utils.load_image(resolved_path)
     if not img and resolved_path ~= "assets/background/bg.jpg" then
@@ -53,6 +54,8 @@ end
 
 function background.init()
     screen_w, screen_h = viewport.get()
+    cached_canvas_size[1] = screen_w
+    cached_canvas_size[2] = screen_h
 
     -- Initialize particles
     for i = 1, 50 do
@@ -116,9 +119,8 @@ function background.update(dt, is_paused)
         end
     end
 
-    local music = require("music_player")
-    if music and music.active and music.visualizer_mode == "walk" then
-        update_walk(dt, music)
+    if music_player and music_player.active and music_player.visualizer_mode == "walk" then
+        update_walk(dt, music_player)
     else
         walk_state.initialized = false
     end
@@ -664,8 +666,10 @@ function background.ensure_wallpaper_worker()
     if not background.wallpaper_in_chan then
         background.wallpaper_in_chan = love.thread.getChannel("wallpaper_in")
         background.wallpaper_out_chan = love.thread.getChannel("wallpaper_out")
-        background.wallpaper_thread = love.thread.newThread("workers/wallpaper_worker.lua")
-        background.wallpaper_thread:start("wallpaper_in", "wallpaper_out")
+        background.wallpaper_thread = utils.new_worker_thread("wallpaper_worker.lua")
+        if background.wallpaper_thread then
+            background.wallpaper_thread:start("wallpaper_in", "wallpaper_out")
+        end
     end
 end
 
@@ -776,19 +780,17 @@ function background.draw(music)
         local acc = theme.accent
 
         -- Subtle gradient from background color to a tinted version
-        local c1 = { bg[1], bg[2], bg[3], 1 }
+        local bg1, bg2, bg3 = bg[1], bg[2], bg[3]
         local tint = (theme.current_mode == "Light") and 0.3 or 0.15
-        local c2 = {
-            bg[1] * (1 - tint) + acc[1] * tint,
-            bg[2] * (1 - tint) + acc[2] * tint,
-            bg[3] * (1 - tint) + acc[3] * tint,
-            1
-        }
+        local inv_tint = 1 - tint
+        local c2_1 = bg1 * inv_tint + acc[1] * tint
+        local c2_2 = bg2 * inv_tint + acc[2] * tint
+        local c2_3 = bg3 * inv_tint + acc[3] * tint
 
-        gradient_mesh:setVertex(1, 0, 0, 0, 0, c1[1], c1[2], c1[3], c1[4])
-        gradient_mesh:setVertex(2, screen_w, 0, 0, 0, c1[1], c1[2], c1[3], c1[4])
-        gradient_mesh:setVertex(3, screen_w, screen_h, 0, 0, c2[1], c2[2], c2[3], c2[4])
-        gradient_mesh:setVertex(4, 0, screen_h, 0, 0, c2[1], c2[2], c2[3], c2[4])
+        gradient_mesh:setVertex(1, 0, 0, 0, 0, bg1, bg2, bg3, 1)
+        gradient_mesh:setVertex(2, screen_w, 0, 0, 0, bg1, bg2, bg3, 1)
+        gradient_mesh:setVertex(3, screen_w, screen_h, 0, 0, c2_1, c2_2, c2_3, 1)
+        gradient_mesh:setVertex(4, 0, screen_h, 0, 0, c2_1, c2_2, c2_3, 1)
 
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(gradient_mesh)
@@ -822,7 +824,9 @@ function background.draw(music)
 
         if wallpaper_blur_enabled and blur_shader then
             love.graphics.setShader(blur_shader)
-            blur_shader:send("canvasSize", { screen_w, screen_h })
+            cached_canvas_size[1] = screen_w
+            cached_canvas_size[2] = screen_h
+            blur_shader:send("canvasSize", cached_canvas_size)
             blur_shader:send("radius", 5.0)
         end
 
