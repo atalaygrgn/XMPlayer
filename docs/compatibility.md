@@ -1,5 +1,5 @@
 # Feature Compatibility Complete List
-### Current version: v0.2.1
+### Current version: v0.2.2
 
 | Feature | muOS App (.muxapp) | muOS PortMaster | Knulli PortMaster | Rocknix PortMaster | EmuELEC PortMaster | dArkOS PortMaster |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
