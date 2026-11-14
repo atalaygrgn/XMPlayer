@@ -111,17 +111,12 @@ function image_view.draw()
         love.graphics.setLineWidth(1)
         love.graphics.rectangle("line", bx, by, bar_w, bar_h, 4, 4)
 
-        -- Center marker notch for default fit-to-screen zoom (step 0)
+        -- Progress Fill (smooth lerped step: step 0 aligns with notch)
         local min_s = viewer.min_step or -6
         local max_s = viewer.max_step or 12
         local inner_h = bar_h - 4
         local fit_ratio = (0 - min_s) / math.max(1, max_s - min_s)
         local center_y = (by + bar_h - 2) - math.floor(fit_ratio * inner_h)
-
-        love.graphics.setColor(1, 1, 1, 0.6 * alpha)
-        love.graphics.rectangle("fill", bx - 2, center_y, bar_w + 2, 2)
-
-        -- Progress Fill (smooth lerped step: step 0 aligns with notch)
         local step = viewer.animated_step or viewer.zoom_step or 0
         local ratio = (step - min_s) / math.max(1, max_s - min_s)
         ratio = math.max(0, math.min(1, ratio))
@@ -131,6 +126,10 @@ function image_view.draw()
 
         love.graphics.setColor(0.2, 0.6, 1.0, 0.9 * alpha)
         love.graphics.rectangle("fill", bx + 2, fill_y, bar_w - 4, fill_h, 2, 2)
+
+        -- Center marker notch for default fit-to-screen zoom (step 0)
+        love.graphics.setColor(1, 1, 1, 0.6 * alpha)
+        love.graphics.rectangle("fill", bx - 2, center_y, bar_w + 2, 2)
     end
 
     -- ─── Center Loading Photo Popup ───

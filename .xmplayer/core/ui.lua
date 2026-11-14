@@ -101,6 +101,52 @@ local function sync_gloss_accent()
     end
 end
 
+-- Anti-aliased SDF Circle Shader & 1x1 Quad Texture
+local circle_shader_ok, circle_shader = pcall(love.graphics.newShader, [[
+    uniform float radius;
+    uniform float quad_half_size;
+    uniform float pixel_aa;
+
+    vec4 effect(vec4 color, Image tex, vec2 uv, vec2 screen_coords) {
+        float dist = length((uv - vec2(0.5)) * (2.0 * quad_half_size));
+        float a = smoothstep(radius + pixel_aa, radius - pixel_aa, dist);
+        return vec4(color.rgb, color.a * a);
+    }
+]])
+ui.circle_shader = circle_shader_ok and circle_shader or nil
+
+local circle_quad_img = nil
+local function get_circle_quad_img()
+    if not circle_quad_img then
+        local data = love.image.newImageData(1, 1)
+        data:setPixel(0, 0, 1, 1, 1, 1)
+        circle_quad_img = love.graphics.newImage(data)
+        data:release()
+    end
+    return circle_quad_img
+end
+
+function ui.draw_smooth_circle(x, y, radius, color)
+    if color then
+        love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+    end
+    local r = radius or 4
+    if ui.circle_shader then
+        local quad_img = get_circle_quad_img()
+        local scale = (simpleScale and simpleScale.scale) or 1
+        local pixel_aa = 0.75 / math.max(1, scale)
+        local quad_half = r + 2.0
+        ui.circle_shader:send("radius", r)
+        ui.circle_shader:send("quad_half_size", quad_half)
+        ui.circle_shader:send("pixel_aa", pixel_aa)
+        love.graphics.setShader(ui.circle_shader)
+        love.graphics.draw(quad_img, x - quad_half, y - quad_half, 0, quad_half * 2, quad_half * 2)
+        love.graphics.setShader()
+    else
+        love.graphics.circle("fill", x, y, r, 32)
+    end
+end
+
 -- Marquee component state management and rendering
 function ui.new_marquee(max_width, speed, pause_start, pause_end)
     return {

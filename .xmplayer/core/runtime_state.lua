@@ -12,6 +12,10 @@ local runtime_state = {
 
     last_volume = nil,
     last_brightness = nil,
+    backlight_off = false,
+    backlight_timer = 0,
+    backlight_check_interval = 0.5,
+    was_display_off = false,
     ui_timer = 0,
     ui_check_interval = 0.1,
 

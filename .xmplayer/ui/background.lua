@@ -212,10 +212,10 @@ update_walk = function(dt, music)
     local treble = 0.05
     if music.sound_data then
         local SAMPLE_RATE = music.sound_data.getSampleRate and music.sound_data:getSampleRate() or 44100
-        local current_sample = math.floor(music.elapsed * SAMPLE_RATE)
         local total_samples = music.sound_data:getSampleCount()
-
         local window = 512
+        local current_sample = math.max(0, math.min(math.floor(music.elapsed * SAMPLE_RATE), total_samples - window - 1))
+
         local sum = 0
         local diff_sum = 0
         for i = 0, window - 1, 16 do
@@ -434,8 +434,9 @@ local function draw_waveform(music)
 
     -- Calculate current sample index from elapsed time
     local SAMPLE_RATE = music.sound_data.getSampleRate and music.sound_data:getSampleRate() or 44100
-    local current_sample = math.floor(music.elapsed * SAMPLE_RATE)
     local total_samples = music.sound_data:getSampleCount()
+    local max_offset = math.max(1024, samples * 10)
+    local current_sample = math.max(0, math.min(math.floor(music.elapsed * SAMPLE_RATE), total_samples - max_offset - 1))
 
     -- Smooth the reactive amplitude based on a window of samples
     local window = 1024
@@ -495,8 +496,8 @@ local function draw_bars_visualizer(music)
 
     -- Calculate current sample index from elapsed time
     local SAMPLE_RATE = music.sound_data.getSampleRate and music.sound_data:getSampleRate() or 44100
-    local current_sample = math.max(0, math.floor(music.elapsed * SAMPLE_RATE))
     local total_samples = music.sound_data:getSampleCount()
+    local current_sample = math.max(0, math.min(math.floor(music.elapsed * SAMPLE_RATE), total_samples - (8192 + 480) - 1))
     local paused_alpha = music.paused and 0.35 or 1.0
 
     for i = 0, bars - 1 do

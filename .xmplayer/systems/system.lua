@@ -8,6 +8,38 @@ local system = {}
 local cfw_name = nil
 local cached_screenshot_dir = nil
 local cached_rocknix_backlight = nil
+local cached_backlight_brightness_path = nil
+local backlight_path_checked = false
+
+local function ensure_backlight_paths()
+    if backlight_path_checked then
+        return cached_backlight_brightness_path
+    end
+    backlight_path_checked = true
+
+    if package.config:sub(1, 1) == "\\" then
+        return nil
+    end
+
+    local p = io.popen("ls -d /sys/class/backlight/* 2>/dev/null")
+    if p then
+        for line in p:lines() do
+            line = line:match("^%s*(.-)%s*$")
+            if line ~= "" then
+                cached_rocknix_backlight = cached_rocknix_backlight or line
+                local b_path = line .. "/brightness"
+                local f = io.open(b_path, "r")
+                if f then
+                    f:close()
+                    cached_backlight_brightness_path = b_path
+                    break
+                end
+            end
+        end
+        p:close()
+    end
+    return cached_backlight_brightness_path
+end
 
 -- Helper to check if a directory contains any entries
 local function dir_has_entries(path)
@@ -216,19 +248,7 @@ function system.get_brightness()
         end
     elseif cfw == "ROCKNIX" then
         -- Read Rocknix backlight value and calculate percentage
-        if not cached_rocknix_backlight then
-            local p = io.popen("ls -d /sys/class/backlight/* 2>/dev/null")
-            if p then
-                for line in p:lines() do
-                    line = line:match("^%s*(.-)%s*$")
-                    if line ~= "" then
-                        cached_rocknix_backlight = line
-                        break
-                    end
-                end
-                p:close()
-            end
-        end
+        ensure_backlight_paths()
 
         if cached_rocknix_backlight then
             local b_file = cached_rocknix_backlight .. "/brightness"
@@ -247,10 +267,28 @@ function system.get_brightness()
                 end
             elseif fb then
                 fb:close()
+            elseif fm then
+                fm:close()
             end
         end
     end
     return nil
+end
+
+function system.is_backlight_off()
+    local b_path = ensure_backlight_paths()
+    if b_path then
+        local f = io.open(b_path, "r")
+        if f then
+            local content = f:read("*a")
+            f:close()
+            local val = content and tonumber(content:match("(%d+)"))
+            if val ~= nil then
+                return val <= 0
+            end
+        end
+    end
+    return false
 end
 
 function system.set_brightness(level)

@@ -405,7 +405,7 @@ function music.set_visualizer_mode(mode)
     end
 end
 
-function music.update(dt)
+function music.update(dt, skip_ui)
     if not music.active then return end
 
     -- Update FFmpeg audio backend
@@ -485,16 +485,21 @@ function music.update(dt)
         end
     end
 
-    -- Fade in
-    if music.fade_alpha < 1 then
-        music.fade_alpha = math.min(1, music.fade_alpha + dt * 4)
-    end
+    if skip_ui then
+        music.fade_alpha = 1
+        music.slide_x = 0
+    else
+        -- Fade in
+        if music.fade_alpha < 1 then
+            music.fade_alpha = math.min(1, music.fade_alpha + dt * 4)
+        end
 
-    -- Update slide_x
-    if music.slide_x and music.slide_x ~= 0 then
-        music.slide_x = utils.smooth(music.slide_x, 0, dt, 14)
-        if math.abs(music.slide_x) < 0.5 then
-            music.slide_x = 0
+        -- Update slide_x
+        if music.slide_x and music.slide_x ~= 0 then
+            music.slide_x = utils.smooth(music.slide_x, 0, dt, 14)
+            if math.abs(music.slide_x) < 0.5 then
+                music.slide_x = 0
+            end
         end
     end
 
@@ -529,7 +534,7 @@ function music.update(dt)
     end
 
     -- Update marquees
-    if music.current_track then
+    if not skip_ui and music.current_track then
         local w, h = viewport.get()
         local art_size = math.min(w, h) * 0.3
         local art_x = w * 0.05

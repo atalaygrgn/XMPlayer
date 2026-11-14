@@ -275,7 +275,7 @@ settings.options = {
     },
     {
         id = "ffplay_aspect_ratio",
-        name = "ffplay Aspect Ratio",
+        name = "(ffplay) Aspect Ratio",
         type = "choice",
         group = "video_settings",
         choices = { "Original", "4:3", "16:9", "3:2", "1:1" },
@@ -284,7 +284,7 @@ settings.options = {
     },
     {
         id = "repeat_folder",
-        name = "Loop Folder (mpv)",
+        name = "(mpv) Loop Folder",
         type = "choice",
         group = "video_settings",
         choices = { "No", "Yes" },
@@ -293,7 +293,7 @@ settings.options = {
     },
     {
         id = "repeat_watchlist",
-        name = "Loop Watchlist (mpv)",
+        name = "(mpv) Loop Watchlist",
         type = "choice",
         group = "video_settings",
         choices = { "No", "Yes" },
@@ -302,7 +302,7 @@ settings.options = {
     },
     {
         id = "sub_position",
-        name = "Subtitle Position (mpv)",
+        name = "(mpv) Subtitle Position",
         type = "choice",
         group = "video_settings",
         choices = { "Top", "Center", "Bottom" },
@@ -310,7 +310,7 @@ settings.options = {
     },
     {
         id = "sub_font_size",
-        name = "Subtitle Font Size (mpv)",
+        name = "(mpv) Subtitle Font Size",
         type = "choice",
         group = "video_settings",
         choices = { "%50", "%75", "%100", "%125", "%150" },

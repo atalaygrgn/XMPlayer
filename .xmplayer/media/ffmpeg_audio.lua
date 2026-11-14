@@ -64,9 +64,9 @@ local startTime = 0  -- Wall clock time when playback started
 local pausedTime = 0 -- Time at pause moment
 
 -- Sample tracking for visualizers
-local totalSamplesQueued = 0           -- Total samples ever pushed to queue
-local sampleRingBuffer = {}            -- For visualizer access
-local ringBufferSize = SAMPLE_RATE * 2 -- 2 seconds of samples for visualizer (use fixed rate)
+local totalSamplesQueued = 0                       -- Total samples ever pushed to queue
+local sampleRingBuffer = {}                        -- For visualizer access
+local ringBufferSize = SAMPLE_RATE * CHANNELS * 2 -- 2 seconds of stereo samples for visualizer
 local currentSeekTime = 0
 local totalSamplesQueuedAtSeek = 0
 
@@ -390,7 +390,20 @@ function ffmpeg_audio.update()
 
     -- Update elapsed time if playing
     if isPlaying and not isPaused and queueableSource:isPlaying() then
-        elapsedTime = love.timer.getTime() - startTime
+        local now = love.timer.getTime()
+        elapsedTime = now - startTime
+
+        local freeBuffers = queueableSource:getFreeBufferCount()
+        local queuedBuffers = math.max(0, QUEUE_BUFFERS - freeBuffers)
+        local decodedFrames = ffmpeg_audio.getSampleCount()
+        local streamPlayedTime = math.max(currentSeekTime, (decodedFrames - queuedBuffers * 1024) / currentSampleRate)
+
+        -- Resync wall-clock timer if it drifted from actual audio playback (e.g. after device sleep/wake)
+        if math.abs(elapsedTime - streamPlayedTime) > 0.15 then
+            elapsedTime = streamPlayedTime
+            startTime = now - elapsedTime
+        end
+
         -- Cap elapsed time at duration
         if totalDuration > 0 then
             elapsedTime = math.min(elapsedTime, totalDuration)

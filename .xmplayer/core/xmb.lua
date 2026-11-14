@@ -1005,6 +1005,15 @@ local function build_folder_view_items(cat, dir_has_entries)
                     description = "/mnt/sdcard"
                 })
             end
+            if dir_has_entries("/media") then
+                table.insert(paths, {
+                    name = "External Storage",
+                    type = "directory_trigger",
+                    path = "/media",
+                    icon = "drive",
+                    description = "/media"
+                })
+            end
         end
 
         if #paths == 0 then
@@ -1745,7 +1754,6 @@ local function handle_item_activation(player, music, viewer)
                     indexing.scan(photo_dir, music_dir, video_dir)
                 end))
                 indexing.is_scanning = true
-                ui.show_toast("Indexing complete", "folder", "bottom_right")
                 settings_view.active = false
             elseif opt.id == "test_toast_top" then
                 ui.show_toast("Dev: Top Center Toast", "info", "top_center")

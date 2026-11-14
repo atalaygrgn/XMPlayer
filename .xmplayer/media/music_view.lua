@@ -10,6 +10,7 @@ local music                    = require("music_player")
 local settings                 = require("settings")
 local viewport                 = require("viewport")
 local system                   = require("system")
+local runtime_state            = require("runtime_state")
 
 local music_view               = {}
 music_view.buttons_locked      = false
@@ -145,6 +146,7 @@ function music_view.on_music_opened()
     music_view.y_hold_timer = 0
     music_view.popup_active = false
     music_view.popup_alpha = 0
+    runtime_state.backlight_off = false
 end
 
 function music_view.on_music_closed()
@@ -155,6 +157,7 @@ function music_view.on_music_closed()
     music_view.y_hold_timer = 0
     music_view.popup_active = false
     music_view.popup_alpha = 0
+    runtime_state.backlight_off = false
     if music_view.saved_brightness then
         system.set_brightness(music_view.saved_brightness)
         music_view.saved_brightness = nil
@@ -163,6 +166,7 @@ end
 
 function music_view.register_user_input()
     music_view.idle_seconds = 0
+    runtime_state.backlight_off = false
     if music_view.display_sleeping then
         music_view.display_sleep_alpha = 0
         music_view.display_sleeping = false
@@ -181,24 +185,36 @@ function music_view.is_display_sleeping()
     return music_view.display_sleep_alpha > 0.01
 end
 
+function music_view.is_display_off()
+    return music_view.display_sleeping
+        or runtime_state.backlight_off
+        or (runtime_state.last_brightness ~= nil and runtime_state.last_brightness <= 0)
+end
+
 function music_view.update(dt)
     if not music.active then return end
 
-    -- Update Y button hold detection and fade animation
-    if love.keyboard.isDown("y") and not music_view.context_menu.active then
-        music_view.y_hold_timer = (music_view.y_hold_timer or 0) + dt
-        if music_view.y_hold_timer >= 0.2 then
-            music_view.popup_active = true
+    if not music_view.is_display_off() then
+        -- Update Y button hold detection and fade animation
+        if love.keyboard.isDown("y") and not music_view.context_menu.active then
+            music_view.y_hold_timer = (music_view.y_hold_timer or 0) + dt
+            if music_view.y_hold_timer >= 0.2 then
+                music_view.popup_active = true
+            end
+        else
+            music_view.y_hold_timer = 0
+            music_view.popup_active = false
+        end
+
+        if music_view.popup_active then
+            music_view.popup_alpha = math.min(1, (music_view.popup_alpha or 0) + dt * 6)
+        else
+            music_view.popup_alpha = math.max(0, (music_view.popup_alpha or 0) - dt * 6)
         end
     else
         music_view.y_hold_timer = 0
         music_view.popup_active = false
-    end
-
-    if music_view.popup_active then
-        music_view.popup_alpha = math.min(1, (music_view.popup_alpha or 0) + dt * 6)
-    else
-        music_view.popup_alpha = math.max(0, (music_view.popup_alpha or 0) - dt * 6)
+        music_view.popup_alpha = 0
     end
 
     if music_view.lid_closed then
@@ -231,6 +247,10 @@ function music_view.update(dt)
         return
     end
 
+    if music_view.display_sleeping and music_view.idle_seconds >= sleep_seconds then
+        return
+    end
+
     music_view.idle_seconds = music_view.idle_seconds + dt
     if music_view.idle_seconds >= sleep_seconds then
         music_view.display_sleep_alpha = math.min(1, music_view.display_sleep_alpha + dt * 2)
@@ -242,6 +262,7 @@ function music_view.update(dt)
     music_view.display_sleeping = (music_view.display_sleep_alpha >= 0.99)
 
     if music_view.display_sleeping and not was_sleeping then
+        music_view.display_sleep_alpha = 1
         if settings.power_save_sleep_enabled then
             local current = system.get_brightness() or 50
             if current > 0 then
@@ -265,6 +286,12 @@ function music_view.draw()
     if not music.active then return end
 
     local w, h  = viewport.get()
+    if music_view.is_display_off() then
+        love.graphics.setColor(0, 0, 0, 1)
+        love.graphics.rectangle("fill", 0, 0, w, h)
+        return
+    end
+
     local alpha = music.fade_alpha
 
     -- Header
@@ -588,6 +615,7 @@ function music_view.keypressed(key)
         music_view.display_sleep_alpha = 0
         music_view.display_sleeping = false
         music_view.idle_seconds = 0
+        runtime_state.backlight_off = false
         if was_sleeping then
             if settings.power_save_sleep_enabled and music_view.saved_brightness then
                 system.set_brightness(music_view.saved_brightness)

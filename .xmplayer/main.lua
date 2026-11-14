@@ -82,6 +82,24 @@ local function update_indexing_coroutine()
 end
 
 local function update_system_hardware_status(dt)
+    if music.active and not music_view.display_sleeping then
+        runtime_state.backlight_timer = (runtime_state.backlight_timer or 0) + dt
+        if runtime_state.backlight_timer >= (runtime_state.backlight_check_interval or 0.5) then
+            runtime_state.backlight_timer = 0
+            runtime_state.backlight_off = system.is_backlight_off()
+            if not runtime_state.backlight_off and runtime_state.last_brightness ~= nil and runtime_state.last_brightness <= 0 and system.get_cfw_name() == "muOS" then
+                runtime_state.last_brightness = system.get_brightness()
+            end
+        end
+    else
+        runtime_state.backlight_timer = 0
+    end
+
+    if music.active and music_view.is_display_off() then
+        runtime_state.was_display_off = true
+        return
+    end
+
     -- Update battery status
     runtime_state.battery_timer = runtime_state.battery_timer + dt
     if runtime_state.battery_timer >= runtime_state.battery_update_interval then
@@ -96,19 +114,24 @@ local function update_system_hardware_status(dt)
         runtime_state.ui_timer = 0
 
         if system.get_cfw_name() == "muOS" then
+            local just_woke = runtime_state.was_display_off
+            runtime_state.was_display_off = false
+
             -- Volume
             local current_volume = system.get_volume()
-            if settings.vol_bright_enabled and runtime_state.last_volume ~= nil and current_volume ~= nil and current_volume ~= runtime_state.last_volume then
+            if not just_woke and settings.vol_bright_enabled and runtime_state.last_volume ~= nil and current_volume ~= nil and current_volume ~= runtime_state.last_volume then
                 ui.show_volume_toast(current_volume)
             end
             runtime_state.last_volume = current_volume
 
             -- Brightness
             local current_brightness = system.get_brightness()
-            if settings.vol_bright_enabled and runtime_state.last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= runtime_state.last_brightness then
+            if not just_woke and settings.vol_bright_enabled and runtime_state.last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= runtime_state.last_brightness then
                 ui.show_brightness_toast(current_brightness)
             end
             runtime_state.last_brightness = current_brightness
+        else
+            runtime_state.was_display_off = false
         end
     end
 end
@@ -182,6 +205,8 @@ function love.resize()
 end
 
 function love.update(dt)
+    dt = math.min(dt, 0.1)
+
     -- Check if we need a hard refresh after returning from MPV
     if player.needs_refresh then
         -- Force Love2D to re-init the display context
@@ -209,7 +234,7 @@ function love.update(dt)
         if not was_music_active then
             music_view.on_music_opened()
         end
-        music.update(dt)
+        music.update(dt, music_view.is_display_off())
         if music.active then
             music_view.update(dt)
         end
@@ -221,12 +246,14 @@ function love.update(dt)
     elseif indexing.is_scanning then
         runtime_state.current_view = "indexing"
         update_indexing_coroutine()
+        ui.update_toasts(dt)
         return
     elseif runtime_state.launch_status_timer > 0 then
         runtime_state.launch_status_timer = math.max(0, runtime_state.launch_status_timer - dt)
         if runtime_state.launch_status_timer == 0 then
             runtime_state.launch_status_message = nil
         end
+        ui.update_toasts(dt)
         return
     else
         runtime_state.current_view = "xmb"
@@ -241,13 +268,30 @@ function love.update(dt)
 
     update_system_hardware_status(dt)
 
-    background.update(dt, is_paused)
-    ui.update_toasts(dt)
+    local music_display_off = music.active and music_view.is_display_off()
+    if not music_display_off then
+        background.update(dt, is_paused)
+        ui.update_toasts(dt)
+    else
+        if #ui.active_toasts > 0 then
+            ui.update_toasts(dt)
+        end
+        if music.playing and not music.paused and love.timer and love.timer.sleep then
+            love.timer.sleep(0.04)
+        end
+    end
 end
 
 function love.draw()
     simpleScale.set()
     local screen_w, screen_h = viewport.get()
+
+    if music.active and music_view.is_display_off() then
+        runtime_state.current_view = "music"
+        love.graphics.clear(0, 0, 0, 1)
+        simpleScale.unSet(theme.colors.background)
+        return
+    end
 
     -- Force full clear every frame (essential for embedded devices)
     love.graphics.clear(theme.colors.background[1], theme.colors.background[2], theme.colors.background[3], 1)

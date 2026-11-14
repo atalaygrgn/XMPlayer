@@ -135,8 +135,8 @@ function settings_view.draw_popup(setting_idx)
         ui.print_text(choice, x + 40, cy + 5, assets.fonts.small, { 1, 1, 1, is_selected and 1 * alpha or 0.6 * alpha })
 
         if is_current then
-            love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 1 * alpha)
-            love.graphics.circle("fill", x + 25, cy + item_h / 2 - 6, 4)
+            ui.draw_smooth_circle(x + 25, cy + item_h / 2 - 6, 4.25,
+                { theme.accent[1], theme.accent[2], theme.accent[3], 1 * alpha })
         end
     end
 
