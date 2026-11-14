@@ -7,7 +7,7 @@
 | Volume & Brightness Tracking | ✅ | ✅ | ❌ | ❎ | ❎ | ❌ |
 | Battery Level Display | ✅ | ✅ | ✅ | ✅ | ❎ | ❌ |
 | Power-Saving Display Sleep | ✅ | ✅ | ✅ | ✅ | ❎ | ❌ |
-| Video Playback | ✅ mpv & ffplay | ✅ mpv & ffplay | ✅ mpv | ✅ mpv | ✅ mpv | ⚠️ ffplay |
+| Video Playback | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ ffplay only |
 | Music Playback | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Photo Viewing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 

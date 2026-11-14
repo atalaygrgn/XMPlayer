@@ -49,7 +49,8 @@ The goal of this project is to address the multimedia playback shortcomings of g
 ### muOS App (.muxapp)
 
 #### Prerequisites
-- A handheld device running **muOS**. At least 1 GB of RAM is recommended for a smooth experience.
+- A handheld device running **muOS Jacaranda**. At least 1 GB of RAM is recommended for a smooth experience.
+> **muOS Andromeda** support is coming soon!
 - Your music, videos, and photos organized into dedicated folders on your SD card. Both single and dual SD card setups are supported.
 
 #### Steps
