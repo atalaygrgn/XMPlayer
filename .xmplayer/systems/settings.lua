@@ -87,6 +87,14 @@ settings.options = {
         value = 3
     },
     {
+        id = "foreground_color",
+        name = "Foreground Color",
+        type = "choice",
+        group = "theme_settings",
+        choices = { "Light", "Dark" },
+        value = 1
+    },
+    {
         id = "particles",
         name = "Particle Effects",
         type = "choice",
@@ -442,8 +450,10 @@ end
 function settings.apply()
     local opt_theme = settings.get_option("theme")
     local opt_color = settings.get_option("theme_color")
+    local opt_fg = settings.get_option("foreground_color")
     if opt_theme and opt_color then
-        theme.apply(opt_theme.choices[opt_theme.value], opt_color.choices[opt_color.value])
+        local fg_choice = opt_fg and opt_fg.choices[opt_fg.value] or "Light"
+        theme.apply(opt_theme.choices[opt_theme.value], opt_color.choices[opt_color.value], fg_choice)
     end
 
     -- Update categories paths

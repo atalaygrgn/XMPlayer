@@ -327,7 +327,7 @@ function keyboard.draw()
 
     local title_font = assets.fonts.main
     ui.draw_glow_text(keyboard.title, panel_x + 26, panel_y + 18, title_font,
-        { theme.text[1], theme.text[2], theme.text[3], 0.95 * fade }, nil)
+        { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.95 * fade }, nil)
 
     local input_x = panel_x + 26
     local input_y = panel_y + 64
@@ -339,7 +339,7 @@ function keyboard.draw()
 
     love.graphics.setColor(0.1, 0.11, 0.16, 0.92 * fade)
     love.graphics.rectangle("fill", input_x, input_y, input_w, input_h, 10, 10)
-    love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.25 * fade)
+    love.graphics.setColor(theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.25 * fade)
     love.graphics.rectangle("line", input_x, input_y, input_w, input_h, 10, 10)
 
     local shown_value = keyboard.value
@@ -350,13 +350,13 @@ function keyboard.draw()
 
     if shown_value == "" then
         shown_value = placeholder
-        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.45 * fade)
+        love.graphics.setColor(theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.45 * fade)
     else
-        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.95 * fade)
+        love.graphics.setColor(theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.95 * fade)
     end
     ui.print_text(shown_value, input_x + 14, input_y + 14, assets.fonts.small,
-        shown_value == placeholder and { theme.text[1], theme.text[2], theme.text[3], 0.45 * fade } or
-        { theme.text[1], theme.text[2], theme.text[3], 0.95 * fade })
+        shown_value == placeholder and { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.45 * fade } or
+        { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.95 * fade })
 
     -- Blinking cursor
     if not keyboard.closing and (love.timer.getTime() % 1.0) < 0.5 then
@@ -428,7 +428,7 @@ function keyboard.draw()
     local hint_y = panel_y + panel_h - 28
     local hint_font = assets.fonts.xs
     local sep_y = hint_y - 10
-    love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.12 * fade)
+    love.graphics.setColor(theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.12 * fade)
     love.graphics.setLineWidth(1)
     love.graphics.line(panel_x + 16, sep_y, panel_x + panel_w - 16, sep_y)
 
@@ -442,7 +442,7 @@ function keyboard.draw()
         local btn_w = ui.measure_text_width(hint_font, h.btn)
         -- Action label (muted white)
         ui.print_text(h.action, hx + btn_w + 4, hint_y, hint_font,
-            { theme.text[1], theme.text[2], theme.text[3], 0.55 * fade })
+            { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.55 * fade })
     end
 end
 

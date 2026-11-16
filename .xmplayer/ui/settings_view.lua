@@ -224,7 +224,7 @@ function settings_view.draw_folder_picker()
     love.graphics.rectangle("line", x, y, panel_w, panel_h, 12, 12)
 
     ui.draw_glow_text("Select Folder", x + 20, y + 18, assets.fonts.main,
-        { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
+        { theme.light_text[1], theme.light_text[2], theme.light_text[3], alpha }, nil)
 
     ui.print_text(settings_view.picker_current_path, x + 20, y + 52, assets.fonts.xs, { 1, 1, 1, 0.6 * alpha })
 

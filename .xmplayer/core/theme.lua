@@ -9,6 +9,7 @@ theme.glow_intensity = 0.3   -- Higher = brighter glow
 theme.glow_radius = 3        -- Higher = wider, softer glow
 theme.shadow_intensity = 0.5 -- Shadow visibility
 theme.current_mode = "Light" -- Track current mode
+theme.current_fg = "Light"   -- Track current foreground color ("Light" or "Dark")
 
 -- Color palettes
 theme.accents = {
@@ -41,8 +42,20 @@ theme.modes = {
     }
 }
 
+theme.foregrounds = {
+    Light = {
+        text = { 0.95, 0.95, 1.0 },
+        text_dim = { 0.95, 0.95, 1.0, 0.6 }
+    },
+    Dark = {
+        text = { 0.0, 0.0, 0.0 },
+        text_dim = { 0.0, 0.0, 0.0, 0.6 }
+    }
+}
+
 -- Current state (to be updated by settings)
 theme.bg = { 0.05, 0.05, 0.08, 1 }
+theme.light_text = { 0.95, 0.95, 1.0, 1 }
 theme.text = { 0.95, 0.95, 1.0, 1 }
 theme.text_dim = { 0.95, 0.95, 1.0, 0.6 }
 theme.accent = { 0.2, 0.4, 0.8, 1 }
@@ -53,10 +66,14 @@ theme.colors = {
     highlight = { 0, 0, 0, 0.1 },
 }
 
-function theme.apply(mode, color_name)
+function theme.apply(mode, color_name, fg_mode)
     theme.current_mode = mode
+    fg_mode = fg_mode or theme.current_fg or "Light"
+    theme.current_fg = fg_mode
+
     local m = theme.modes[mode] or theme.modes.Light
-    local c = theme.accents[color_name] or theme.accents["Electric Blue"]
+    local c = theme.accents[color_name] or theme.accents["Golden"]
+    local fg = theme.foregrounds[fg_mode] or theme.foregrounds.Light
 
     -- Calculate a background tint that is much more vivid in Light mode
     local bg_tinted
@@ -79,9 +96,10 @@ function theme.apply(mode, color_name)
     end
 
     theme.colors.background = bg_tinted
-    theme.colors.text = m.text
-    theme.text = { m.text[1], m.text[2], m.text[3], 1 }
-    theme.text_dim = m.text_dim
+    theme.colors.text = fg.text
+    theme.light_text = { 0.95, 0.95, 1.0, 1 }
+    theme.text = { fg.text[1], fg.text[2], fg.text[3], 1 }
+    theme.text_dim = { fg.text_dim[1], fg.text_dim[2], fg.text_dim[3], fg.text_dim[4] }
     theme.accent = { c[1], c[2], c[3], 1 }
     theme.bg = { bg_tinted[1], bg_tinted[2], bg_tinted[3], 1 }
 end

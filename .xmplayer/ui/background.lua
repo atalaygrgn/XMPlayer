@@ -413,7 +413,8 @@ draw_walk = function(music)
         local target_h = 32
         local scale = target_h / img_h
 
-        love.graphics.setColor(1, 1, 1, alpha)
+        local fg = theme.text or { 1, 1, 1 }
+        love.graphics.setColor(fg[1], fg[2], fg[3], alpha)
         love.graphics.push()
         love.graphics.translate(run.x, run.y - target_h / 2)
         love.graphics.rotate(run.flip_angle)

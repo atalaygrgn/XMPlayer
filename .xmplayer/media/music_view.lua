@@ -329,6 +329,7 @@ function music_view.draw()
     -- Album Art
     local art_size     = math.min(w, h) * 0.3
     local art_x, art_y = w * 0.05, 60
+    local info_fg      = ((settings.track_info_background_mode or 1) > 1) and theme.light_text or theme.text
 
     if music.current_track and (settings.track_info_background_mode or 1) > 1 then
         local panel_x = w * 0.03
@@ -342,7 +343,7 @@ function music_view.draw()
         love.graphics.setColor(0.04, 0.05, 0.07, panel_fill_alpha * alpha)
         love.graphics.rectangle("fill", panel_x, panel_y, panel_w, panel_h, 14, 14)
 
-        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], panel_border_alpha * alpha)
+        love.graphics.setColor(info_fg[1], info_fg[2], info_fg[3], panel_border_alpha * alpha)
         love.graphics.rectangle("line", panel_x, panel_y, panel_w, panel_h, 14, 14)
     end
 
@@ -352,18 +353,18 @@ function music_view.draw()
         local draw_w, draw_h = img_w * scale, img_h * scale
         local ox, oy         = (art_size - draw_w) / 2, (art_size - draw_h) / 2
 
-        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
+        love.graphics.setColor(info_fg[1], info_fg[2], info_fg[3], 0.1 * alpha)
         love.graphics.rectangle("fill", art_x - 4, art_y - 4, art_size + 8, art_size + 8, 6, 6)
 
         love.graphics.setColor(1, 1, 1, alpha)
         love.graphics.draw(music.cover_art, art_x + ox, art_y + oy, 0, scale, scale)
     else
-        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
+        love.graphics.setColor(info_fg[1], info_fg[2], info_fg[3], 0.1 * alpha)
         love.graphics.rectangle("fill", art_x - 4, art_y - 4, art_size + 8, art_size + 8, 6, 6)
 
         ui.draw_icon(assets.images.music,
             art_x + art_size / 2, art_y + art_size / 2,
-            art_size * 0.4, theme.text, 0.2 * alpha)
+            art_size * 0.4, info_fg, 0.2 * alpha)
     end
 
     -- Track Info
@@ -382,10 +383,10 @@ function music_view.draw()
         set_clip()
         local track_name = music.tags.title or utils.get_track_name(music.current_track.name)
         ui.draw_marquee(music.marquees.title, track_name, info_x + music.slide_x, info_y - 2, assets.fonts.title,
-            { theme.text[1], theme.text[2], theme.text[3], alpha }, info_x, info_y - 2)
+            { info_fg[1], info_fg[2], info_fg[3], alpha }, info_x, info_y - 2)
 
         love.graphics.setScissor()
-        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.1 * alpha)
+        love.graphics.setColor(info_fg[1], info_fg[2], info_fg[3], 0.1 * alpha)
         love.graphics.rectangle("fill", info_x, info_y + 40, info_w, 1)
 
         if not is_vgm then
@@ -393,13 +394,13 @@ function music_view.draw()
             set_clip()
             local artist_name = music.tags.artist or "Unknown Artist"
             ui.draw_marquee(music.marquees.artist, artist_name, info_x + music.slide_x, info_y + 46, assets.fonts.artist,
-                { theme.text[1], theme.text[2], theme.text[3], 0.7 * alpha }, info_x, info_y + 46)
+                { info_fg[1], info_fg[2], info_fg[3], 0.7 * alpha }, info_x, info_y + 46)
 
             -- Album
             set_clip()
             local album_name = music.tags.album or "Unknown Album"
             ui.draw_marquee(music.marquees.album, album_name, info_x + music.slide_x, info_y + 76, assets.fonts.album,
-                { theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha }, info_x, info_y + 76)
+                { info_fg[1], info_fg[2], info_fg[3], 0.4 * alpha }, info_x, info_y + 76)
         end
 
         -- Next Track Info
@@ -410,17 +411,17 @@ function music_view.draw()
             local next_name    = "Next: " .. (music.next_tags.title or utils.get_track_name(next_track.name))
             local display_next = utils.truncate_text(next_name, assets.fonts.small, info_w * 0.8)
 
-            love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha)
+            love.graphics.setColor(info_fg[1], info_fg[2], info_fg[3], 0.4 * alpha)
             ui.print_text(display_next, info_x + music.slide_x, extra_y, assets.fonts.small,
-                { theme.text[1], theme.text[2], theme.text[3], 0.4 * alpha })
+                { info_fg[1], info_fg[2], info_fg[3], 0.4 * alpha })
         end
 
         -- Track Extension
         local ext = utils.get_extension(music.current_track.path)
         if ext then
-            love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.3 * alpha)
+            love.graphics.setColor(info_fg[1], info_fg[2], info_fg[3], 0.3 * alpha)
             ui.printf_text(ext:sub(2):upper(), info_x + music.slide_x, extra_y, info_w, "right", assets.fonts.small,
-                { theme.text[1], theme.text[2], theme.text[3], 0.3 * alpha })
+                { info_fg[1], info_fg[2], info_fg[3], 0.3 * alpha })
         end
         love.graphics.setScissor()
 
@@ -485,7 +486,7 @@ function music_view.draw()
 
     ui.draw_progress_bar(bar_x, bar_y, bar_w, bar_h, progress,
         { 0, 0.35, 0.65, 0.9 * alpha },
-        { 0.8, 0.8, 0.8, 0.75 })
+        { theme.text[1], theme.text[2], theme.text[3], 0.25 * alpha })
 
     local menu = music_view.context_menu
     if menu.active then
@@ -533,13 +534,13 @@ function music_view.draw()
                 love.graphics.rectangle("fill", menu_x + 10, y - 4, menu_w - 20, row_h - 4, 9, 9)
             end
 
-            local text_color = focused and { theme.text[1], theme.text[2], theme.text[3], menu.alpha } or
-                { theme.text[1], theme.text[2], theme.text[3], 0.75 * menu.alpha }
+            local text_color = focused and { theme.light_text[1], theme.light_text[2], theme.light_text[3], menu.alpha } or
+                { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.75 * menu.alpha }
             ui.print_text(label, menu_x + 24, y + 2, assets.fonts.small, text_color)
 
-            love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.85 * menu.alpha)
+            love.graphics.setColor(theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.85 * menu.alpha)
             ui.printf_text(value, menu_x + 20, y + 2, menu_w - 44, "right", assets.fonts.small,
-                { theme.text[1], theme.text[2], theme.text[3], 0.85 * menu.alpha })
+                { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.85 * menu.alpha })
         end
     end
 
@@ -566,11 +567,11 @@ function music_view.draw()
 
         -- Draw D-pad icon
         if assets.images.dpad then
-            ui.draw_icon(assets.images.dpad, dpad_x, dpad_y, dpad_size, theme.text, popup_alpha * alpha, nil, nil, true)
+            ui.draw_icon(assets.images.dpad, dpad_x, dpad_y, dpad_size, theme.light_text, popup_alpha * alpha, nil, nil, true)
         end
 
         -- Color definitions
-        local color_unassigned = { theme.text[1], theme.text[2], theme.text[3], 0.35 * popup_alpha * alpha }
+        local color_unassigned = { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.35 * popup_alpha * alpha }
         local color_assigned = { theme.accent[1], theme.accent[2], theme.accent[3], 0.9 * popup_alpha * alpha }
 
         -- Up Icon (Lock/Unlock)

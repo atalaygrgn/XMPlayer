@@ -7,6 +7,8 @@ assets.sfx = {}
 
 local path_figtree = "assets/font/Figtree-SemiBold.otf"
 local path_oswald = "assets/font/Oswald-SemiBold.ttf"
+local path_cjk = "assets/font/DroidSansFallbackFull.ttf"
+local path_kr = "assets/font/NanumGothic-Regular.ttf"
 
 local font_sizes = {
     main         = 28,
@@ -20,6 +22,47 @@ local font_sizes = {
     large        = 52,
     keyboardkey  = 20,
 }
+
+-- Fonts that only render ASCII/digits/UI labels and do not need a CJK fallback atlas
+local NO_CJK_FONTS = {
+    time_elapsed = true,
+    time_dur     = true,
+    keyboardkey  = true,
+    large        = true,
+}
+
+local font_file_data = {}
+local last_font_scale = nil
+local cached_fallbacks = {
+    oswald = {},
+    cjk = {},
+    kr = {},
+    system = {},
+}
+
+local function get_font_data(path)
+    if font_file_data[path] ~= nil then
+        return font_file_data[path] or nil
+    end
+    if love.filesystem.getInfo(path) then
+        local ok, data = pcall(love.filesystem.newFileData, path)
+        if ok and data then
+            font_file_data[path] = data
+            return data
+        end
+    end
+    font_file_data[path] = false
+    return nil
+end
+
+local function release_font_table(tbl)
+    for k, f in pairs(tbl) do
+        if f and f.release then
+            pcall(function() f:release() end)
+        end
+        tbl[k] = nil
+    end
+end
 
 -- Override setFont to unwrap our scaled font object
 local orig_setFont = love.graphics.setFont
@@ -82,13 +125,67 @@ end
 
 function assets.update_font_scales(scale)
     scale = scale or 1
+    if last_font_scale == scale and assets.fonts.main then
+        return
+    end
+    last_font_scale = scale
+
+    for k, wrapped in pairs(assets.fonts) do
+        if wrapped and wrapped._raw and wrapped._raw.release then
+            pcall(function() wrapped._raw:release() end)
+        end
+        assets.fonts[k] = nil
+    end
+    release_font_table(cached_fallbacks.oswald)
+    release_font_table(cached_fallbacks.cjk)
+    release_font_table(cached_fallbacks.kr)
+    release_font_table(cached_fallbacks.system)
+
+    local figtree_data = get_font_data(path_figtree)
+    local oswald_data = get_font_data(path_oswald)
+    local cjk_data = get_font_data(path_cjk)
+    local kr_data = get_font_data(path_kr)
+
     for font_key, original_size in pairs(font_sizes) do
         local scaled_size = math.max(1, math.floor(original_size * scale + 0.5))
-        local main_font = love.graphics.newFont(path_figtree, scaled_size)
-        local oswald_fallback = love.graphics.newFont(path_oswald, scaled_size)
-        local system_fallback = love.graphics.newFont(scaled_size)
+        local main_font = love.graphics.newFont(figtree_data or path_figtree, scaled_size)
 
-        main_font:setFallbacks(oswald_fallback, system_fallback)
+        local oswald_fallback = cached_fallbacks.oswald[scaled_size]
+        if not oswald_fallback then
+            oswald_fallback = love.graphics.newFont(oswald_data or path_oswald, scaled_size)
+            cached_fallbacks.oswald[scaled_size] = oswald_fallback
+        end
+
+        local system_fallback = cached_fallbacks.system[scaled_size]
+        if not system_fallback then
+            system_fallback = love.graphics.newFont(scaled_size)
+            cached_fallbacks.system[scaled_size] = system_fallback
+        end
+
+        local fallbacks = { oswald_fallback }
+
+        if not NO_CJK_FONTS[font_key] then
+            if cjk_data then
+                local cjk_fallback = cached_fallbacks.cjk[scaled_size]
+                if not cjk_fallback then
+                    cjk_fallback = love.graphics.newFont(cjk_data, scaled_size)
+                    cached_fallbacks.cjk[scaled_size] = cjk_fallback
+                end
+                table.insert(fallbacks, cjk_fallback)
+            end
+
+            if kr_data then
+                local kr_fallback = cached_fallbacks.kr[scaled_size]
+                if not kr_fallback then
+                    kr_fallback = love.graphics.newFont(kr_data, scaled_size)
+                    cached_fallbacks.kr[scaled_size] = kr_fallback
+                end
+                table.insert(fallbacks, kr_fallback)
+            end
+        end
+
+        table.insert(fallbacks, system_fallback)
+        main_font:setFallbacks(unpack(fallbacks))
         assets.fonts[font_key] = wrap_font(main_font, scale)
     end
 end

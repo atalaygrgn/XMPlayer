@@ -167,7 +167,7 @@ function xmb_draw.draw(state)
 
             -- Watched overlay for video files
             if item.type == "file" and cat_id == "video" and video_manager.is_watched(item.path) then
-                ui.draw_icon(assets.images.eye, -52, y, 36, { 1, 1, 1 }, 1)
+                ui.draw_icon(assets.images.eye, -52, y, 36, theme.text, 1)
             end
 
             -- Draw text
@@ -232,9 +232,9 @@ function xmb_draw.draw(state)
         love.graphics.rectangle("line", panel_x, panel_y, panel_w, panel_h, 16, 16)
 
         ui.draw_glow_text(menu.title or "Options", panel_x + 24, panel_y + 20, assets.fonts.small,
-            { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
+            { theme.light_text[1], theme.light_text[2], theme.light_text[3], alpha }, nil)
 
-        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.22 * alpha)
+        love.graphics.setColor(theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.22 * alpha)
         love.graphics.rectangle("fill", panel_x + 22, panel_y + 64, panel_w - 44, 1)
 
         for i, option in ipairs(menu.items) do
@@ -246,8 +246,8 @@ function xmb_draw.draw(state)
                 love.graphics.rectangle("fill", panel_x + 18, row_y - 6, panel_w - 36, 40, 10, 10)
             end
 
-            local text_color = focused and { theme.text[1], theme.text[2], theme.text[3], alpha } or
-                { theme.text[1], theme.text[2], theme.text[3], 0.75 * alpha }
+            local text_color = focused and { theme.light_text[1], theme.light_text[2], theme.light_text[3], alpha } or
+                { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.75 * alpha }
             ui.print_text(option.label, panel_x + 32, row_y, assets.fonts.small, text_color)
         end
     end
@@ -266,7 +266,7 @@ function xmb_draw.draw(state)
         love.graphics.rectangle("fill", x, y, 4, screen_h)
 
         ui.draw_glow_text(xmb.playlist_sidebar_title or "Add to Playlist", x + 20, 50, assets.fonts.small,
-            { theme.text[1], theme.text[2], theme.text[3], alpha }, nil)
+            { theme.light_text[1], theme.light_text[2], theme.light_text[3], alpha }, nil)
 
         local content_y_base = screen_h * 0.25
         local visible_area_h = screen_h * 0.6

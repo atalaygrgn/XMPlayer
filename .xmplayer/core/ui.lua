@@ -210,7 +210,8 @@ function ui.draw_marquee(m, text, x, y, font, color, abs_x, abs_y, glow_color, n
         end
     end
     -- Adaptive intensities
-    local shadow_alpha = theme.shadow_intensity * alpha
+    local is_dark_fg = (color[1] + color[2] + color[3]) < 1.0
+    local shadow_alpha = theme.shadow_intensity * alpha * (is_dark_fg and 0.25 or 1.0)
     local glow_mult = (theme.current_mode == "Dark") and 1.5 or 1.3
 
     -- Draw Smudged Shadow
@@ -254,13 +255,16 @@ function ui.draw_indexing_popup(progress_text, final_message)
 
     -- Centered product title
     local title_font = assets.fonts.large
+    local fg = theme.text or { 1, 1, 1 }
+    local is_dark_fg = (theme.current_fg == "Dark")
+    local sub_color = is_dark_fg and fg or accent
     ui.draw_glow_text("XMPlayer", 0, screen_h * 0.5 - ui.measure_text_height(title_font) * 0.5, title_font,
-        { 1, 1, 1, 1 }, accent, screen_w, "center")
+        { fg[1], fg[2], fg[3], 1 }, not is_dark_fg and accent or nil, screen_w, "center")
 
     -- Top-left version tag
     local version_opt = settings.get_option("version")
     local version_str = "v0.2.3 Saffron Symphony"
-    ui.print_text(version_str, 20, 20, assets.fonts.xs, { accent[1], accent[2], accent[3], 0.75 })
+    ui.print_text(version_str, 20, 20, assets.fonts.xs, { sub_color[1], sub_color[2], sub_color[3], 0.75 })
 
     -- Bottom-right indexing status with subtle pulse
     local status = progress_text or "Scanning media..."
@@ -275,8 +279,8 @@ function ui.draw_indexing_popup(progress_text, final_message)
     local status_font = assets.fonts.xs or assets.fonts.small
     local sw = ui.measure_text_width(status_font, status_text)
     local pulse = 0.62 + (math.sin(t * 3.0) + 1) * 0.14
-    love.graphics.setColor(accent[1], accent[2], accent[3], pulse)
-    ui.print_text(status_text, screen_w - sw - 20, screen_h - 36, status_font)
+    ui.print_text(status_text, screen_w - sw - 20, screen_h - 36, status_font,
+        { sub_color[1], sub_color[2], sub_color[3], pulse })
 end
 
 function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail, rotation, no_tint)
@@ -293,7 +297,8 @@ function ui.draw_icon(icon, x, y, size, color, alpha, thumbnail, rotation, no_ti
         love.graphics.draw(thumbnail, x, y, rotation, scale, scale, iw / 2, ih / 2)
     elseif icon then
         -- Apply Gloss Shader for monochrome/theme-tinted icons only.
-        if not no_tint then
+        local is_dark_fg = (theme.current_fg == "Dark") and ((color[1] + color[2] + color[3]) < 1.0)
+        if not no_tint and not is_dark_fg then
             sync_gloss_accent()
             love.graphics.setShader(ui.gloss_shader)
         else
@@ -317,7 +322,8 @@ function ui.draw_glow_text(text, x, y, font, color, glow_color, limit, align)
     end
 
     -- Adaptive intensities
-    local shadow_alpha = theme.shadow_intensity * alpha
+    local is_dark_fg = (color[1] + color[2] + color[3]) < 1.0
+    local shadow_alpha = theme.shadow_intensity * alpha * (is_dark_fg and 0.25 or 1.0)
     local glow_mult = (theme.current_mode == "Dark") and 1.5 or 1.3
 
     -- Draw Smudged Shadow
@@ -379,7 +385,8 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
         love.graphics.setColor(1, 1, 1, a)
     else
         -- Adaptive intensities
-        local shadow_alpha = theme.shadow_intensity * a
+        local is_dark_fg = (color[1] + color[2] + color[3]) < 1.0
+        local shadow_alpha = theme.shadow_intensity * a * (is_dark_fg and 0.25 or 1.0)
         local glow_base = (theme.current_mode == "Dark") and (theme.glow_intensity * 1.2) or (theme.glow_intensity * 1.1)
         -- Draw Smudged Shadow
         for i = 1, 4 do
@@ -406,7 +413,8 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
         end
 
         -- Main image
-        if not no_tint then
+        local skip_gloss = no_tint or ((theme.current_fg == "Dark") and is_dark_fg)
+        if not skip_gloss then
             sync_gloss_accent()
             love.graphics.setShader(ui.gloss_shader)
         else
@@ -545,14 +553,15 @@ function ui.draw_toasts()
                 icon_img = assets.get_image("brightness")
             end
 
+            local fg = theme.text or { 1, 1, 1 }
             if icon_img then
-                ui.draw_icon(icon_img, icon_cx, overlay_y + overlay_h / 2, icon_size, { 1, 1, 1 }, t.alpha, nil, nil,
+                ui.draw_icon(icon_img, icon_cx, overlay_y + overlay_h / 2, icon_size, { fg[1], fg[2], fg[3] }, t.alpha, nil, nil,
                     true)
             end
 
             ui.draw_progress_bar(bar_x, overlay_y + (overlay_h - bar_h) / 2, bar_w, bar_h, progress,
-                { 1, 1, 1, 0.8 * t.alpha },
-                { 1, 1, 1, 0.14 * t.alpha })
+                { fg[1], fg[2], fg[3], 0.8 * t.alpha },
+                { fg[1], fg[2], fg[3], 0.2 * t.alpha })
         else
             local tw = ui.measure_text_width(font, t.text or "")
             local th = ui.measure_text_height(font)
