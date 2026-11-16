@@ -26,7 +26,8 @@ music_view.context_menu        = {
     items = {
         "display_sleep",
         "auto_sleep",
-        "visualizer"
+        "visualizer",
+        "equalizer"
     }
 }
 
@@ -82,6 +83,10 @@ local function visualizer_label()
     return "Wave"
 end
 
+local function equalizer_label()
+    return music.equalizer_preset or "Flat"
+end
+
 
 local function cycle_current_option(direction)
     local selected = music_view.context_menu.items[music_view.context_menu.selected_idx]
@@ -121,6 +126,19 @@ local function cycle_current_option(direction)
         if idx > #modes then idx = 1 end
         if idx < 1 then idx = #modes end
         music.set_visualizer_mode(modes[idx])
+    elseif selected == "equalizer" then
+        local presets = music.equalizer_presets or { "Flat", "Rock", "Pop", "Jazz", "Classical", "Electronic", "Vocal" }
+        local idx = 1
+        for i, preset in ipairs(presets) do
+            if preset == music.equalizer_preset then
+                idx = i
+                break
+            end
+        end
+        idx = idx + direction
+        if idx > #presets then idx = 1 end
+        if idx < 1 then idx = #presets end
+        music.set_equalizer_preset(presets[idx])
     end
 end
 
@@ -505,6 +523,9 @@ function music_view.draw()
             elseif item_id == "visualizer" then
                 label = "Visualizer"
                 value = visualizer_label()
+            elseif item_id == "equalizer" then
+                label = "Equalizer"
+                value = equalizer_label()
             end
 
             if focused then
@@ -599,6 +620,10 @@ function music_view.keypressed(key)
 
     if key == "insert" then
         music_view.lid_closed = true
+        if settings.auto_lock_lid_enabled then
+            music_view.buttons_locked = true
+            music_view.context_menu.active = false
+        end
         local was_sleeping = music_view.display_sleeping
         music_view.display_sleep_alpha = 1
         music_view.display_sleeping = true
@@ -611,6 +636,9 @@ function music_view.keypressed(key)
         return true
     elseif key == "delete" then
         music_view.lid_closed = false
+        if settings.auto_lock_lid_enabled then
+            music_view.buttons_locked = false
+        end
         local was_sleeping = music_view.display_sleeping
         music_view.display_sleep_alpha = 0
         music_view.display_sleeping = false

@@ -10,6 +10,7 @@ settings.video_player_mode = "mpv"
 settings.ffplay_aspect_ratio = "Original"
 settings.track_info_background_mode = 1
 settings.soft_button_lock = "Off"
+settings.auto_lock_lid_enabled = false
 settings.max_texture_size = 2048
 settings.slideshow_duration_seconds = 5
 settings.loop_slideshow_enabled = false
@@ -83,7 +84,7 @@ settings.options = {
         type = "choice",
         group = "theme_settings",
         choices = { "Dark Red", "Volcanic", "Golden", "Lime Green", "Apple Green", "Moss Green", "Undersea", "Electric Blue", "Midnight Blue", "Dark Purple", "Ice Cold", "Morning Blue", "Gray Light", "Gray Dark" },
-        value = 5
+        value = 3
     },
     {
         id = "particles",
@@ -231,6 +232,15 @@ settings.options = {
         description = "Allows track switching (and pausing) using shoulder buttons even when button lock is active. On [Skip+Pause], L2 & R2 buttons will be for pause/play when active, great for clamshells."
     },
     {
+        id = "auto_lock_lid",
+        name = "Auto-Lock on Lid Close",
+        type = "choice",
+        group = "music_settings",
+        choices = { "On", "Off" },
+        value = 2,
+        description = "Automatically activate button lock when lid is closed and deactivate when opened during music playback."
+    },
+    {
         id = "track_info_background",
         name = "Track Info Background",
         type = "choice",
@@ -334,7 +344,7 @@ settings.options = {
         name = "Version",
         type = "info",
         group = "about",
-        value = "v0.2.2 Spearmint Symphony"
+        value = "v0.2.3 Saffron Symphony"
     },
     {
         id = "build_type",
@@ -535,6 +545,13 @@ function settings.apply()
         settings.soft_button_lock = opt_soft_button_lock.choices[opt_soft_button_lock.value] or "Off"
     else
         settings.soft_button_lock = "Off"
+    end
+
+    local opt_auto_lock_lid = settings.get_option("auto_lock_lid")
+    if opt_auto_lock_lid then
+        settings.auto_lock_lid_enabled = (opt_auto_lock_lid.value == 1)
+    else
+        settings.auto_lock_lid_enabled = false
     end
 
     -- Update particles visibility

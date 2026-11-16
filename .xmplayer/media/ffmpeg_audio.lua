@@ -9,10 +9,15 @@ local ffmpeg_audio = {}
 local ffi = nil
 local hasFFI = pcall(function() ffi = require("ffi") end)
 local int16_t_ptr_type = nil
+local int16_t_mut_ptr_type = nil
 if hasFFI and ffi then
     local ok, t = pcall(function() return ffi.typeof("const int16_t*") end)
     if ok and t then
         int16_t_ptr_type = t
+    end
+    local ok_m, tm = pcall(function() return ffi.typeof("int16_t*") end)
+    if ok_m and tm then
+        int16_t_mut_ptr_type = tm
     end
 end
 
@@ -70,6 +75,116 @@ local ringBufferSize = SAMPLE_RATE * CHANNELS * 2 -- 2 seconds of stereo samples
 local currentSeekTime = 0
 local totalSamplesQueuedAtSeek = 0
 
+-- 3-Band Biquad Equalizer (Bass: Low Shelf 120Hz, Mids: Peaking 1000Hz, Highs: High Shelf 6000Hz)
+-- Gain levels (dB): Neutral = 0, Slight Boost = +2.5, Moderate Boost = +4.5,
+-- High Boost = +6.5, Heavy Boost = +8.5, Slight Cut = -2.5, Cut = -5.0
+local EQ_PRESETS = {
+    ["Flat"]       = { low =  0.0, mid =  0.0, high =  0.0 },
+    ["Rock"]       = { low =  6.5, mid = -2.5, high =  6.5 },
+    ["Pop"]        = { low =  4.5, mid =  0.0, high =  4.5 },
+    ["Jazz"]       = { low =  2.5, mid =  4.5, high = -2.5 },
+    ["Classical"]  = { low =  2.5, mid =  0.0, high =  4.5 },
+    ["Electronic"] = { low =  8.5, mid = -2.5, high =  6.5 },
+    ["Vocal"]      = { low = -5.0, mid =  8.5, high = -5.0 },
+}
+
+local currentEqPreset = "Flat"
+local eqActive = false
+local eqPreGain = 1.0
+local eqBand1 = { b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0 }
+local eqBand2 = { b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0 }
+local eqBand3 = { b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0 }
+
+-- Biquad delay lines (Direct Form II Transposed) per stereo channel and band
+local z1L1, z2L1, z1R1, z2R1 = 0, 0, 0, 0
+local z1L2, z2L2, z1R2, z2R2 = 0, 0, 0, 0
+local z1L3, z2L3, z1R3, z2R3 = 0, 0, 0, 0
+
+local function resetEqState()
+    z1L1, z2L1, z1R1, z2R1 = 0, 0, 0, 0
+    z1L2, z2L2, z1R2, z2R2 = 0, 0, 0, 0
+    z1L3, z2L3, z1R3, z2R3 = 0, 0, 0, 0
+end
+
+local function calcLowShelf(gainDB, freq, sampleRate)
+    if math.abs(gainDB) < 0.01 then
+        return { b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0 }
+    end
+    local A = 10 ^ (gainDB / 40)
+    local w0 = 2 * math.pi * freq / sampleRate
+    local cosw0 = math.cos(w0)
+    local sinw0 = math.sin(w0)
+    local twoSqrtAAlpha = math.sqrt(2 * A) * sinw0
+
+    local b0 = A * ((A + 1) - (A - 1) * cosw0 + twoSqrtAAlpha)
+    local b1 = 2 * A * ((A - 1) - (A + 1) * cosw0)
+    local b2 = A * ((A + 1) - (A - 1) * cosw0 - twoSqrtAAlpha)
+    local a0 = (A + 1) + (A - 1) * cosw0 + twoSqrtAAlpha
+    local a1 = -2 * ((A - 1) + (A + 1) * cosw0)
+    local a2 = (A + 1) + (A - 1) * cosw0 - twoSqrtAAlpha
+
+    return { b0 = b0 / a0, b1 = b1 / a0, b2 = b2 / a0, a1 = a1 / a0, a2 = a2 / a0 }
+end
+
+local function calcPeakingEQ(gainDB, freq, Q, sampleRate)
+    if math.abs(gainDB) < 0.01 then
+        return { b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0 }
+    end
+    local A = 10 ^ (gainDB / 40)
+    local w0 = 2 * math.pi * freq / sampleRate
+    local cosw0 = math.cos(w0)
+    local sinw0 = math.sin(w0)
+    local alpha = sinw0 / (2 * Q)
+
+    local b0 = 1 + alpha * A
+    local b1 = -2 * cosw0
+    local b2 = 1 - alpha * A
+    local a0 = 1 + alpha / A
+    local a1 = -2 * cosw0
+    local a2 = 1 - alpha / A
+
+    return { b0 = b0 / a0, b1 = b1 / a0, b2 = b2 / a0, a1 = a1 / a0, a2 = a2 / a0 }
+end
+
+local function calcHighShelf(gainDB, freq, sampleRate)
+    if math.abs(gainDB) < 0.01 then
+        return { b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0 }
+    end
+    local safeFreq = math.min(freq, sampleRate * 0.42)
+    local A = 10 ^ (gainDB / 40)
+    local w0 = 2 * math.pi * safeFreq / sampleRate
+    local cosw0 = math.cos(w0)
+    local sinw0 = math.sin(w0)
+    local twoSqrtAAlpha = math.sqrt(2 * A) * sinw0
+
+    local b0 = A * ((A + 1) + (A - 1) * cosw0 + twoSqrtAAlpha)
+    local b1 = -2 * A * ((A - 1) + (A + 1) * cosw0)
+    local b2 = A * ((A + 1) + (A - 1) * cosw0 - twoSqrtAAlpha)
+    local a0 = (A + 1) - (A - 1) * cosw0 + twoSqrtAAlpha
+    local a1 = 2 * ((A - 1) - (A + 1) * cosw0)
+    local a2 = (A + 1) - (A - 1) * cosw0 - twoSqrtAAlpha
+
+    return { b0 = b0 / a0, b1 = b1 / a0, b2 = b2 / a0, a1 = a1 / a0, a2 = a2 / a0 }
+end
+
+local function updateEqCoefficients()
+    local p = EQ_PRESETS[currentEqPreset] or EQ_PRESETS["Flat"]
+    if math.abs(p.low) < 0.01 and math.abs(p.mid) < 0.01 and math.abs(p.high) < 0.01 then
+        eqActive = false
+        eqPreGain = 1.0
+        return
+    end
+    eqActive = true
+    local sr = currentSampleRate > 0 and currentSampleRate or SAMPLE_RATE
+    eqBand1 = calcLowShelf(p.low, 120, sr)
+    eqBand2 = calcPeakingEQ(p.mid, 1000, 0.8, sr)
+    eqBand3 = calcHighShelf(p.high, 6000, sr)
+
+    -- Headroom pre-gain to prevent digital clipping on heavy boosts
+    local maxBoost = math.max(0, p.low, p.mid, p.high)
+    eqPreGain = 10 ^ ((-maxBoost * 0.35) / 20)
+end
+
 local function new_audio_worker()
     return utils.new_worker_thread("audio_worker.lua")
 end
@@ -82,46 +197,132 @@ local function initRingBuffer()
     end
 end
 
--- Extract sample data from 16-bit PCM bytes and update ring buffer
-local function processPCMChunk(rawBytes)
-    if not rawBytes or #rawBytes < 2 then return 0 end
+-- Extract sample data from 16-bit PCM bytes, optionally apply 3-band EQ, and populate SoundData
+local function processAndQueueChunk(rawBytes, rawSize)
+    if not rawBytes or #rawBytes < 2 then return nil end
 
     local sampleCount = math.floor(#rawBytes / BYTES_PER_SAMPLE)
+    local sd = love.sound.newSoundData(sampleCount, currentSampleRate, BIT_DEPTH, CHANNELS)
 
-    -- Fast path using LuaJIT FFI if available
-    if int16_t_ptr_type then
-        local int16_ptr = ffi.cast(int16_t_ptr_type, rawBytes)
-        local num_samples = math.floor(#rawBytes / 2)
-        for i = 0, num_samples - 1 do
-            local ringIdx = (totalSamplesQueued % ringBufferSize) + 1
-            sampleRingBuffer[ringIdx] = int16_ptr[i] / 32768.0
-            totalSamplesQueued = totalSamplesQueued + 1
+    if not eqActive then
+        -- Fast path when EQ is Flat
+        if int16_t_ptr_type then
+            local int16_ptr = ffi.cast(int16_t_ptr_type, rawBytes)
+            local num_samples = sampleCount * CHANNELS
+            for i = 0, num_samples - 1 do
+                local ringIdx = (totalSamplesQueued % ringBufferSize) + 1
+                sampleRingBuffer[ringIdx] = int16_ptr[i] / 32768.0
+                totalSamplesQueued = totalSamplesQueued + 1
+            end
+            local dst_ptr = sd.getFFIPointer and sd:getFFIPointer() or sd:getPointer()
+            if dst_ptr then
+                ffi.copy(dst_ptr, rawBytes, rawSize or #rawBytes)
+                return sd
+            end
         end
-        return sampleCount
+
+        for i = 1, sampleCount do
+            for ch = 1, CHANNELS do
+                local byteIdx = (i - 1) * BYTES_PER_SAMPLE + (ch - 1) * 2 + 1
+                local byte1 = string.byte(rawBytes, byteIdx)
+                local byte2 = string.byte(rawBytes, byteIdx + 1)
+                local sample = byte1 + (byte2 * 256)
+                if sample > 32767 then
+                    sample = sample - 65536
+                end
+                local norm = sample / 32768.0
+                local ringIdx = (totalSamplesQueued % ringBufferSize) + 1
+                sampleRingBuffer[ringIdx] = norm
+                totalSamplesQueued = totalSamplesQueued + 1
+                sd:setSample((i - 1) * CHANNELS + (ch - 1), norm)
+            end
+        end
+        return sd
     end
 
-    -- Parse 16-bit signed little-endian PCM samples
-    for i = 1, #rawBytes, 2 do
-        -- Read two bytes as little-endian 16-bit signed integer
-        local byte1 = string.byte(rawBytes, i)
-        local byte2 = string.byte(rawBytes, i + 1)
-        local sample = byte1 + (byte2 * 256)
+    -- Equalizer active path: 3-band cascaded biquad filtering
+    local b1_0, b1_1, b1_2, a1_1, a1_2 = eqBand1.b0, eqBand1.b1, eqBand1.b2, eqBand1.a1, eqBand1.a2
+    local b2_0, b2_1, b2_2, a2_1, a2_2 = eqBand2.b0, eqBand2.b1, eqBand2.b2, eqBand2.a1, eqBand2.a2
+    local b3_0, b3_1, b3_2, a3_1, a3_2 = eqBand3.b0, eqBand3.b1, eqBand3.b2, eqBand3.a1, eqBand3.a2
+    local pre = eqPreGain
 
-        -- Convert to signed
-        if sample > 32767 then
-            sample = sample - 65536
+    local s1L1, s2L1, s1R1, s2R1 = z1L1, z2L1, z1R1, z2R1
+    local s1L2, s2L2, s1R2, s2R2 = z1L2, z2L2, z1R2, z2R2
+    local s1L3, s2L3, s1R3, s2R3 = z1L3, z2L3, z1R3, z2R3
+
+    local src_ptr = int16_t_ptr_type and ffi.cast(int16_t_ptr_type, rawBytes) or nil
+    local dst_raw = (int16_t_mut_ptr_type and (sd.getFFIPointer and sd:getFFIPointer() or sd:getPointer())) or nil
+    local dst_ptr = dst_raw and ffi.cast(int16_t_mut_ptr_type, dst_raw) or nil
+
+    for i = 0, sampleCount - 1 do
+        local xL, xR
+        local baseIdx = i * 2
+        if src_ptr then
+            xL = (src_ptr[baseIdx] / 32768.0) * pre
+            xR = (src_ptr[baseIdx + 1] / 32768.0) * pre
+        else
+            local bIdx = i * 4 + 1
+            local sL = string.byte(rawBytes, bIdx) + string.byte(rawBytes, bIdx + 1) * 256
+            if sL > 32767 then sL = sL - 65536 end
+            local sR = string.byte(rawBytes, bIdx + 2) + string.byte(rawBytes, bIdx + 3) * 256
+            if sR > 32767 then sR = sR - 65536 end
+            xL = (sL / 32768.0) * pre
+            xR = (sR / 32768.0) * pre
         end
 
-        -- Normalize to -1.0 to 1.0 range
-        sample = sample / 32768.0
+        -- Band 1 (Low Shelf)
+        local yL1 = b1_0 * xL + s1L1
+        s1L1 = b1_1 * xL - a1_1 * yL1 + s2L1
+        s2L1 = b1_2 * xL - a1_2 * yL1
 
-        -- Store in ring buffer for visualizer
-        local ringIdx = (totalSamplesQueued % ringBufferSize) + 1
-        sampleRingBuffer[ringIdx] = sample
+        local yR1 = b1_0 * xR + s1R1
+        s1R1 = b1_1 * xR - a1_1 * yR1 + s2R1
+        s2R1 = b1_2 * xR - a1_2 * yR1
+
+        -- Band 2 (Mid Peaking)
+        local yL2 = b2_0 * yL1 + s1L2
+        s1L2 = b2_1 * yL1 - a2_1 * yL2 + s2L2
+        s2L2 = b2_2 * yL1 - a2_2 * yL2
+
+        local yR2 = b2_0 * yR1 + s1R2
+        s1R2 = b2_1 * yR1 - a2_1 * yR2 + s2R2
+        s2R2 = b2_2 * yR1 - a2_2 * yR2
+
+        -- Band 3 (High Shelf)
+        local yL = b3_0 * yL2 + s1L3
+        s1L3 = b3_1 * yL2 - a3_1 * yL + s2L3
+        s2L3 = b3_2 * yL2 - a3_2 * yL
+
+        local yR = b3_0 * yR2 + s1R3
+        s1R3 = b3_1 * yR2 - a3_1 * yR + s2R3
+        s2R3 = b3_2 * yR2 - a3_2 * yR
+
+        -- Clamp to [-1.0, 1.0]
+        if yL > 1.0 then yL = 1.0 elseif yL < -1.0 then yL = -1.0 end
+        if yR > 1.0 then yR = 1.0 elseif yR < -1.0 then yR = -1.0 end
+
+        local rIdxL = (totalSamplesQueued % ringBufferSize) + 1
+        sampleRingBuffer[rIdxL] = yL
         totalSamplesQueued = totalSamplesQueued + 1
+
+        local rIdxR = (totalSamplesQueued % ringBufferSize) + 1
+        sampleRingBuffer[rIdxR] = yR
+        totalSamplesQueued = totalSamplesQueued + 1
+
+        if dst_ptr then
+            dst_ptr[baseIdx] = math.floor(yL * 32767)
+            dst_ptr[baseIdx + 1] = math.floor(yR * 32767)
+        else
+            sd:setSample(baseIdx, yL)
+            sd:setSample(baseIdx + 1, yR)
+        end
     end
 
-    return sampleCount
+    z1L1, z2L1, z1R1, z2R1 = s1L1, s2L1, s1R1, s2R1
+    z1L2, z2L2, z1R2, z2R2 = s1L2, s2L2, s1R2, s2R2
+    z1L3, z2L3, z1R3, z2R3 = s1L3, s2L3, s1R3, s2R3
+
+    return sd
 end
 
 -- Get duration via ffmpeg
@@ -203,6 +404,8 @@ function ffmpeg_audio.load(filepath)
     queueableSource = love.audio.newQueueableSource(currentSampleRate, BIT_DEPTH, CHANNELS, QUEUE_BUFFERS)
 
     initRingBuffer()
+    resetEqState()
+    updateEqCoefficients()
 
     currentFilePath = filepath
     currentGeneration = currentGeneration + 1
@@ -315,37 +518,8 @@ function ffmpeg_audio.update()
 
             if not message.generation or message.generation == currentGeneration then
                 if message.type == "audio_data" then
-                    -- Messages arrive pre-sliced (16384 bytes / 92ms) from the worker thread.
-                    -- One message = one SoundData allocation. No string.sub on the main thread.
-                    local sampleCount = processPCMChunk(message.data)
-
-                    local ok, soundData = pcall(function()
-                        local sd = love.sound.newSoundData(sampleCount, currentSampleRate, BIT_DEPTH, CHANNELS)
-
-                        if hasFFI and ffi then
-                            local ptr = sd.getFFIPointer and sd:getFFIPointer() or sd:getPointer()
-                            if ptr then
-                                ffi.copy(ptr, message.data, message.size)
-                            end
-                        else
-                            -- Fallback: manually set samples (slower but works without FFI)
-                            for i = 1, sampleCount do
-                                for ch = 1, CHANNELS do
-                                    local byteIdx = (i - 1) * BYTES_PER_SAMPLE + (ch - 1) * 2 + 1
-                                    local byte1 = string.byte(message.data, byteIdx)
-                                    local byte2 = string.byte(message.data, byteIdx + 1)
-                                    local sample = byte1 + (byte2 * 256)
-                                    if sample > 32767 then
-                                        sample = sample - 65536
-                                    end
-                                    sample = sample / 32768.0
-                                    sd:setSample((i - 1) * CHANNELS + ch, sample)
-                                end
-                            end
-                        end
-
-                        return sd
-                    end)
+                    -- Messages arrive pre-sliced (4096 bytes / 1024 stereo frames) from the worker thread.
+                    local ok, soundData = pcall(processAndQueueChunk, message.data, message.size)
 
                     if ok and soundData then
                         queueableSource:queue(soundData)
@@ -479,6 +653,7 @@ function ffmpeg_audio.seek(time)
     startTime = love.timer.getTime() - targetTime
     currentSeekTime = targetTime
     totalSamplesQueuedAtSeek = totalSamplesQueued
+    resetEqState()
     if isPaused then
         pausedTime = targetTime
     end
@@ -504,6 +679,19 @@ function ffmpeg_audio.seek(time)
     playbackHasStarted = false
     hasStartedPlayback = true
     hasReachedEOF = false
+end
+
+function ffmpeg_audio.setEqualizerPreset(preset)
+    if EQ_PRESETS[preset] then
+        currentEqPreset = preset
+    else
+        currentEqPreset = "Flat"
+    end
+    updateEqCoefficients()
+end
+
+function ffmpeg_audio.getEqualizerPreset()
+    return currentEqPreset
 end
 
 -- Compatibility wrapper for old SoundData interface

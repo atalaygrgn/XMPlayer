@@ -28,6 +28,8 @@ music.original_playlist    = {}
 music.auto_sleep_minutes   = 0
 music.auto_sleep_remaining = nil
 music.visualizer_mode      = "wave" -- off, wave, bars
+music.equalizer_preset     = "Flat"
+music.equalizer_presets    = { "Flat", "Rock", "Pop", "Jazz", "Classical", "Electronic", "Vocal" }
 
 -- Metadata tags
 music.tags                 = {}
@@ -402,6 +404,16 @@ end
 function music.set_visualizer_mode(mode)
     if mode == "off" or mode == "wave" or mode == "bars" or mode == "walk" then
         music.visualizer_mode = mode
+    end
+end
+
+function music.set_equalizer_preset(preset)
+    for _, p in ipairs(music.equalizer_presets) do
+        if p == preset then
+            music.equalizer_preset = preset
+            ffmpeg_audio.setEqualizerPreset(preset)
+            return
+        end
     end
 end
 
