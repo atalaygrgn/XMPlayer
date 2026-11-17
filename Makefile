@@ -40,7 +40,7 @@ package: build
 	@$(POWERSHELL) "New-Item -ItemType Directory -Force -Path '$(BUILD_DIR)/package_stage' | Out-Null"
 	@$(POWERSHELL) "New-Item -ItemType Directory -Force -Path '$(BUILD_DIR)/package_stage/$(APP_NAME)' | Out-Null"
 	@$(POWERSHELL) "Copy-Item -Path '$(DIST_DIR)/*' -Destination '$(BUILD_DIR)/package_stage/$(APP_NAME)' -Recurse -Force"
-	@$(POWERSHELL) "tar -c --format zip -f '$(PACKAGE_FILE)' -C '$(BUILD_DIR)/package_stage' *"
+	@$(POWERSHELL) "tar --options zip:compression-level=9 -c --format zip -f '$(PACKAGE_FILE)' -C '$(BUILD_DIR)/package_stage' *"
 	@$(POWERSHELL) "Remove-Item -Path '$(BUILD_DIR)/package_stage' -Recurse -Force"
 	@echo "Package ready: $(PACKAGE_FILE)"
 
@@ -51,6 +51,9 @@ portmaster:
 	
 	@echo "Copying Love2D application files..."
 	@$(POWERSHELL) "Copy-Item -Path '.\.xmplayer\*' -Destination '$(BUILD_DIR)\portmaster\xmplayer\gamedata' -Recurse -Force"
+	@echo "Excluding unused muOS Love2D runtime from PortMaster build..."
+	@$(POWERSHELL) "if (Test-Path '$(BUILD_DIR)\portmaster\xmplayer\gamedata\bin\love') { Remove-Item -Path '$(BUILD_DIR)\portmaster\xmplayer\gamedata\bin\love' -Force }"
+	@$(POWERSHELL) "if (Test-Path '$(BUILD_DIR)\portmaster\xmplayer\gamedata\libs') { Remove-Item -Path '$(BUILD_DIR)\portmaster\xmplayer\gamedata\libs' -Recurse -Force }"
 	
 	@echo "Copying Portmaster-specific packaging files..."
 	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\XMPlayer.sh' -Destination '$(BUILD_DIR)\portmaster\' -Force"
@@ -63,7 +66,7 @@ portmaster:
 	@$(POWERSHELL) "Copy-Item -Path '.\portmaster\license' -Destination '$(BUILD_DIR)\portmaster\xmplayer\license' -Recurse -Force"
 	
 	@echo "Creating Portmaster package..."
-	@$(POWERSHELL) "tar -a -c -f '$(BUILD_DIR)/XMPlayer-PortMaster.zip' -C '$(BUILD_DIR)/portmaster' *"
+	@$(POWERSHELL) "tar --options zip:compression-level=9 -a -c -f '$(BUILD_DIR)/XMPlayer-PortMaster.zip' -C '$(BUILD_DIR)/portmaster' *"
 	@$(POWERSHELL) "Remove-Item -Path '$(BUILD_DIR)/portmaster' -Recurse -Force"
 	@echo "PortMaster package ready: $(BUILD_DIR)/XMPlayer-PortMaster.zip"
 
