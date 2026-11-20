@@ -1,0 +1,28 @@
+#!/bin/sh
+# CHAI retrofit volume listener (Spruce)
+#
+# Usage: vol_listener <chai command>
+# Watches the volume keys and runs "<chai command> notify-volume VOLUME 100"
+# after each press.
+
+CHAI="$1"
+
+. /mnt/SDCARD/spruce/scripts/helperFunctions.sh
+
+EVENTS="$EVENT_PATH_READ_INPUTS_SPRUCE"
+# Prefer the dedicated volume device if there is one
+[ -n "$EVENT_PATH_VOLUME" ] && [ -c "$EVENT_PATH_VOLUME" ] && EVENTS="$EVENT_PATH_VOLUME"
+
+getevent $EVENTS | while read -r line; do
+	case "$line" in
+		*"key "*"$B_VOLDOWN"* | *"key "*"$B_VOLUP"*)
+			(
+				# Give Spruce a moment to apply the press
+				sleep 0.1
+				# Spruce volume is a 0-20 step
+				VAL=$(get_volume_level)
+				"$CHAI" notify-volume $((VAL * 5)) 100
+			) &
+			;;
+	esac
+done

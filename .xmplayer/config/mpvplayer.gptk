@@ -1,19 +1,19 @@
-guide = shift  # menu button
+guide = shift
 
-a = p    # pause/play
-b = .    # frame step
-x = m    # mute sound
-y = o    # on screen display
+a = p
+b = .
+x = m
+y = o
 
-up = up        # seek +1min
-down = down    # seek -1min
-left = left    # seek -5sec
-right = right  # seek +5sec
+up = up
+down = down
+left = left
+right = right
 
-l1 = [     # previous video (override)
-l2 = v     # audio track next (override)
-r1 = ]     # next video (override)
-r2 = j     # subtitle next
+l1 = [
+l2 = v
+r1 = ]
+r2 = j
 
-start = a  # change aspect ratio (override)
-back = q # quit
+start = a
+back = q

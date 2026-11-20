@@ -427,6 +427,88 @@ function ui.draw_glow_icon(icon, x, y, size, color, alpha, glow_color, thumbnail
     love.graphics.setShader()
 end
 
+-- Top-Center Music Player Widget
+function ui.draw_music_widget(music)
+    if not music or not music.has_session or not music.has_session() then
+        return
+    end
+
+    local sw = viewport.get()
+    local box_w = math.min(280, math.max(200, sw - 200))
+    local box_h = 52
+    local box_x = math.floor((sw - box_w) / 2)
+    local box_y = 8
+
+    -- Background (Toast glassmorphism look)
+    love.graphics.setColor(0.1, 0.1, 0.15, 0.88)
+    love.graphics.rectangle("fill", box_x, box_y, box_w, box_h, 12, 12)
+
+    -- Border with accent color
+    local ac = theme.accent
+    love.graphics.setColor(ac[1], ac[2], ac[3], 0.5)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", box_x, box_y, box_w, box_h, 12, 12)
+    love.graphics.setLineWidth(1)
+
+    -- Left: Album Art (or music icon if no album art)
+    local art_size = 38
+    local art_x = box_x + 8
+    local art_y = box_y + 7
+
+    love.graphics.setColor(1, 1, 1, 0.08)
+    love.graphics.rectangle("fill", art_x, art_y, art_size, art_size, 5, 5)
+
+    if music.cover_art then
+        local img_w, img_h = music.cover_art:getDimensions()
+        local scale = art_size / math.max(img_w, img_h)
+        local draw_w, draw_h = img_w * scale, img_h * scale
+        local ox, oy = (art_size - draw_w) / 2, (art_size - draw_h) / 2
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(music.cover_art, art_x + ox, art_y + oy, 0, scale, scale)
+    else
+        ui.draw_icon(assets.images.music, art_x + art_size / 2, art_y + art_size / 2,
+            art_size * 0.65, theme.light_text, 0.85)
+    end
+
+    -- Right: Track Title and Progress Bar
+    local text_x = art_x + art_size + 10
+    local text_w = box_w - (text_x - box_x) - 12
+    local title = (music.tags and music.tags.title)
+        or (music.current_track and utils.get_track_name(music.current_track.name))
+        or "Unknown"
+
+    if music.marquees and music.marquees.widget_title then
+        music.marquees.widget_title.max_width = text_w
+        ui.draw_marquee(music.marquees.widget_title, title, text_x, box_y + 6, assets.fonts.xs,
+            { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.95 },
+            text_x, box_y + 6, nil, true)
+    else
+        local display_title = utils.truncate_text(title, assets.fonts.xs, text_w)
+        ui.print_text(display_title, text_x, box_y + 6, assets.fonts.xs,
+            { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.95 })
+    end
+
+    local progress = (music.duration and music.duration > 0)
+        and math.max(0, math.min(1, (music.elapsed or 0) / music.duration))
+        or 0
+
+    local has_hours = (music.duration or 0) >= 3600 or (music.elapsed or 0) >= 3600
+    local elapsed_str = utils.format_time(music.elapsed or 0, has_hours)
+    local ref_str = has_hours and "00:00:00" or "00:00"
+    local time_w = math.max(
+        ui.measure_text_width(assets.fonts.xs, ref_str),
+        ui.measure_text_width(assets.fonts.xs, elapsed_str)
+    )
+    local bar_w = math.max(20, text_w - time_w)
+
+    ui.draw_progress_bar(text_x, box_y + 36, bar_w, 6, progress,
+        { 0, 0.35, 0.65, 0.9 },
+        { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.25 })
+
+    ui.printf_text(elapsed_str, text_x, box_y + 26, text_w, "right", assets.fonts.xs,
+        { theme.light_text[1], theme.light_text[2], theme.light_text[3], 0.8 })
+end
+
 -- Toast Notification System
 function ui.show_toast(text, icon_name, position)
     local toast = {
@@ -509,11 +591,22 @@ function ui.update_toasts(dt)
     end
 end
 
+local cached_music_for_toasts = nil
+
 function ui.draw_toasts()
     local sw, sh = viewport.get()
     local font = assets.fonts.small
     local padding = 15
     local icon_size = 28
+
+    if not cached_music_for_toasts then
+        local ok, mp = pcall(require, "music_player")
+        if ok then cached_music_for_toasts = mp end
+    end
+    local widget_active = (runtime_state.current_view == "xmb")
+        and cached_music_for_toasts
+        and cached_music_for_toasts.has_session
+        and cached_music_for_toasts.has_session()
 
     for _, t in ipairs(ui.active_toasts) do
         local box_w, box_h
@@ -525,13 +618,19 @@ function ui.draw_toasts()
             local max_bar_w = 180
             local bar_w = math.min(max_bar_w, math.max(40, sw * 0.45))
 
-            local overlay_y = (runtime_state.current_view == "music") and 12 or 26
             local overlay_h = 18
             local bar_h = 8
 
             -- Group width (icon + gap + bar)
             local group_w = icon_size + spacing + bar_w
-            local group_x = (sw - group_w) / 2
+            local group_x, overlay_y
+            if widget_active then
+                group_x = sw - group_w - 30
+                overlay_y = sh - overlay_h - 30
+            else
+                group_x = (sw - group_w) / 2
+                overlay_y = (runtime_state.current_view == "music") and 12 or 26
+            end
 
             local icon_cx = group_x + icon_size / 2
             local bar_x = group_x + icon_size + spacing
@@ -569,7 +668,8 @@ function ui.draw_toasts()
             if t.icon then box_w = box_w + icon_size + 10 end
             box_h = math.max(th, icon_size) + padding
 
-            if t.position == "top_center" then
+            local effective_pos = (widget_active and t.position == "top_center") and "bottom_right" or t.position
+            if effective_pos == "top_center" then
                 x = (sw - box_w) / 2
                 y = 4 + (1 - t.alpha) * -20 -- Subtle float animation
             else                            -- bottom_right

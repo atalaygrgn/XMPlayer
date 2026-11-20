@@ -14,6 +14,7 @@ local indexing      = require("indexing")
 local utils         = require("utils")
 local keyboard      = require("onscreen_keyboard")
 local viewport      = require("viewport")
+local music         = require("music_player")
 
 local xmb_draw      = {}
 
@@ -203,6 +204,11 @@ function xmb_draw.draw(state)
     love.graphics.pop()
     love.graphics.setScissor()
 
+    -- ─── Top-Center Music Player Widget ───
+    if music and music.has_session and music.has_session() then
+        ui.draw_music_widget(music)
+    end
+
     -- ─── Settings Popup ───
     if settings_view.active or settings_view.alpha > 0 then
         local selected = browser.files[xmb.current_item_idx]
@@ -213,6 +219,10 @@ function xmb_draw.draw(state)
     -- Draw compact folder picker if active
     if settings_view.picker_active or settings_view.picker_alpha > 0 then
         settings_view.draw_folder_picker()
+    end
+    -- Draw custom equalizer popup if active
+    if settings_view.eq_active or settings_view.eq_alpha > 0 then
+        settings_view.draw_equalizer_popup()
     end
 
     -- ─── Context Menu Popup ───

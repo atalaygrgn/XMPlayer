@@ -84,6 +84,9 @@ local function visualizer_label()
 end
 
 local function equalizer_label()
+    if not music.equalizer_enabled then
+        return "Off"
+    end
     return music.equalizer_preset or "Flat"
 end
 
@@ -127,7 +130,10 @@ local function cycle_current_option(direction)
         if idx < 1 then idx = #modes end
         music.set_visualizer_mode(modes[idx])
     elseif selected == "equalizer" then
-        local presets = music.equalizer_presets or { "Flat", "Rock", "Pop", "Jazz", "Classical", "Electronic", "Vocal" }
+        if not music.equalizer_enabled then
+            return
+        end
+        local presets = music.equalizer_presets or { "Flat", "Rock", "Pop", "Jazz", "Classical", "Electronic", "Vocal", "Custom" }
         local idx = 1
         for i, preset in ipairs(presets) do
             if preset == music.equalizer_preset then
@@ -148,10 +154,11 @@ function music_view.init()
     local art_x               = w * 0.05
     local info_x              = math.max(w * 0.3, art_x + art_size + 12)
     local info_w              = (w * 0.95) - info_x
-    music.marquees.title      = ui.new_marquee(info_w)
-    music.marquees.artist     = ui.new_marquee(info_w)
-    music.marquees.album      = ui.new_marquee(info_w)
-    music_view.buttons_locked = false
+    music.marquees.title        = ui.new_marquee(info_w)
+    music.marquees.artist       = ui.new_marquee(info_w)
+    music.marquees.album        = ui.new_marquee(info_w)
+    music.marquees.widget_title = ui.new_marquee(214, 35, 2.0, 1.0)
+    music_view.buttons_locked   = false
     music_view.y_hold_timer   = 0
     music_view.popup_active   = false
     music_view.popup_alpha    = 0
@@ -171,7 +178,8 @@ function music_view.on_music_closed()
     music_view.idle_seconds = 0
     music_view.display_sleep_alpha = 0
     music_view.display_sleeping = false
-    music_view.lid_closed = false
+    music_view.buttons_locked = false
+    music_view.context_menu.active = false
     music_view.y_hold_timer = 0
     music_view.popup_active = false
     music_view.popup_alpha = 0
@@ -608,6 +616,22 @@ function music_view.draw()
         if left_icon then
             ui.draw_icon(left_icon, cx - 65, dpad_y, 36, left_color, popup_alpha * alpha)
         end
+
+        -- Down Icon (Equalizer On/Off)
+        local down_held = love.keyboard.isDown("down")
+        local down_color = down_held and
+            { theme.accent[1], theme.accent[2], theme.accent[3], 1.0 * popup_alpha * alpha } or
+            (music.equalizer_enabled and color_assigned or color_unassigned)
+        local dx, dy = cx, dpad_y + 65
+        if assets.images.equalizer then
+            ui.draw_icon(assets.images.equalizer, dx, dy, 36, down_color, popup_alpha * alpha)
+            if not music.equalizer_enabled then
+                love.graphics.setColor(down_color[1], down_color[2], down_color[3], (down_color[4] or 1) * 0.8)
+                love.graphics.setLineWidth(2.5)
+                love.graphics.line(dx - 12, dy + 12, dx + 12, dy - 12)
+                love.graphics.setLineWidth(1)
+            end
+        end
     end
 
     if music_view.display_sleep_alpha > 0 then
@@ -739,6 +763,16 @@ function music_view.keypressed(key)
         return true
     end
 
+    local eq_combo_pressed = not music_view.context_menu.active and (
+        (key == "y" and love.keyboard.isDown("down"))
+        or (key == "down" and love.keyboard.isDown("y"))
+    )
+
+    if eq_combo_pressed then
+        music.set_equalizer_enabled(not music.equalizer_enabled)
+        return true
+    end
+
     if key == "a" or key == "return" then
         music.toggle_pause()
         return true
@@ -766,6 +800,10 @@ function music_view.keypressed(key)
         end
         return true
     elseif key == "b" or key == "backspace" then
+        music.minimize()
+        return true
+    elseif key == "space" then
+        music_view.context_menu.active = false
         music.close()
         return true
     end

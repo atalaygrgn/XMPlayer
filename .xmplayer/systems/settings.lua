@@ -84,7 +84,7 @@ settings.options = {
         type = "choice",
         group = "theme_settings",
         choices = { "Dark Red", "Volcanic", "Golden", "Lime Green", "Apple Green", "Moss Green", "Undersea", "Electric Blue", "Midnight Blue", "Dark Purple", "Ice Cold", "Morning Blue", "Gray Light", "Gray Dark" },
-        value = 3
+        value = 10
     },
     {
         id = "foreground_color",
@@ -213,6 +213,13 @@ settings.options = {
         value = 0
     },
     {
+        id = "adjust_custom_eq",
+        name = "Adjust Custom Equalizer",
+        type = "action",
+        group = "music_settings",
+        icon = "equalizer"
+    },
+    {
         id = "display_sleep",
         name = "Auto Display Sleep (Music)",
         type = "choice",
@@ -256,6 +263,34 @@ settings.options = {
         choices = { "Hide", "Clear", "Opaque" },
         value = 1,
         description = "Set background for track information in music player for increased visibility. Recommended when using a wallpaper."
+    },
+    {
+        id = "custom_eq_bass",
+        name = "Custom EQ Bass",
+        type = "number",
+        group = "internal",
+        value = 0
+    },
+    {
+        id = "custom_eq_mid",
+        name = "Custom EQ Mid",
+        type = "number",
+        group = "internal",
+        value = 0
+    },
+    {
+        id = "custom_eq_treble",
+        name = "Custom EQ Treble",
+        type = "number",
+        group = "internal",
+        value = 0
+    },
+    {
+        id = "custom_eq_preamp",
+        name = "Custom EQ Preamp",
+        type = "number",
+        group = "internal",
+        value = 0
     },
     {
         id = "full_res_photo",
@@ -564,6 +599,25 @@ function settings.apply()
         settings.auto_lock_lid_enabled = false
     end
 
+    local opt_eq_bass = settings.get_option("custom_eq_bass")
+    local opt_eq_mid = settings.get_option("custom_eq_mid")
+    local opt_eq_treble = settings.get_option("custom_eq_treble")
+    local opt_eq_preamp = settings.get_option("custom_eq_preamp")
+    local eq_bass = math.max(-12, math.min(12, tonumber(opt_eq_bass and opt_eq_bass.value) or 0))
+    local eq_mid = math.max(-12, math.min(12, tonumber(opt_eq_mid and opt_eq_mid.value) or 0))
+    local eq_treble = math.max(-12, math.min(12, tonumber(opt_eq_treble and opt_eq_treble.value) or 0))
+    local eq_preamp = math.max(-12, math.min(12, tonumber(opt_eq_preamp and opt_eq_preamp.value) or 0))
+    settings.custom_eq = {
+        bass = eq_bass,
+        mid = eq_mid,
+        treble = eq_treble,
+        preamp = eq_preamp,
+    }
+    local ok_audio, ffmpeg_audio = pcall(require, "ffmpeg_audio")
+    if ok_audio and ffmpeg_audio and ffmpeg_audio.setCustomEqualizer then
+        ffmpeg_audio.setCustomEqualizer(eq_bass, eq_mid, eq_treble, eq_preamp)
+    end
+
     -- Update particles visibility
     local opt_particles = settings.get_option("particles")
     if opt_particles then
@@ -640,11 +694,13 @@ function settings.get_browser_items()
                     display_value = ": " .. tostring(opt.value)
                 end
 
-                local icon = "option"
-                if opt.group == "about" then
-                    icon = "info"
-                elseif opt.group == "media_dirs" then
-                    icon = "folder"
+                local icon = opt.icon or "option"
+                if not opt.icon then
+                    if opt.group == "about" then
+                        icon = "info"
+                    elseif opt.group == "media_dirs" then
+                        icon = "folder"
+                    end
                 end
                 table.insert(items, {
                     name = opt.name .. display_value,

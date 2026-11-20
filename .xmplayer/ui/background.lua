@@ -881,8 +881,8 @@ function background.draw(music)
         end
     end
 
-    -- Draw music visualizer based on selected mode
-    if music and music.playing then
+    -- Draw music visualizer based on selected mode (only on music player screen)
+    if music and music.active and music.playing then
         if music.visualizer_mode == "wave" then
             draw_waveform(music)
         elseif music.visualizer_mode == "bars" then

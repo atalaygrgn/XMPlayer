@@ -56,18 +56,32 @@ export LOVE_GPTK
 # Run Love2D game passing the gamedata directory containing main.lua
 cd "$GAMEDIR/gamedata"
 
+# Initialize CHAI (Common Handheld Application Interface)
+CHAI_DIR="$GAMEDIR/gamedata/chai_retrofit"
+chmod +x "$CHAI_DIR/chai_entry.sh" "$CHAI_DIR/bin/chai" "$CHAI_DIR/default/vol_wrapper" \
+  "$CHAI_DIR"/NextUI/backlight "$CHAI_DIR"/NextUI/vol_listener "$CHAI_DIR"/Spruce/vol_listener 2>/dev/null
+chmod +x "$CHAI_DIR"/*/*.sh 2>/dev/null
+source "$CHAI_DIR/chai_entry.sh"
+
+cleanup() {
+  chai set-idle-suppression 0 2>/dev/null
+  chai_retrofit_teardown 2>/dev/null
+}
+trap cleanup EXIT INT TERM
+
+chai set-idle-suppression 1 2>/dev/null
+
 # Ensure ffmpeg binary is executable
 chmod +x ./bin/ffmpeg
 chmod +x ./bin/ffplay
 
 # Start gptokeyb daemon mapping
-if [ "$CFW_NAME" = "muOS" ]; then
-  ./bin/gptokeyb2 "$LOVE_GPTK" -c "$GAMEDIR/xmplayer.gptk" &
-else
-  $GPTOKEYB "$LOVE_GPTK" -c "$GAMEDIR/xmplayer.gptk" &
-fi
+$GPTOKEYB "$LOVE_GPTK" -c "$GAMEDIR/xmplayer.gptk" &
 
 pm_platform_helper "$LOVE_BINARY"
 $LOVE_RUN .
+
+chai set-idle-suppression 0 2>/dev/null
+chai_retrofit_teardown 2>/dev/null
 
 pm_finish

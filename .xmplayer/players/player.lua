@@ -6,6 +6,31 @@ local player = {}
 -- Flag to signal main.lua to do a hard refresh
 player.needs_refresh = false
 
+local function resolve_gptokeyb(cfw)
+    local env_gptk = os.getenv("GPTOKEYB")
+    local exe
+    if env_gptk and env_gptk ~= "" then
+        exe = env_gptk
+    elseif cfw == "muOS" then
+        exe = "./bin/gptokeyb2"
+    else
+        exe = "gptokeyb"
+    end
+    local kill_cmd = (cfw == "muOS" and not (env_gptk and env_gptk ~= ""))
+        and "killall -9 gptokeyb2 2>/dev/null"
+        or "killall -9 gptokeyb gptokeyb2 2>/dev/null"
+    return exe, kill_cmd
+end
+
+local function restore_gptokeyb(exe, kill_cmd)
+    os.execute(kill_cmd)
+    local love_gptk = os.getenv("LOVE_GPTK")
+    if not love_gptk or love_gptk == "" then
+        love_gptk = "love"
+    end
+    os.execute(exe .. " " .. love_gptk .. " -c ./config/xmplayer.gptk &")
+end
+
 local function get_saved_playback_position(filepath, watch_later_dir)
     local p = io.popen("ls " .. watch_later_dir .. " 2>/dev/null")
     if not p then return nil end
@@ -95,21 +120,18 @@ function player.play_video(filepath, resume, options)
         end
     end
 
+    -- Stop background music playback before playing video
+    local ok_music, music_player = pcall(require, "music_player")
+    if ok_music and music_player and music_player.has_session and music_player.has_session() then
+        music_player.close()
+    end
+
     -- Record history for the first file at least
     history.add(paths[1])
 
     -- Resolve gptokeyb details dynamically based on CFW and environment variables
     local cfw = system.get_cfw_name()
-    local gptokeyb_exe = nil
-    local kill_cmd = nil
-
-    if cfw == "muOS" then
-        gptokeyb_exe = "./bin/gptokeyb2"
-        kill_cmd = "killall -9 gptokeyb2 2>/dev/null"
-    else
-        gptokeyb_exe = os.getenv("GPTOKEYB") or "gptokeyb"
-        kill_cmd = "killall -9 gptokeyb gptokeyb2 2>/dev/null"
-    end
+    local gptokeyb_exe, kill_cmd = resolve_gptokeyb(cfw)
 
     if settings.video_player_mode == "mpv" then
         local storage_path = love.filesystem.getSource()
@@ -191,13 +213,7 @@ function player.play_video(filepath, resume, options)
         print("MPV exited, returning to XMPlayer")
 
         -- Switch gptokeyb back to XMPlayer controls
-        os.execute(kill_cmd)
-        if cfw == "muOS" then
-            os.execute("./bin/gptokeyb2 love -c ./config/xmplayer.gptk &")
-        else
-            local love_gptk = os.getenv("LOVE_GPTK") or "love"
-            os.execute(gptokeyb_exe .. " " .. love_gptk .. " -c ./config/xmplayer.gptk &")
-        end
+        restore_gptokeyb(gptokeyb_exe, kill_cmd)
     elseif settings.video_player_mode:sub(1, 6) == "ffplay" then
         if #paths == 0 then return end
         print("Launching ffplay for " .. #paths .. " files")
@@ -257,13 +273,7 @@ function player.play_video(filepath, resume, options)
         print("FFplay exited, returning to XMPlayer")
 
         -- Switch gptokeyb back to XMPlayer controls
-        os.execute(kill_cmd)
-        if cfw == "muOS" then
-            os.execute("./bin/gptokeyb2 love -c ./config/xmplayer.gptk &")
-        else
-            local love_gptk = os.getenv("LOVE_GPTK") or "love"
-            os.execute(gptokeyb_exe .. " " .. love_gptk .. " -c ./config/xmplayer.gptk &")
-        end
+        restore_gptokeyb(gptokeyb_exe, kill_cmd)
     end
 
     -- Signal that we need a hard display refresh
@@ -299,6 +309,12 @@ function player.play_slideshow(filepaths)
         return false
     end
 
+    -- Stop background music playback before starting slideshow
+    local ok_music, music_player = pcall(require, "music_player")
+    if ok_music and music_player and music_player.has_session and music_player.has_session() then
+        music_player.close()
+    end
+
     print("Launching mpv slideshow for " .. #paths .. " files")
 
     local storage_path = love.filesystem.getSource()
@@ -315,16 +331,7 @@ function player.play_slideshow(filepaths)
     end
 
     local cfw = system.get_cfw_name()
-    local gptokeyb_exe = nil
-    local kill_cmd = nil
-
-    if cfw == "muOS" then
-        gptokeyb_exe = "./bin/gptokeyb2"
-        kill_cmd = "killall -9 gptokeyb2 2>/dev/null"
-    else
-        gptokeyb_exe = os.getenv("GPTOKEYB") or "gptokeyb"
-        kill_cmd = "killall -9 gptokeyb gptokeyb2 2>/dev/null"
-    end
+    local gptokeyb_exe, kill_cmd = resolve_gptokeyb(cfw)
 
     -- Switch gptokeyb to MPV controls (only on muOS)
     if cfw == "muOS" then
@@ -349,13 +356,7 @@ function player.play_slideshow(filepaths)
     print("MPV slideshow exited, returning to XMPlayer")
 
     -- Switch gptokeyb back to XMPlayer controls
-    os.execute(kill_cmd)
-    if cfw == "muOS" then
-        os.execute("./bin/gptokeyb2 love -c ./config/xmplayer.gptk &")
-    else
-        local love_gptk = os.getenv("LOVE_GPTK") or "love"
-        os.execute(gptokeyb_exe .. " " .. love_gptk .. " -c ./config/xmplayer.gptk &")
-    end
+    restore_gptokeyb(gptokeyb_exe, kill_cmd)
 
     player.needs_refresh = true
 end

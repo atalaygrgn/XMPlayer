@@ -18,6 +18,8 @@ local runtime_state = {
     was_display_off = false,
     ui_timer = 0,
     ui_check_interval = 0.1,
+    brightness_timer = 0,
+    brightness_check_interval = 0.25,
 
     current_view = "xmb",
 }

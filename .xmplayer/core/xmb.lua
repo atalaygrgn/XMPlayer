@@ -16,6 +16,16 @@ local xmb_actions = require("xmb_actions")
 local system = require("system")
 local runtime_state = require("runtime_state")
 local m3u = require("m3u")
+local music_player = require("music_player")
+local music_view = require("music_view")
+
+local function is_lid_locked()
+    return music_player
+        and music_player.has_session
+        and music_player.has_session()
+        and settings.auto_lock_lid_enabled
+        and music_view.lid_closed
+end
 
 local xmb = xmb_state.new()
 xmb.item_marquee = ui.new_marquee(0, 50, 1.5, 1.0)
@@ -499,6 +509,7 @@ local function apply_context_action(action_id)
                     return
                 end
 
+                music_player.on_playlist_modified(old_path, "rename")
                 refresh_playlist_items(new_path, xmb.current_item_idx)
                 if replaced_invalid then
                     ui.show_toast("Invalid filename characters", "info", "top_center")
@@ -514,6 +525,7 @@ local function apply_context_action(action_id)
             return
         end
 
+        music_player.on_playlist_modified(path, "delete")
         refresh_playlist_items(nil, xmb.current_item_idx)
         ui.show_toast("Playlist removed", "playlist_music", "bottom_right")
     elseif action_id == "add_to_playlist" and xmb.context_menu.target_path then
@@ -521,12 +533,15 @@ local function apply_context_action(action_id)
     elseif action_id == "remove_from_playlist" and xmb.context_menu.target_path then
         local playlist_path = xmb.view_data and xmb.view_data.path
         local track_idx = xmb.context_menu.target_index
+        local removed_track_path = xmb.context_menu.target_path
         if playlist_path and track_idx then
             local ok, err = remove_track_from_playlist_file(playlist_path, track_idx)
             if not ok then
                 ui.show_toast("Could not remove track", "info", "top_center")
                 return
             end
+
+            music_player.on_playlist_modified(playlist_path, "remove_track", removed_track_path, track_idx)
 
             -- Update in-memory tracks
             table.remove(xmb.view_data.tracks, track_idx)
@@ -1121,6 +1136,13 @@ end
 function xmb.navigate(dir, no_wrap)
     local moved = false
     if settings_view.active then
+        if settings_view.eq_active then
+            moved = settings_view.navigate_equalizer(dir)
+            if moved and settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+            return moved
+        end
         if settings_view.picker_active then
             local old_idx = settings_view.picker_selected_idx
             if dir == "up" then
@@ -1266,7 +1288,7 @@ function xmb.update(dt)
         reset_marquee()
     end
 
-    if keyboard.is_active() or xmb.playlist_sidebar_active then
+    if keyboard.is_active() or xmb.playlist_sidebar_active or is_lid_locked() then
         xmb.last_key = nil
         xmb.repeat_timer = 0
         return
@@ -1459,7 +1481,7 @@ local function handle_sidebar_input(key)
         end
         ensure_playlist_sidebar_visible()
         if settings.keytone_enabled then assets.play_sfx("nav") end
-    elseif key == "return" or key == "enter" or key == "a" or key == "space" then
+    elseif key == "return" or key == "enter" or key == "a" then
         local pick = xmb.playlist_sidebar_items[xmb.playlist_sidebar_selected_idx]
         if pick and xmb.playlist_sidebar_track_to_add then
             local is_watchlist_sidebar = (xmb.playlist_sidebar_title == "Add to Watchlist")
@@ -1488,6 +1510,7 @@ local function handle_sidebar_input(key)
                 -- Add track to music playlist
                 local ok = add_track_to_playlist(pick.path, xmb.playlist_sidebar_track_to_add)
                 if ok then
+                    music_player.on_playlist_modified(pick.path, "add_track", xmb.playlist_sidebar_track_to_add)
                     ui.show_toast("Added to playlist", "playlist_music", "bottom_right")
                     if xmb.view_type == "playlist_tracks" and xmb.view_data and utils.normalize_path(xmb.view_data.path) == utils.normalize_path(pick.path) then
                         local track_name = utils.get_track_name(xmb.playlist_sidebar_track_to_add)
@@ -1513,6 +1536,21 @@ local function handle_sidebar_input(key)
 end
 
 local function handle_settings_view_input(key)
+    if settings_view.eq_active then
+        if key == "up" or key == "down" or key == "left" or key == "right" then
+            xmb.navigate(key)
+        elseif key == "return" or key == "enter" or key == "a" then
+            if settings_view.eq_selected_idx == 5 then
+                settings_view.reset_custom_equalizer()
+                if settings.keytone_enabled then assets.play_sfx("nav") end
+            end
+        elseif key == "backspace" or key == "b" or key == "escape" then
+            settings_view.close_equalizer_popup()
+            if settings.keytone_enabled then assets.play_sfx("nav") end
+        end
+        return
+    end
+
     -- If folder picker is active, handle its navigation separately
     if settings_view.picker_active then
         if key == "up" then
@@ -1524,7 +1562,7 @@ local function handle_settings_view_input(key)
                 settings_view.picker_selected_idx + 1)
             settings_view.ensure_picker_visible()
             if settings.keytone_enabled then assets.play_sfx("nav") end
-        elseif key == "return" or key == "enter" or key == "a" or key == "space" then
+        elseif key == "return" or key == "enter" or key == "a" then
             local pick = settings_view.picker_items[settings_view.picker_selected_idx]
             if pick then
                 -- If user selected a directory, either drill into it or pick it
@@ -1611,7 +1649,7 @@ local function handle_settings_view_input(key)
 
     if key == "up" or key == "down" then
         xmb.navigate(key)
-    elseif key == "return" or key == "enter" or key == "a" or key == "space" then
+    elseif key == "return" or key == "enter" or key == "a" then
         xmb_actions.apply_setting_value(settings, settings_view, browser, xmb, refresh_settings_items)
     elseif key == "backspace" or key == "b" or key == "escape" then
         settings_view.active = false
@@ -1629,7 +1667,7 @@ local function handle_context_menu_input(key)
         if settings.keytone_enabled then
             assets.play_sfx("nav")
         end
-    elseif key == "return" or key == "enter" or key == "a" or key == "space" then
+    elseif key == "return" or key == "enter" or key == "a" then
         local selected_action = xmb.context_menu.items[xmb.context_menu.selected_idx]
         if selected_action then
             apply_context_action(selected_action.id)
@@ -1702,7 +1740,9 @@ local function handle_item_activation(player, music, viewer)
             local is_resume_view = (xmb.view_type == "video_resume")
             player.play_video(selected.path, is_resume_view)
         elseif cat_id == "music" and music then
-            music.play(selected.path)
+            local play_opts = (xmb.view_type == "playlist_tracks" and xmb.view_data and xmb.view_data.path)
+                and { playlist_path = xmb.view_data.path } or nil
+            music.play(selected.path, nil, play_opts)
         elseif cat_id == "photo" and viewer then
             viewer.open(selected.path, browser.files)
         elseif cat_id == "folder" then
@@ -1746,7 +1786,12 @@ local function handle_item_activation(player, music, viewer)
                 settings.save()
                 ui.show_toast("Default wallpaper restored", "theme", "bottom_right")
                 refresh_settings_items(false)
+            elseif opt.id == "adjust_custom_eq" then
+                settings_view.open_equalizer_popup()
             elseif opt.id == "reindex_media" then
+                if music and music.has_session and music.has_session() then
+                    music.close()
+                end
                 local photo_dir = settings.get_option("photo_dir").value
                 local music_dir = settings.get_option("music_dir").value
                 local video_dir = settings.get_option("video_dir").value
@@ -1768,6 +1813,9 @@ local function handle_item_activation(player, music, viewer)
         if selected.group_id == "quit" then
             love.event.quit()
         else
+            if selected.group_id == "media_dirs" and music and music.has_session and music.has_session() then
+                music.close()
+            end
             table.insert(xmb.nav_stack, xmb.current_item_idx)
             settings.enter_group(selected.group_id)
         end
@@ -1820,7 +1868,11 @@ local function handle_item_activation(player, music, viewer)
 
         if #playlist > 0 then
             local start_idx = love.math.random(1, #playlist)
-            music.play(playlist[start_idx].path, playlist, { shuffle = true })
+            local play_opts = {
+                shuffle = true,
+                playlist_path = (xmb.view_type == "playlist_tracks" and xmb.view_data and xmb.view_data.path) or nil
+            }
+            music.play(playlist[start_idx].path, playlist, play_opts)
         end
     elseif selected.type == "video_play_all" then
         if settings.video_player_mode:sub(1, 6) == "ffplay" then
@@ -1968,10 +2020,40 @@ function xmb.keypressed(key, player, music, viewer)
         return
     end
 
+    if key == "insert" or key == "delete" then
+        return
+    end
+
+    if is_lid_locked() then
+        local mode = settings.soft_button_lock or "Off"
+        if mode == "L/R Skip" or mode == "L/R Skip+Pause" then
+            if key == "pageup" then
+                music.prev_track()
+            elseif key == "pagedown" then
+                music.next_track()
+            end
+        end
+        if mode == "L/R Skip+Pause" then
+            if key == "l" or key == "e" then
+                music.toggle_pause()
+            end
+        end
+        return
+    end
+
     if keyboard.is_active() then
         keyboard.keypressed(key)
         if settings.keytone_enabled then
             assets.play_sfx("nav")
+        end
+        return
+    end
+
+    if (key == "pageup" or key == "pagedown") and music and music.has_session and music.has_session() then
+        if key == "pageup" then
+            music.prev_track()
+        else
+            music.next_track()
         end
         return
     end
@@ -2001,6 +2083,20 @@ function xmb.keypressed(key, player, music, viewer)
         end
     elseif key == "x" then
         handle_context_menu_open()
+    elseif key == "z" then
+        if music and music.has_session and music.has_session() then
+            music.restore()
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+        end
+    elseif key == "space" then
+        if music and music.has_session and music.has_session() then
+            music.close()
+            if settings.keytone_enabled then
+                assets.play_sfx("nav")
+            end
+        end
     end
 end
 

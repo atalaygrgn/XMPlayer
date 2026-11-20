@@ -206,6 +206,8 @@ function assets.load(categories)
     assets.images.dpad = love.graphics.newImage("assets/icons/dpad.png")
     assets.images.repeat_one = love.graphics.newImage("assets/icons/repeat-one.png")
     assets.images.repeat_all = love.graphics.newImage("assets/icons/repeat.png")
+    assets.images["repeat"] = assets.images.repeat_all
+    assets.images.equalizer = love.graphics.newImage("assets/icons/equalizer.png")
     assets.images.battery = love.graphics.newImage("assets/icons/battery.png")
     assets.images.battery_charge = love.graphics.newImage("assets/icons/batterycharge.png")
     assets.images.albums = love.graphics.newImage("assets/icons/albums.png")
@@ -261,7 +263,18 @@ function assets.get_image(name)
     return assets.images[name]
 end
 
+local cached_music_player = nil
+
 function assets.play_sfx(name)
+    if name == "nav" then
+        if not cached_music_player then
+            local ok, mp = pcall(require, "music_player")
+            if ok then cached_music_player = mp end
+        end
+        if cached_music_player and cached_music_player.playing and not cached_music_player.paused then
+            return
+        end
+    end
     local sfx = assets.sfx[name]
     if sfx then
         sfx:stop()

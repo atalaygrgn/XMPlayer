@@ -89,8 +89,10 @@ local EQ_PRESETS = {
 }
 
 local currentEqPreset = "Flat"
+local eqEnabled = true
 local eqActive = false
 local eqPreGain = 1.0
+local customEq = { low = 0.0, mid = 0.0, high = 0.0, preamp = 0.0 }
 local eqBand1 = { b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0 }
 local eqBand2 = { b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0 }
 local eqBand3 = { b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0 }
@@ -168,21 +170,46 @@ local function calcHighShelf(gainDB, freq, sampleRate)
 end
 
 local function updateEqCoefficients()
-    local p = EQ_PRESETS[currentEqPreset] or EQ_PRESETS["Flat"]
-    if math.abs(p.low) < 0.01 and math.abs(p.mid) < 0.01 and math.abs(p.high) < 0.01 then
+    if not eqEnabled then
         eqActive = false
         eqPreGain = 1.0
         return
     end
+
+    local low, mid, high, preamp
+    local isCustom = (currentEqPreset == "Custom")
+    if isCustom then
+        low = customEq.low or 0.0
+        mid = customEq.mid or 0.0
+        high = customEq.high or 0.0
+        preamp = customEq.preamp or 0.0
+    else
+        local p = EQ_PRESETS[currentEqPreset] or EQ_PRESETS["Flat"]
+        low = p.low
+        mid = p.mid
+        high = p.high
+        preamp = 0.0
+    end
+
+    if math.abs(low) < 0.01 and math.abs(mid) < 0.01 and math.abs(high) < 0.01 and math.abs(preamp) < 0.01 then
+        eqActive = false
+        eqPreGain = 1.0
+        return
+    end
+
     eqActive = true
     local sr = currentSampleRate > 0 and currentSampleRate or SAMPLE_RATE
-    eqBand1 = calcLowShelf(p.low, 120, sr)
-    eqBand2 = calcPeakingEQ(p.mid, 1000, 0.8, sr)
-    eqBand3 = calcHighShelf(p.high, 6000, sr)
+    eqBand1 = calcLowShelf(low, 120, sr)
+    eqBand2 = calcPeakingEQ(mid, 1000, 0.8, sr)
+    eqBand3 = calcHighShelf(high, 6000, sr)
 
-    -- Headroom pre-gain to prevent digital clipping on heavy boosts
-    local maxBoost = math.max(0, p.low, p.mid, p.high)
-    eqPreGain = 10 ^ ((-maxBoost * 0.35) / 20)
+    if isCustom then
+        eqPreGain = 10 ^ (preamp / 20)
+    else
+        -- Headroom pre-gain to prevent digital clipping on heavy boosts
+        local maxBoost = math.max(0, low, mid, high)
+        eqPreGain = 10 ^ ((-maxBoost * 0.35) / 20)
+    end
 end
 
 local function new_audio_worker()
@@ -682,7 +709,7 @@ function ffmpeg_audio.seek(time)
 end
 
 function ffmpeg_audio.setEqualizerPreset(preset)
-    if EQ_PRESETS[preset] then
+    if preset == "Custom" or EQ_PRESETS[preset] then
         currentEqPreset = preset
     else
         currentEqPreset = "Flat"
@@ -692,6 +719,33 @@ end
 
 function ffmpeg_audio.getEqualizerPreset()
     return currentEqPreset
+end
+
+function ffmpeg_audio.setEqualizerEnabled(enabled)
+    local newState = (enabled ~= false)
+    if eqEnabled ~= newState then
+        eqEnabled = newState
+        resetEqState()
+        updateEqCoefficients()
+    end
+end
+
+function ffmpeg_audio.isEqualizerEnabled()
+    return eqEnabled
+end
+
+function ffmpeg_audio.setCustomEqualizer(low, mid, high, preamp)
+    customEq.low = tonumber(low) or 0.0
+    customEq.mid = tonumber(mid) or 0.0
+    customEq.high = tonumber(high) or 0.0
+    customEq.preamp = tonumber(preamp) or 0.0
+    if currentEqPreset == "Custom" then
+        updateEqCoefficients()
+    end
+end
+
+function ffmpeg_audio.getCustomEqualizer()
+    return customEq.low, customEq.mid, customEq.high, customEq.preamp
 end
 
 -- Compatibility wrapper for old SoundData interface

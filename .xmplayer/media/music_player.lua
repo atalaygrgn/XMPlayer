@@ -14,6 +14,7 @@ music.active               = false -- Is the music player view showing?
 music.playing              = false -- Is audio currently playing?
 music.paused               = false
 music.current_track        = nil   -- {name, path}
+music.active_playlist_path = nil   -- Path to .m3u playlist if playing from a playlist
 music.current_index        = 0     -- Index in the playlist
 music.playlist             = {}    -- List of tracks from current folder
 music.source               = nil   -- FFmpeg audio backend (for compatibility)
@@ -28,8 +29,9 @@ music.original_playlist    = {}
 music.auto_sleep_minutes   = 0
 music.auto_sleep_remaining = nil
 music.visualizer_mode      = "wave" -- off, wave, bars
+music.equalizer_enabled    = true
 music.equalizer_preset     = "Flat"
-music.equalizer_presets    = { "Flat", "Rock", "Pop", "Jazz", "Classical", "Electronic", "Vocal" }
+music.equalizer_presets    = { "Flat", "Rock", "Pop", "Jazz", "Classical", "Electronic", "Vocal", "Custom" }
 
 -- Metadata tags
 music.tags                 = {}
@@ -220,6 +222,7 @@ function music.play(filepath, custom_playlist, options)
 
     local is_shuffle = (options and options.shuffle == true)
     music.shuffle = is_shuffle
+    music.active_playlist_path = (options and options.playlist_path) or nil
 
     local track_info = nil
     local start_index = 1
@@ -314,10 +317,80 @@ function music.prev_track()
     end
 end
 
+function music.has_session()
+    return music.current_track ~= nil and music.source ~= nil
+end
+
+function music.minimize()
+    if not music.has_session() then
+        music.close()
+        return
+    end
+    music.active = false
+end
+
+function music.restore()
+    if not music.has_session() then return end
+    music.active = true
+    music.fade_alpha = 0
+    music.slide_x = 0
+end
+
+function music.on_playlist_modified(playlist_path, action, track_path, track_idx)
+    if not music.has_session() or not music.active_playlist_path or not playlist_path then
+        return
+    end
+    if utils.normalize_path(music.active_playlist_path) ~= utils.normalize_path(playlist_path) then
+        return
+    end
+
+    if action == "delete" or action == "rename" then
+        music.close()
+    elseif action == "remove_track" then
+        if music.current_track and track_path and utils.normalize_path(music.current_track.path) == utils.normalize_path(track_path) then
+            music.close()
+            return
+        end
+        if track_idx and music.original_playlist[track_idx] then
+            table.remove(music.original_playlist, track_idx)
+        elseif track_path then
+            for i = #music.original_playlist, 1, -1 do
+                if utils.normalize_path(music.original_playlist[i].path) == utils.normalize_path(track_path) then
+                    table.remove(music.original_playlist, i)
+                    break
+                end
+            end
+        end
+        for i = #music.playlist, 1, -1 do
+            if track_path and utils.normalize_path(music.playlist[i].path) == utils.normalize_path(track_path) then
+                table.remove(music.playlist, i)
+                if i < music.current_index then
+                    music.current_index = math.max(1, music.current_index - 1)
+                end
+                break
+            end
+        end
+        if #music.playlist == 0 then
+            music.close()
+            return
+        end
+        if music.current_index > #music.playlist then
+            music.current_index = #music.playlist
+        end
+        music.update_next_tags()
+    elseif action == "add_track" and track_path then
+        local entry = { name = utils.get_track_name(track_path), path = track_path }
+        table.insert(music.original_playlist, entry)
+        table.insert(music.playlist, entry)
+        music.update_next_tags()
+    end
+end
+
 function music.close()
     music.stop()
     music.active = false
     music.current_track = nil
+    music.active_playlist_path = nil
     music.playlist = {}
     music.original_playlist = {}
     music.shuffle = false
@@ -394,7 +467,7 @@ function music.set_auto_sleep_minutes(minutes)
     mins = math.max(0, math.min(120, math.floor(mins)))
     music.auto_sleep_minutes = mins
 
-    if mins > 0 and music.active then
+    if mins > 0 and (music.active or music.has_session()) then
         music.auto_sleep_remaining = mins * 60
     else
         music.auto_sleep_remaining = nil
@@ -417,8 +490,16 @@ function music.set_equalizer_preset(preset)
     end
 end
 
+function music.set_equalizer_enabled(enabled)
+    music.equalizer_enabled = (enabled == true)
+    ffmpeg_audio.setEqualizerEnabled(music.equalizer_enabled)
+end
+
 function music.update(dt, skip_ui)
-    if not music.active then return end
+    if not music.active and not music.has_session() then return end
+    if not music.active then
+        skip_ui = true
+    end
 
     -- Update FFmpeg audio backend
     ffmpeg_audio.update()
@@ -564,6 +645,12 @@ function music.update(dt, skip_ui)
 
         local album_name = music.tags.album or "Unknown Album"
         ui.update_marquee(music.marquees.album, dt, ui.measure_text_width(assets.fonts.album, album_name))
+    elseif not music.active and music.current_track and music.marquees.widget_title then
+        local w = viewport.get()
+        local box_w = math.min(280, math.max(200, w - 240))
+        music.marquees.widget_title.max_width = box_w - 66
+        local track_name = (music.tags and music.tags.title) or utils.get_track_name(music.current_track.name)
+        ui.update_marquee(music.marquees.widget_title, dt, ui.measure_text_width(assets.fonts.xs, track_name))
     end
 end
 

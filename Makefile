@@ -19,8 +19,9 @@ build:
 	
 	@echo "Copying .xmplayer directory..."
 	@$(POWERSHELL) "Copy-Item -Path '.\.xmplayer' -Destination '$(DIST_DIR)\.xmplayer' -Recurse -Force"
-	@echo "Excluding ffplay binary from muOS build..."
+	@echo "Excluding ffplay binary and chai_retrofit from muOS build..."
 	@$(POWERSHELL) "if (Test-Path '$(DIST_DIR)\.xmplayer\bin\ffplay') { Remove-Item -Path '$(DIST_DIR)\.xmplayer\bin\ffplay' -Force }"
+	@$(POWERSHELL) "if (Test-Path '$(DIST_DIR)\.xmplayer\chai_retrofit') { Remove-Item -Path '$(DIST_DIR)\.xmplayer\chai_retrofit' -Recurse -Force }"
 	
 	@echo "Copying glyph folder..."
 	@$(POWERSHELL) "Copy-Item -Path '.\glyph' -Destination '$(DIST_DIR)\glyph' -Recurse -Force"

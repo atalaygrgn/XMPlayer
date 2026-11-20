@@ -87,7 +87,7 @@ local function update_system_hardware_status(dt)
         if runtime_state.backlight_timer >= (runtime_state.backlight_check_interval or 0.5) then
             runtime_state.backlight_timer = 0
             runtime_state.backlight_off = system.is_backlight_off()
-            if not runtime_state.backlight_off and runtime_state.last_brightness ~= nil and runtime_state.last_brightness <= 0 and system.get_cfw_name() == "muOS" then
+            if not runtime_state.backlight_off and runtime_state.last_brightness ~= nil and runtime_state.last_brightness <= 0 then
                 runtime_state.last_brightness = system.get_brightness()
             end
         end
@@ -108,31 +108,45 @@ local function update_system_hardware_status(dt)
         runtime_state.is_charging = system.is_charging()
     end
 
-    -- Update volume & brightness status (only on muOS to prevent lag on other CFWs)
+    local just_woke = runtime_state.was_display_off
+
+    -- Update volume status (event-driven via CHAI subscriber on all CFWs, or muOS fallback)
     runtime_state.ui_timer = runtime_state.ui_timer + dt
     if runtime_state.ui_timer >= runtime_state.ui_check_interval then
         runtime_state.ui_timer = 0
 
-        if system.get_cfw_name() == "muOS" then
-            local just_woke = runtime_state.was_display_off
-            runtime_state.was_display_off = false
-
-            -- Volume
+        if system.has_chai() then
+            local vol_event = system.poll_volume_event()
+            if vol_event ~= nil then
+                if not just_woke and settings.vol_bright_enabled then
+                    ui.show_volume_toast(vol_event)
+                end
+                runtime_state.last_volume = vol_event
+            end
+        elseif system.get_cfw_name() == "muOS" then
             local current_volume = system.get_volume()
             if not just_woke and settings.vol_bright_enabled and runtime_state.last_volume ~= nil and current_volume ~= nil and current_volume ~= runtime_state.last_volume then
                 ui.show_volume_toast(current_volume)
             end
             runtime_state.last_volume = current_volume
+        end
+    end
 
-            -- Brightness
+    -- Update brightness status across all CHAI-supported CFWs (polled at 4 Hz to avoid lag)
+    runtime_state.brightness_timer = (runtime_state.brightness_timer or 0) + dt
+    if runtime_state.brightness_timer >= (runtime_state.brightness_check_interval or 0.25) then
+        runtime_state.brightness_timer = 0
+
+        if system.has_chai() or system.get_cfw_name() == "muOS" then
             local current_brightness = system.get_brightness()
             if not just_woke and settings.vol_bright_enabled and runtime_state.last_brightness ~= nil and current_brightness ~= nil and current_brightness ~= runtime_state.last_brightness then
                 ui.show_brightness_toast(current_brightness)
             end
             runtime_state.last_brightness = current_brightness
-        else
-            runtime_state.was_display_off = false
         end
+        runtime_state.was_display_off = false
+    elseif not system.has_chai() and system.get_cfw_name() ~= "muOS" then
+        runtime_state.was_display_off = false
     end
 end
 
@@ -186,7 +200,8 @@ function love.load()
         indexing.is_scanning = true
     end
 
-    -- Initial battery check
+    -- Initial hardware check & CHAI volume subscriber
+    system.init_volume_subscriber()
     runtime_state.battery_percentage = system.get_battery_percentage()
     runtime_state.is_charging = system.is_charging()
     runtime_state.last_volume = system.get_volume()
@@ -194,6 +209,10 @@ function love.load()
 
     -- Screen setup
     love.graphics.setBackgroundColor(theme.colors.background)
+end
+
+function love.quit()
+    system.cleanup_volume_subscriber()
 end
 
 function love.resize()
@@ -241,6 +260,9 @@ function love.update(dt)
         is_paused = music.paused
     elseif image_viewer.active then
         runtime_state.current_view = "image"
+        if music.has_session() then
+            music.update(dt, true)
+        end
         image_viewer.update(dt)
         is_paused = true
     elseif indexing.is_scanning then
@@ -257,6 +279,9 @@ function love.update(dt)
         return
     else
         runtime_state.current_view = "xmb"
+        if music.has_session() then
+            music.update(dt, true)
+        end
         xmb.update(dt)
     end
 
@@ -350,6 +375,12 @@ function love.draw()
 end
 
 function love.keypressed(key)
+    if key == "insert" then
+        music_view.lid_closed = true
+    elseif key == "delete" then
+        music_view.lid_closed = false
+    end
+
     if indexing and indexing.is_scanning then
         return
     end
